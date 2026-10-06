@@ -40,7 +40,7 @@ class AdminSet extends Command
             return self::FAILURE;
         }
 
-        SettingsService::ensureJwtSecret();
+        SettingsService::seedDefaults();
 
         $existing = SettingsService::adminPhones();
         $merged = array_values(array_unique(array_merge($existing, $phones)));
@@ -50,14 +50,13 @@ class AdminSet extends Command
             $user = User::where('phone', $phone)->first();
             if ($user) {
                 if ($user->role !== 'admin') {
-                    $user->role = 'admin';
-                    $user->save();
+                    $user->syncAccess('admin', null);
                     $this->info("{$phone} → ارتقا به مدیر سیستم");
                 } else {
                     $this->line("{$phone} → قبلاً مدیر است");
                 }
             } else {
-                User::create([
+                $user = User::create([
                     'phone' => $phone,
                     'name' => 'کاربر '.substr($phone, -4),
                     'role' => 'admin',
@@ -65,6 +64,7 @@ class AdminSet extends Command
                     'is_blocked' => false,
                     'created_at' => now()->toIso8601String(),
                 ]);
+                $user->syncAccess('admin', null);
                 $this->info("{$phone} → مدیر جدید ساخته شد");
             }
         }

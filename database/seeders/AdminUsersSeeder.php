@@ -7,6 +7,7 @@ use Illuminate\Database\Seeder;
 /**
  * Admin users seeder (repeatable/idempotent): converts the adminPhones
  * setting into real admin-role users — 002_admin_users_seeder port.
+ * Roles/permissions are applied through spatie (User::syncAccess).
  */
 class AdminUsersSeeder extends Seeder
 {
@@ -17,11 +18,10 @@ class AdminUsersSeeder extends Seeder
             $existing = \App\Models\User::where('phone', $phone)->first();
             if ($existing) {
                 if ($existing->role !== 'admin') {
-                    $existing->role = 'admin';
-                    $existing->save();
+                    $existing->syncAccess('admin', null);
                 }
             } else {
-                \App\Models\User::create([
+                $user = \App\Models\User::create([
                     'phone' => $phone,
                     'name' => 'کاربر '.substr($phone, -4),
                     'role' => 'admin',
@@ -29,6 +29,7 @@ class AdminUsersSeeder extends Seeder
                     'is_blocked' => false,
                     'created_at' => now()->toIso8601String(),
                 ]);
+                $user->syncAccess('admin', null);
             }
         }
     }

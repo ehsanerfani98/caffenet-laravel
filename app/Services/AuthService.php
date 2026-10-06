@@ -4,26 +4,25 @@ namespace App\Services;
 
 use App\Models\OtpCode;
 use App\Models\User;
-use Firebase\JWT\ExpiredException;
-use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
 use Illuminate\Support\Facades\DB;
 
 /**
- * OTP + JWT session auth — a faithful port of server/auth.ts.
+ * OTP dispatch/verification — the OTP layer feeding Laravel Fortify's
+ * authentication pipeline (see AppServiceProvider::authenticateUsing).
+ *
+ * Fortify owns sessions, throttling and login events; this service only
+ * generates, stores and verifies the 5-digit codes.
  *
  * Preserved guarantees:
  *  - 5-digit OTP, 2-minute TTL, max 5 verification attempts per code.
- *  - OTP stored hashed with HMAC-SHA256 keyed by the JWT secret over
- *    `${phone}:${code}`; rotating the secret invalidates codes AND sessions.
+ *  - OTP stored hashed with HMAC-SHA256 keyed by the application key over
+ *    `${phone}:${code}`; rotating APP_KEY invalidates pending codes (and
+ *    sessions, which Laravel already ties to APP_KEY).
  *  - Max 3 new codes per phone per 10 minutes (independent of IP limits).
- *  - `timingSafeEqual`-style comparison via hash_equals.
- *  - JWT in an httpOnly SameSite=Lax cookie (`cn_auth`) or Bearer header.
+ *  - timing-safe comparison via hash_equals.
  */
 class AuthService
 {
-    public const AUTH_COOKIE = 'cn_auth';
-
     public const OTP_TTL_SECONDS = 120;
 
     public const OTP_MAX_ATTEMPTS = 5;
@@ -39,7 +38,7 @@ class AuthService
 
     public static function hashOtp(string $phone, string $code): string
     {
-        return hash_hmac('sha256', $phone.':'.$code, SettingsService::jwtSecret());
+        return hash_hmac('sha256', $phone.':'.$code, (string) config('app.key'));
     }
 
     /** Persists a new hashed OTP; consumes previous unused codes of the phone. */
@@ -109,81 +108,24 @@ class AuthService
         $user = User::where('phone', $phone)->first();
         if ($user) {
             if (in_array($phone, $adminPhones, true) && $user->role !== 'admin') {
-                $user->role = 'admin';
-                $user->save();
+                $user->syncAccess('admin', null);
             }
 
             return $user;
         }
 
         $last4 = substr($phone, -4);
+        $role = in_array($phone, $adminPhones, true) ? 'admin' : 'customer';
 
-        return User::create([
+        $user = User::create([
             'phone' => $phone,
             'name' => 'کاربر '.$last4,
-            'role' => in_array($phone, $adminPhones, true) ? 'admin' : 'customer',
+            'role' => $role,
             'wallet_balance' => 0,
             'is_blocked' => false,
             'created_at' => now()->toIso8601String(),
         ]);
-    }
-
-    public static function signToken(User $user): string
-    {
-        $now = time();
-
-        return JWT::encode(
-            [
-                'iss' => 'caffenet-lite',
-                'sub' => $user->id,
-                'phone' => $user->phone,
-                'role' => $user->role,
-                'iat' => $now,
-                'exp' => $now + SettingsService::jwtTtlMinutes() * 60,
-            ],
-            SettingsService::jwtSecret(),
-            'HS256'
-        );
-    }
-
-    /** Cookie parameters factory used by controllers (httpOnly, Lax, secure in prod). */
-    public static function authCookie(string $token): \Symfony\Component\HttpFoundation\Cookie
-    {
-        return cookie(self::AUTH_COOKIE, $token, SettingsService::jwtTtlMinutes(), '/', null, app()->environment('production'), true, false, 'Lax');
-    }
-
-    public static function clearAuthCookie(): \Symfony\Component\HttpFoundation\Cookie
-    {
-        return cookie(self::AUTH_COOKIE, '', -1, '/', null, app()->environment('production'), true, false, 'Lax');
-    }
-
-    /** Extract token from the cookie or Authorization header. */
-    public static function extractToken(\Illuminate\Http\Request $request): ?string
-    {
-        $bearer = $request->bearerToken();
-        if ($bearer) {
-            return $bearer;
-        }
-        $cookie = $request->cookie(self::AUTH_COOKIE);
-
-        return $cookie ? (string) $cookie : null;
-    }
-
-    /** Verify a JWT and return the fresh DB user, or null. */
-    public static function resolveUser(string $token): ?User
-    {
-        try {
-            $payload = JWT::decode($token, new Key(SettingsService::jwtSecret(), 'HS256'));
-        } catch (ExpiredException) {
-            return null;
-        } catch (\Throwable) {
-            return null;
-        }
-
-        $user = User::find($payload->sub ?? null);
-        if (! $user || $user->is_blocked) {
-            return null;
-        }
+        $user->syncAccess($role, null);
 
         return $user;
     }

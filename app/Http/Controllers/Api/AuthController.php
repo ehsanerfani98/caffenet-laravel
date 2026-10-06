@@ -4,16 +4,32 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Support\Formatter;
-use App\Models\User;
 use App\Services\AuthService;
 use App\Services\SmsService;
+use App\Services\SettingsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Pipeline;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
+use Laravel\Fortify\Actions\AttemptToAuthenticate;
+use Laravel\Fortify\Actions\EnsureLoginIsNotThrottled;
+use Laravel\Fortify\Actions\PrepareAuthenticatedSession;
+use Laravel\Fortify\Contracts\LoginResponse;
+use Laravel\Fortify\Fortify;
+use Laravel\Fortify\Http\Requests\LoginRequest;
 
 /**
- * OTP auth endpoints — send-otp / verify-otp / logout / me.
- * Rate limits: send-otp 6/min, verify-otp 15/min per IP.
+ * Auth endpoints — send-otp / verify-otp / logout / me.
+ *
+ * verify-otp drives Laravel Fortify's login pipeline with the phone as the
+ * username and the 5-digit code in the password field: EnsureLoginIsNotThrottled
+ * (Fortify's LoginRateLimiter) → AttemptToAuthenticate (guard->login via
+ * Fortify::authenticateUsing) → PrepareAuthenticatedSession (session ID
+ * regeneration). logout mirrors Fortify's AuthenticatedSessionController.
+ *
+ * Rate limits: send-otp 6/min, verify-otp 15/min per IP (contract),
+ * plus Fortify's per-phone+IP lockout inside the pipeline.
  */
 class AuthController extends Controller
 {
@@ -35,7 +51,7 @@ class AuthController extends Controller
             return response()->json(['error' => 'شماره موبایل معتبر نیست.'], 400);
         }
 
-        if (User::where('phone', $phone)->where('is_blocked', true)->exists()) {
+        if (\App\Models\User::where('phone', $phone)->where('is_blocked', true)->exists()) {
             return response()->json(['error' => 'حساب کاربری شما مسدود شده است.'], 403);
         }
 
@@ -48,8 +64,8 @@ class AuthController extends Controller
         SmsService::sendOtp($phone, $code);
 
         // In either test mode the code is surfaced instead of being SMSed.
-        $testMode = \App\Services\SettingsService::bool('otpTestMode')
-            || \App\Services\SettingsService::bool('smsTestMode');
+        $testMode = SettingsService::bool('otpTestMode')
+            || SettingsService::bool('smsTestMode');
 
         $payload = ['message' => 'کد تایید ارسال شد.'];
         if ($testMode) {
@@ -74,47 +90,50 @@ class AuthController extends Controller
         }
 
         $phone = AuthService::normalizePhone((string) ($request->json('phone') ?? ''));
-        $code = preg_replace('/\D/', '', (string) ($request->json('code') ?? '')) ?? '';
+        $code = preg_replace('/\D/', '', AuthService::toLatinDigits((string) ($request->json('code') ?? ''))) ?? '';
 
         if (! AuthService::isValidIranianMobile($phone) || strlen($code) !== 5) {
             return response()->json(['error' => 'شماره یا کد تایید معتبر نیست.'], 400);
         }
 
-        $result = AuthService::verifyOtp($phone, $code);
-        if (! $result['ok']) {
-            $messages = [
-                'no_code' => 'کد تاییدی برای این شماره یافت نشد.',
-                'expired' => 'کد تایید منقضی شده است. دوباره تلاش کنید.',
-                'too_many' => 'تعداد تلاش‌های ناموفق زیاد است. کد جدید بگیرید.',
-                'mismatch' => 'کد تایید اشتباه است.',
-            ];
+        // Map the OTP request onto Fortify's login contract:
+        // username = phone, password = the verification code.
+        $request->merge(['phone' => $phone, 'password' => $code]);
 
-            return response()->json(['error' => $messages[$result['reason']] ?? 'کد تایید نامعتبر است.'], 400);
-        }
+        return $this->loginPipeline(LoginRequest::createFrom($request))
+            ->then(fn (Request $request) => app(LoginResponse::class));
+    }
 
-        if (User::where('phone', $phone)->where('is_blocked', true)->exists()) {
-            return response()->json(['error' => 'حساب کاربری شما مسدود شده است.'], 403);
-        }
-
-        $user = AuthService::findOrCreateUser($phone);
-        $token = AuthService::signToken($user);
-
-        return response()->json(Formatter::user($user))
-            ->cookie(AuthService::authCookie($token));
+    /**
+     * The same pipeline Fortify's AuthenticatedSessionController runs for
+     * POST /login — applied here because the API keeps its own endpoints.
+     */
+    protected function loginPipeline(LoginRequest $request): Pipeline
+    {
+        return (new Pipeline(app()))
+            ->send($request)
+            ->through(array_filter([
+                EnsureLoginIsNotThrottled::class,
+                AttemptToAuthenticate::class,
+                PrepareAuthenticatedSession::class,
+            ]));
     }
 
     public function logout(Request $request): JsonResponse
     {
-        $response = response()->json(['message' => 'خروج انجام شد.']);
-        $response->cookie(cookie(AuthService::AUTH_COOKIE, '', -1, '/', null, app()->environment('production'), true, false, 'Lax'));
+        // Fortify's AuthenticatedSessionController::destroy pattern.
+        Auth::guard('web')->logout();
 
-        return $response;
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
+        return response()->json(['message' => 'خروج انجام شد.']);
     }
 
     public function me(Request $request): JsonResponse
     {
-        $user = $request->attributes->get('authUser');
-
-        return response()->json(Formatter::user($user));
+        return response()->json(Formatter::user($request->user()));
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Support\Formatter;
 use App\Models\User;
+use App\Services\AuthService;
 use App\Services\PermissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * User management — faithful port of usersRouter in routes.ts.
  * PATCH handles role/block/wallet/permissions guarded by the matching
- * permissions (users.edit | users.permissions).
+ * permissions (users.edit | users.permissions). Roles and permissions are
+ * applied exclusively through spatie (User::syncAccess).
  */
 class UserController extends Controller
 {
@@ -27,9 +29,9 @@ class UserController extends Controller
     public function store(Request $request): JsonResponse
     {
         $body = (array) $request->json()->all();
-        $phone = \App\Services\AuthService::normalizePhone((string) ($body['phone'] ?? ''));
+        $phone = AuthService::normalizePhone((string) ($body['phone'] ?? ''));
 
-        if (! \App\Services\AuthService::isValidIranianMobile($phone)) {
+        if (! AuthService::isValidIranianMobile($phone)) {
             return response()->json(['error' => 'شماره موبایل معتبر نیست.'], 400);
         }
         if (User::where('phone', $phone)->exists()) {
@@ -44,9 +46,9 @@ class UserController extends Controller
             'role' => $role,
             'wallet_balance' => 0,
             'is_blocked' => false,
-            'permissions_json' => isset($body['permissions']) ? json_encode($body['permissions']) : null,
             'created_at' => now()->toIso8601String(),
         ]);
+        $user->syncAccess($role, PermissionService::normalize($body['permissions'] ?? null));
 
         return response()->json(Formatter::user($user), 201);
     }
@@ -59,17 +61,18 @@ class UserController extends Controller
         }
 
         $body = (array) $request->json()->all();
-        $granted = $request->attributes->get('authPermissions');
-        $hasEdit = PermissionService::has($granted, 'users.edit');
-        $hasPerm = PermissionService::has($granted, 'users.permissions');
+        $actor = $request->user();
+        $hasEdit = $actor->hasAnyPermission(['users.edit', 'users.manage']);
+        $hasPerm = $actor->hasAnyPermission(['users.permissions', 'users.manage']);
         if (! $hasEdit && ! $hasPerm) {
             return response()->json(['error' => 'شما دسترسی لازم برای این عملیات را ندارید.'], 403);
         }
 
-        DB::transaction(function () use ($user, $body, $hasEdit, $hasPerm, $request) {
+        DB::transaction(function () use ($user, $body, $hasEdit, $hasPerm) {
+            $role = $user->role;
             if ($hasEdit) {
                 if (isset($body['role']) && in_array($body['role'], ['customer', 'operator', 'admin'], true)) {
-                    $user->role = $body['role'];
+                    $role = $body['role'];
                 }
                 if (array_key_exists('isBlocked', $body)) {
                     $user->is_blocked = (bool) $body['isBlocked'];
@@ -84,13 +87,20 @@ class UserController extends Controller
                     $user->wallet_balance = $newBalance;
                 }
             }
+
+            // Roles/permissions via spatie. An explicit, non-empty override
+            // replaces the role's default set; an empty/absent one restores
+            // the role defaults. Admins always get the full catalog.
             if ($hasPerm && array_key_exists('permissions', $body)) {
-                $permissions = is_array($body['permissions']) ? $body['permissions'] : [];
-                $valid = array_flip(PermissionService::allKeys());
-                $clean = array_values(array_filter($permissions, fn ($p) => is_string($p) && isset($valid[$p])));
-                $user->permissions_json = count($clean) ? json_encode($clean) : null;
+                $override = PermissionService::normalize($body['permissions']);
+            } else {
+                // Preserve the existing override (direct spatie permissions
+                // only — role-synced defaults are not an override).
+                $direct = $user->permissions->pluck('name')->all();
+                $override = count($direct) ? PermissionService::normalize($direct) : null;
             }
-            $user->save();
+
+            $user->syncAccess($role, $role === 'admin' ? null : $override);
         });
 
         return response()->json(Formatter::user($user));
@@ -108,6 +118,9 @@ class UserController extends Controller
             return response()->json(['error' => 'حذف حساب خودتان ممکن نیست.'], 400);
         }
 
+        // Detach spatie pivots before dropping the account.
+        $user->syncRoles([]);
+        $user->syncPermissions([]);
         $user->delete();
 
         return response()->json(['message' => 'کاربر حذف شد.']);

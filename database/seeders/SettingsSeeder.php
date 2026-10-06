@@ -14,8 +14,5 @@ class SettingsSeeder extends Seeder
     public function run(): void
     {
         \App\Services\SettingsService::seedDefaults();
-        // Boot-time guarantee from server.ts: the JWT secret is auto-generated
-        // and persisted on first run so OTP hashing + sessions work at once.
-        \App\Services\SettingsService::ensureJwtSecret();
     }
 }

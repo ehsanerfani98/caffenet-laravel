@@ -26,8 +26,11 @@ use Illuminate\Support\Facades\Route;
 Route::get('/health', fn () => response()->json(['status' => 'ok', 'time' => now()->toIso8601String()]));
 
 // ---------------- Auth (dedicated rate limiters) ----------------
-Route::post('/auth/send-otp', [AuthController::class, 'sendOtp'])->middleware('throttle:6,1');
-Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:15,1');
+// IP throttles (send 6/min, verify 15/min) live in AuthController so the
+// contract's Persian 429 JSON ships; Fortify's login limiter additionally
+// locks out brute-force verification attempts.
+Route::post('/auth/send-otp', [AuthController::class, 'sendOtp']);
+Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp']);
 Route::post('/auth/logout', [AuthController::class, 'logout']);
 Route::get('/auth/me', [AuthController::class, 'me'])->middleware('auth.session');
 

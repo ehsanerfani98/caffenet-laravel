@@ -55,12 +55,6 @@ class SettingsService
         ['key' => 'fileRetentionDays', 'category' => 'general', 'type' => 'number',
             'label' => 'روز نگهداری فایل', 'default' => '14'],
 
-        // ---- auth ----
-        ['key' => 'jwtSecret', 'category' => 'auth', 'type' => 'secret',
-            'label' => 'کلید امضای نشست (JWT)', 'default' => ''],
-        ['key' => 'jwtExpiresIn', 'category' => 'auth', 'type' => 'string',
-            'label' => 'مدت اعتبار توکن', 'default' => '7d'],
-
         // ---- sms ----
         ['key' => 'smsEnabled', 'category' => 'sms', 'type' => 'boolean',
             'label' => 'فعال بودن سامانه پیامک', 'default' => '0'],
@@ -172,33 +166,6 @@ class SettingsService
         )));
     }
 
-    /** Secret or throws — used before signing/verifying JWTs. */
-    public static function jwtSecret(): string
-    {
-        $secret = (string) self::raw('jwtSecret');
-        if ($secret === '') {
-            throw new \RuntimeException('کلید امضای نشست تنظیم نشده است.');
-        }
-
-        return $secret;
-    }
-
-    public static function jwtTtlMinutes(): int
-    {
-        $raw = (string) self::raw('jwtExpiresIn', '7d');
-        if (preg_match('/^(\d+)\s*(m|h|d)$/i', trim($raw), $m)) {
-            $n = (int) $m[1];
-
-            return match (strtolower($m[2])) {
-                'm' => max(1, $n),
-                'h' => $n * 60,
-                'd' => $n * 60 * 24,
-            };
-        }
-
-        return 60 * 24 * 7;
-    }
-
     public static function smsSettings(): array
     {
         $apiKey = (string) self::raw('smsApiKey');
@@ -256,14 +223,6 @@ class SettingsService
     public static function otpTestMode(): bool
     {
         return self::bool('otpTestMode');
-    }
-
-    /** Auto-generate and persist a JWT secret when absent (first boot). */
-    public static function ensureJwtSecret(): void
-    {
-        if (trim((string) self::raw('jwtSecret')) === '') {
-            self::set('jwtSecret', bin2hex(random_bytes(32)));
-        }
     }
 
     /**

@@ -17,7 +17,8 @@
 - **مدیر سیستم**: مدیریت خدمات و فرم‌ساز پویا، کاربران و مجوزهای ریزدانه، کدهای تخفیف، اسلایدر صفحه
   اصلی، لاگ پیامک‌ها و تنظیمات سیستمی.
 
-احراز هویت با کد یکبارمصرف پیامکی (OTP) و نشست JWT در کوکی httpOnly انجام می‌شود؛ پرداخت آنلاین
+احراز هویت با کد یکبارمصرف پیامکی (OTP) از طریق پایپ‌لاین ورود **Laravel Fortify** (نشست بومی لاراول +
+CSRF) و نقش‌ها/مجوزها با **spatie/laravel-permission** انجام می‌شود؛ پرداخت آنلاین
 زرین‌پال و کیف پول داخلی پشتیبانی می‌گردد.
 
 ## فهرست
@@ -63,7 +64,8 @@
 | پوسته | Blade (`resources/views/app.blade.php`) |
 | بک‌اند | Laravel 13 (PHP ≥ 8.2) |
 | دیتابیس | SQLite فایل‌محور با WAL (بدون سرور دیتابیس) |
-| احراز هویت | `firebase/php-jwt` + کوکی `cn_auth` (httpOnly، SameSite=Lax) |
+| احراز هویت | Laravel Fortify (پایپ‌لاین ورود OTP، نشست بومی + CSRF) |
+| نقش‌ها و مجوزها | spatie/laravel-permission (جداول roles/permissions + middleware رسمی) |
 | پیامک | ippanel (REST، هدر apikey، الگوی pattern) |
 | پرداخت | زرین‌پال REST v4 + sandbox + درگاه آزمایشی داخلی |
 | PWA | manifest + Service Worker سبک دستی (`public/sw.js`) |
@@ -90,8 +92,8 @@ php artisan admin:set 09191816172
 php artisan serve          # http://localhost:8000
 ```
 
-در نخستین بوت، سیدرها همه کلیدهای تنظیمات را می‌سازند و راز JWT به‌صورت خودکار تولید و ذخیره
-می‌شود. برای ورود بدون پیامک/درگاه واقعی، از پنل مدیریت (تنظیمات سیستمی → حالت‌های آزمایشی)
+در نخستین بوت، سیدرها همه کلیدهای تنظیمات را می‌سازند (جداول نقش‌ها/مجوزهای اسپاتی هم
+همزمان sync می‌شوند). برای ورود بدون پیامک/درگاه واقعی، از پنل مدیریت (تنظیمات سیستمی → حالت‌های آزمایشی)
 کلیدهای `otpTestMode`، `smsTestMode` و `paymentTestMode` را فعال کنید؛ در حالت آزمایشی، کد تایید
 روی صفحه نمایش داده می‌شود و درگاه داخلی `/test-gateway` با دکمه‌های «پرداخت موفق/انصراف» کار می‌کند.
 
@@ -103,7 +105,7 @@ php artisan serve          # http://localhost:8000
 > می‌شوند و هر خواندن یک `SELECT` زنده است (بدون کش) — پس تغییر در پنل بلافاصله اثر می‌گذارد.
 
 - **بدون fallback محیطی**: کلید غایب → مقدار پیش‌فرض کامپایل‌شده در `SettingsService::DEFS`.
-- **ماسک رازها**: مقادیر حساس (`jwtSecret`، `smsApiKey`، `paymentMerchantId`) در پاسخ API با
+- **ماسک رازها**: مقادیر حساس (`smsApiKey`، `paymentMerchantId`) در پاسخ API با
   `********` ماسک می‌شوند؛ ارسال ماسک یا مقدار خالی، مقدار ذخیره‌شده را دست‌نخورده نگه می‌دارد.
 - پنج مقدار فقط‌بوت (محیط اجرا) در پنل فقط‌خواندنی نمایش داده می‌شوند.
 
@@ -197,13 +199,14 @@ php artisan admin:set 09xxxxxxxxx
 app/
   Console/Commands/           admin:set ، caffenet:cleanup ، db:status
   Http/Controllers/Api/       یک کنترلر به‌ازای هر دامنه (Auth، Catalog، Order، Payment، …)
-  Http/Middleware/            EnsureAuth (JWT) ، EnsurePermission ، OriginGuard ، SecurityHeaders
+  Http/Middleware/            EnsureAuth (نشست Fortify) ، OriginGuard ، SecurityHeaders
+  Http/Responses/             پاسخ‌های سفارشی Fortify (Login/Lockout) به‌صورت JSON
   Http/Support/Formatter.php  نگاشت snake_case → camelCase (قرارداد API نسخه اصلی)
   Models/                     User, Order, Service, Coupon, Payment, … (کلیدهای prefixed-UUID)
-  Services/                   Settings, Permission, Pricing, Auth(OTP+JWT), Sms, Payment, Cleanup
+  Services/                   Settings, Permission(کاتالوگ/گسترش), Pricing, Auth(OTP), Sms, Payment, Cleanup
 database/
-  migrations/                 2026_01_01_000001_create_caffenet_schema.php (نسخه ۰۰۱…۰۰۵ قدیم)
-  seeders/                    SettingsSeeder, AdminUsersSeeder, CatalogSeeder
+  migrations/                 2026_01_01_000001_create_caffenet_schema.php + جداول اسپاتی + backfill
+  seeders/                    SettingsSeeder, RoleSeeder(اسپاتی), AdminUsersSeeder, CatalogSeeder
 public/
   css/app.css                 ظاهر RTL موبایلی (قاب گوشی، Sheet، Toast، …)
   js/                         api, ui, app, pricing, permissions, persian-utils, icons, pwa
@@ -216,11 +219,20 @@ routes/                       api.php (نگاشت کامل §13 مستندات) 
 
 ## امنیت
 
-- نشست JWT در کوکی `cn_auth` با httpOnly، SameSite=Lax و secure در پروداکشن؛ خواندن از
-  `Authorization: Bearer` هم پشتیبانی می‌شود.
-- کدهای OTP هش‌شده (HMAC-SHA256 با کلید JWT)، انقضای ۲ دقیقه، حداکثر ۵ تلاش، سقف ۳ کد/شماره/۱۰ دقیقه.
-- نرخ‌محدودی: API عمومی 300/دقیقه، send-otp 6/دقیقه، verify-otp 15/دقیقه.
-- محافظت Origin-based (معادل CSRF) برای متدهای تغییردهنده؛ هدرهای امنیتی Helmet-مانند با CSP سخت‌گیرانه.
+- احراز هویت نشست‌محور با **Laravel Fortify**: پایپ‌لاین رسمی ورود
+  (EnsureLoginIsNotThrottled → AttemptToAuthenticate → PrepareAuthenticatedSession)،
+  نشست بومی لاراول + CSRF + چرخش خودکار شناسه نشست و توکن CSRF پس از ورود
+  (توکن تازه در پاسخ verify-otp به SPA برگردانده می‌شود).
+- ورود دو مرحله‌ای OTP: ارسال کد (send-otp) و تایید از طریق `Fortify::authenticateUsing` —
+  سقف‌ها و پایش تلاش‌ها عیناً حفظ شده است.
+- نقش‌ها/مجوزها فقط با **spatie/laravel-permission**: جداول `roles`/`permissions`/پیوت‌ها،
+  middleware رسمی `permission:` و چک‌های `hasAnyPermission`. منطق «چترِ مدیریت» (orders.manage →
+  همه عملیات orders) و ارث‌بری ضمنی مشاهده در زمان اختصاص اعمال می‌شود (گسترش به کلیدهای موّرجع).
+- کدهای OTP هش‌شده (HMAC-SHA256 با کلید `APP_KEY`)، انقضای ۲ دقیقه، حداکثر ۵ تلاش، سقف ۳ کد/شماره/۱۰ دقیقه.
+- نرخ‌محدودی: API عمومی 300/دقیقه، send-otp 6/دقیقه، verify-otp 15/دقیقه + قفل‌شدن تلاش‌های ورود
+  به‌صورت هر شماره+IP با LoginRateLimiter خود Fortify.
+- محافظت Origin-based + CSRF لاراول برای متدهای تغییردهنده؛ هدرهای امنیتی Helmet-مانند با CSP سخت‌گیرانه.
+- دورزدن مجوز برای مدیر در `Gate::before` (مدیر سیستم هرگز قفل نمی‌شود).
 - فایل‌های `/uploads` فقط با ورود و بررسی مالکیت (مالک سفارش یا staff) قابل دانلودند.
 - هیچ داده کاربری در localStorage ذخیره نمی‌شود؛ رازها فقط در جدول `settings` و ماسک‌شده در API.
 

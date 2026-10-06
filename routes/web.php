@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Order;
-use App\Services\AuthService;
 use App\Services\SettingsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -21,17 +20,14 @@ Route::get('/', function () {
 // Private uploads: authenticated users only, with per-order ownership check
 // (GET /uploads/:filename → orders.customer_files_json / result_files_json).
 Route::get('/uploads/{filename}', function (Request $request, string $filename) {
-    $token = AuthService::extractToken($request);
-    if (! $token) {
-        abort(401, 'برای دانلود فایل باید وارد شوید.');
-    }
-    $user = AuthService::resolveUser($token);
+    // Fortify session authentication.
+    $user = $request->user();
     if (! $user) {
-        abort(401, 'نشست نامعتبر است.');
+        abort(401, 'برای دانلود فایل باید وارد شوید.');
     }
 
     $filename = basename($filename);
-    $isStaff = $user->role === 'admin' || $user->role === 'operator';
+    $isStaff = $user->hasAnyRole(['admin', 'operator']);
 
     if (! $isStaff) {
         $owns = Order::where('customer_id', $user->id)

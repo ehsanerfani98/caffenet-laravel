@@ -1,6 +1,13 @@
 > **یادداشت نسخه Laravel + jQuery:** این سند رفتار مرجع نسخه اصلی (React/Express) را توصیف
 > می‌کند که در بازنویسی Laravel/jQuery عیناً حفظ شده است. نگاشت موئلفه‌ها به ساختار جدید در
 > [`plans/laravel-jquery-rewrite-plan.md`](../plans/laravel-jquery-rewrite-plan.md) و README آمده است.
+>
+> **به‌روزرسانی لایه احراز هویت/مجوزها:** در پیاده‌سازی فعلی، احراز هویت با **Laravel Fortify**
+> (نشست بومی لاراول + CSRF به‌جای JWT/کوکی `cn_auth`) و نقش‌ها/مجوزها با
+> **spatie/laravel-permission** (به‌جای `permissions_json`) انجام می‌شود. قرارداد API و همه
+> سقف‌ها/پیام‌ها عیناً حفظ شده؛ جزئیات در [`plans/fortify-spatie-auth-plan.md`](../plans/fortify-spatie-auth-plan.md)
+> و بخش «امنیت» README. بخش‌های این سند که JWT و `permissions_json` را توصیف می‌کنند، صرفاً
+> رفتار مرجع نسخه اصلی را مستند می‌کنند.
 
 # مستندات جامع معماری برنامه «کافی‌نت آنلاین»
 

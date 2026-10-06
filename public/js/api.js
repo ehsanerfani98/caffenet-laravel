@@ -1,8 +1,9 @@
 /* Caffenet Lite — api.js
  * Client data layer — port of services/storageService.ts.
  * Same sync cadence (15s + visibility + after every mutation), same observer
- * pattern, no user data in localStorage. Session lives in the httpOnly
- * cn_auth cookie and is recovered from /api/auth/me after reload. */
+ * pattern, no user data in localStorage. The session lives in Laravel's
+ * httpOnly session cookie (Fortify) and is recovered from /api/auth/me after
+ * reload; every state-changing request carries the X-CSRF-TOKEN header. */
 (function () {
   'use strict';
 
@@ -64,6 +65,11 @@
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
       };
+      // Laravel CSRF protection: every non-GET must echo the session token
+      // exposed by the Blade shell's boot-data block.
+      if (method !== 'GET' && window.__APP_BOOT && window.__APP_BOOT.csrf) {
+        init.headers['X-CSRF-TOKEN'] = window.__APP_BOOT.csrf;
+      }
       if (body !== undefined && !(body instanceof FormData)) {
         init.headers['Content-Type'] = 'application/json';
         init.body = JSON.stringify(body);
@@ -102,6 +108,10 @@
     async verifyOtp(phone, code) {
       const p = PU.normalizeIranianMobile(phone);
       const user = await this.request('POST', '/api/auth/verify-otp', { phone: p, code });
+      // Laravel rotates the CSRF token with the session at login — keep the
+      // fresh one that ships with the login response.
+      if (user.csrf && window.__APP_BOOT) window.__APP_BOOT.csrf = user.csrf;
+      delete user.csrf;
       this.state.currentUser = user;
       this.notify('auth');
       await this.syncWithBackend();
