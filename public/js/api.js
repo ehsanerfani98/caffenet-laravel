@@ -1,9 +1,10 @@
 /* Caffenet Lite — api.js
  * Client data layer — port of services/storageService.ts.
- * Same sync cadence (15s + visibility + after every mutation), same observer
- * pattern, no user data in localStorage. The session lives in Laravel's
- * httpOnly session cookie (Fortify) and is recovered from /api/auth/me after
- * reload; every state-changing request carries the X-CSRF-TOKEN header. */
+ * Observer pattern, no user data in localStorage. Data is refreshed on load and
+ * after each mutating action only — there is no polling or background timer.
+ * The session lives in Laravel's httpOnly session cookie (Fortify) and is
+ * recovered from /api/auth/me after reload; every state-changing request
+ * carries the X-CSRF-TOKEN header. */
 (function () {
   'use strict';
 
@@ -14,8 +15,6 @@
       this.status = status;
     }
   }
-
-  const SYNC_INTERVAL_MS = 15000;
 
   class Api {
     constructor() {
@@ -30,8 +29,7 @@
         smsInbox: [],
       };
       this._listeners = [];
-      this._timer = null;
-      this._visibleHandler = () => { if (!document.hidden) this.syncWithBackend(); };
+      this._syncing = false;      // in-flight guard: one batch at a time
     }
 
     subscribe(listener) {
@@ -45,15 +43,14 @@
     }
 
     startSync() {
-      if (this._timer) return;
-      this._timer = setInterval(() => this.syncWithBackend(), SYNC_INTERVAL_MS);
-      document.addEventListener('visibilitychange', this._visibleHandler);
+      // Intentionally registers no timer and no focus/visibility listener: the
+      // app refreshes only on initial load and after user actions, so switching
+      // browser tabs or sitting idle produces zero requests. Kept so the boot
+      // sequence in app.js stays unchanged.
     }
 
     stopSync() {
-      clearInterval(this._timer);
-      this._timer = null;
-      document.removeEventListener('visibilitychange', this._visibleHandler);
+      // Nothing to tear down — there is no timer or visibility listener.
     }
 
     /* ---------------- low-level request ---------------- */
@@ -143,6 +140,11 @@
     /* ---------------- sync ---------------- */
 
     async syncWithBackend() {
+      // Collapse overlapping batches: a focus event and a mutation can land
+      // together — only one request set should run. There is no timer anymore.
+      if (this._syncing) return;
+
+      this._syncing = true;
       const jobs = [
         this.request('GET', '/api/categories').then((v) => { this.state.categories = v; }),
         this.request('GET', '/api/services').then((v) => { this.state.services = v; }),
@@ -157,6 +159,8 @@
         this.notify('sync');
       } catch (e) {
         this.notify('sync-error');
+      } finally {
+        this._syncing = false;
       }
     }
 

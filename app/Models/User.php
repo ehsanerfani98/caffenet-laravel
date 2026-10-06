@@ -4,12 +4,14 @@ namespace App\Models;
 
 use App\Services\PermissionService;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
+use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Foundation\Auth\Access\Authorizable;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends CaffenetModel implements AuthenticatableContract
+class User extends CaffenetModel implements AuthenticatableContract, AuthorizableContract
 {
-    use AuthenticatableTrait, HasRoles;
+    use AuthenticatableTrait, Authorizable, HasRoles;
 
     protected const ID_PREFIX = 'usr';
 

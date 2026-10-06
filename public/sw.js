@@ -1,7 +1,7 @@
 /* Caffenet Lite — service worker (hand-written, autoUpdate semantics).
  * cache-first for static assets; network-only for /api, /uploads, /media
  * (they are never served the SPA fallback). */
-const CACHE = 'caffenet-v1';
+const CACHE = 'caffenet-v2';
 const SHELL = ['/', '/css/app.css', '/js/jquery.min.js', '/js/persian-utils.js', '/js/icons.js',
   '/js/permissions.js', '/js/pricing.js', '/js/api.js', '/js/ui.js', '/js/pwa.js', '/js/app.js'];
 
@@ -20,6 +20,12 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
+
+  // Ignore non-http(s) schemes (e.g. chrome-extension:// requests injected by
+  // browser extensions) — the Cache API only supports http/https requests, and
+  // caches.put() throws on any other scheme.
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
   const NEVER = url.pathname.startsWith('/api/') || url.pathname.startsWith('/uploads/') ||
     url.pathname.startsWith('/media/') || url.pathname.startsWith('/test-gateway');
   if (e.request.method !== 'GET' || NEVER) return; // network only

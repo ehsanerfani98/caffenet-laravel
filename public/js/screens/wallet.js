@@ -18,7 +18,7 @@
       '<div class="card" style="background:linear-gradient(135deg,var(--sky),var(--sky-deep));color:#fff;border:none">' +
         '<div style="font-size:12px;opacity:.9">موجودی کیف پول</div>' +
         '<div style="font-size:26px;font-weight:900;margin-top:6px" class="persian-nums">' + PU.formatToman(user.walletBalance) + '</div>' +
-        '<div style="font-size:11px;opacity:.8;margin-top:8px">' + icon('shield') + ' موجودی فقط با پرداخت آنلاین شارژ می‌شود</div>' +
+        '<div style="font-size:11px;opacity:.8;margin-top:8px">' + icon('shield', 'i-sm') + ' موجودی فقط با پرداخت آنلاین شارژ می‌شود</div>' +
       '</div>' +
 
       '<div class="section-title">' + icon('plus') + 'شارژ کیف پول</div>' +

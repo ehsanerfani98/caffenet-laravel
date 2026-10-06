@@ -16,7 +16,7 @@
     <meta name="apple-mobile-web-app-title" content="{{ \App\Services\SettingsService::get('siteTitle', 'کافی‌نت آنلاین') }}">
 
     <link rel="stylesheet" href="/css/app.css?v={{ filemtime(public_path('css/app.css')) }}">
-    <script defer src="/js/jquery.min.js"></script>
+    <script defer src="/js/jquery.min.js?v={{ filemtime(public_path('js/jquery.min.js')) }}"></script>
 </head>
 <body>
     <div class="stage">
@@ -41,23 +41,24 @@
     @endif
 
     <script type="application/json" id="boot-data">@json(["csrf" => csrf_token(), "siteTitle" => \App\Services\SettingsService::get("siteTitle", "کافی‌نت آنلاین")])</script>
-    <script defer src="/js/persian-utils.js"></script>
-    <script defer src="/js/icons.js"></script>
-    <script defer src="/js/permissions.js"></script>
-    <script defer src="/js/pricing.js"></script>
-    <script defer src="/js/api.js"></script>
-    <script defer src="/js/ui.js"></script>
-    <script defer src="/js/pwa.js"></script>
-    <script defer src="/js/app.js"></script>
-    <script defer src="/js/screens/auth.js"></script>
-    <script defer src="/js/screens/landing.js"></script>
-    <script defer src="/js/screens/customer.js"></script>
-    <script defer src="/js/screens/order-form.js"></script>
-    <script defer src="/js/screens/order-tracker.js"></script>
-    <script defer src="/js/screens/wallet.js"></script>
-    <script defer src="/js/screens/payment.js"></script>
-    <script defer src="/js/screens/operator.js"></script>
-    <script defer src="/js/screens/admin.js"></script>
-    <script defer src="/js/screens/admin-manage.js"></script>
+    {{-- Versioned by filemtime so edits can never be served from the browser
+         HTTP cache (the old poll-every-second api.js previously stuck here). --}}
+    <script defer src="/js/persian-utils.js?v={{ filemtime(public_path('js/persian-utils.js')) }}"></script>
+    <script defer src="/js/icons.js?v={{ filemtime(public_path('js/icons.js')) }}"></script>
+    <script defer src="/js/permissions.js?v={{ filemtime(public_path('js/permissions.js')) }}"></script>
+    <script defer src="/js/pricing.js?v={{ filemtime(public_path('js/pricing.js')) }}"></script>
+    <script defer src="/js/api.js?v={{ filemtime(public_path('js/api.js')) }}"></script>
+    <script defer src="/js/ui.js?v={{ filemtime(public_path('js/ui.js')) }}"></script>
+    <script defer src="/js/pwa.js?v={{ filemtime(public_path('js/pwa.js')) }}"></script>
+    <script defer src="/js/app.js?v={{ filemtime(public_path('js/app.js')) }}"></script>
+    <script defer src="/js/screens/auth.js?v={{ filemtime(public_path('js/screens/auth.js')) }}"></script>
+    <script defer src="/js/screens/landing.js?v={{ filemtime(public_path('js/screens/landing.js')) }}"></script>
+    <script defer src="/js/screens/order-form.js?v={{ filemtime(public_path('js/screens/order-form.js')) }}"></script>
+    <script defer src="/js/screens/order-tracker.js?v={{ filemtime(public_path('js/screens/order-tracker.js')) }}"></script>
+    <script defer src="/js/screens/wallet.js?v={{ filemtime(public_path('js/screens/wallet.js')) }}"></script>
+    <script defer src="/js/screens/payment.js?v={{ filemtime(public_path('js/screens/payment.js')) }}"></script>
+    <script defer src="/js/screens/operator.js?v={{ filemtime(public_path('js/screens/operator.js')) }}"></script>
+    <script defer src="/js/screens/admin.js?v={{ filemtime(public_path('js/screens/admin.js')) }}"></script>
+    <script defer src="/js/screens/admin-manage.js?v={{ filemtime(public_path('js/screens/admin-manage.js')) }}"></script>
 </body>
 </html>

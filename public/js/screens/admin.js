@@ -14,45 +14,55 @@
     return '<div id="admin-stats"><div class="spinner" style="margin:30px auto"></div></div>';
   };
 
+  function dashboardStatsHtml(stats) {
+    const fmt = (n) => PU.formatToman(n);
+    return (
+      '<div class="stat-grid">' +
+        '<div class="stat-card"><div class="s-icon tone-emerald">' + icon('wallet') + '</div>' +
+          '<div class="s-label">درآمد امروز</div><div class="s-value">' + fmt(stats.revenueToday) + '</div></div>' +
+        '<div class="stat-card"><div class="s-icon tone-sky">' + icon('chart') + '</div>' +
+          '<div class="s-label">درآمد ۷ روز</div><div class="s-value">' + fmt(stats.revenue7) + '</div></div>' +
+        '<div class="stat-card"><div class="s-icon tone-indigo">' + icon('chart') + '</div>' +
+          '<div class="s-label">درآمد ۳۰ روز</div><div class="s-value">' + fmt(stats.revenue30) + '</div></div>' +
+        '<div class="stat-card"><div class="s-icon tone-amber">' + icon('folder') + '</div>' +
+          '<div class="s-label">صف کار</div><div class="s-value">' + PU.toPersianDigits(stats.queueCount) + '</div></div>' +
+      '</div>' +
+      '<div class="section-title">' + icon('users') + 'مشتریان: ' + PU.toPersianDigits(stats.customers) + '</div>' +
+
+      '<div class="section-title">' + icon('zap') + 'پرفروش‌ترین خدمات</div>' +
+      (stats.topServices.length ?
+        '<div class="card">' + stats.topServices.map((s, i) =>
+          '<div class="list-row"><div class="lr-icon tone-sky">' + icon('receipt') + '</div>' +
+          '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(s.title) + '</div>' +
+          '<div class="lr-sub">' + PU.toPersianDigits(s.count) + ' سفارش</div></div>' +
+          '<span style="font-weight:700;font-size:12px;color:var(--sky-deep)">' + fmt(s.revenue) + '</span></div>').join('') + '</div>'
+        : UI.emptyState('هنوز سفارش تحویل‌شده‌ای ثبت نشده', '', 'chart')) +
+
+      '<div class="section-title">' + icon('chart') + 'روند ۱۴ روز اخیر</div>' +
+      '<div class="card">' + stats.trend.map((d) =>
+        '<div class="list-row" style="padding:6px 0">' +
+          '<div class="lr-main"><div class="lr-title" style="font-size:12px">' + PU.toJalaliDateShort(d.date) + '</div>' +
+          '<div style="height:6px;border-radius:3px;background:var(--slate-soft);margin-top:5px;overflow:hidden">' +
+            '<div style="height:100%;background:var(--sky);width:' + Math.min(100, d.orders * 8) + '%"></div></div></div>' +
+          '<div class="lr-action" style="font-size:11px;color:var(--ink-soft)">' + PU.toPersianDigits(d.orders) + ' سفارش</div>' +
+        '</div>').join('') + '</div>'
+    );
+  }
+
+  // Runs only when the dashboard route is entered (App renders on route change,
+  // not on every data sync), so the stats are fetched once per visit.
   S.bind_admin_dashboard = async function ($host, ctx) {
     try {
-      const stats = await api.fetchDashboardStats();
-      const fmt = (n) => PU.formatToman(n);
-      $host.find('#admin-stats').html(
-        '<div class="stat-grid">' +
-          '<div class="stat-card"><div class="s-icon tone-emerald">' + icon('wallet') + '</div>' +
-            '<div class="s-label">درآمد امروز</div><div class="s-value">' + fmt(stats.revenueToday) + '</div></div>' +
-          '<div class="stat-card"><div class="s-icon tone-sky">' + icon('chart') + '</div>' +
-            '<div class="s-label">درآمد ۷ روز</div><div class="s-value">' + fmt(stats.revenue7) + '</div></div>' +
-          '<div class="stat-card"><div class="s-icon tone-indigo">' + icon('chart') + '</div>' +
-            '<div class="s-label">درآمد ۳۰ روز</div><div class="s-value">' + fmt(stats.revenue30) + '</div></div>' +
-          '<div class="stat-card"><div class="s-icon tone-amber">' + icon('folder') + '</div>' +
-            '<div class="s-label">صف کار</div><div class="s-value">' + PU.toPersianDigits(stats.queueCount) + '</div></div>' +
-        '</div>' +
-        '<div class="section-title">' + icon('users') + 'مشتریان: ' + PU.toPersianDigits(stats.customers) + '</div>' +
-
-        '<div class="section-title">' + icon('zap') + 'پرفروش‌ترین خدمات</div>' +
-        (stats.topServices.length ?
-          '<div class="card">' + stats.topServices.map((s, i) =>
-            '<div class="list-row"><div class="lr-icon tone-sky">' + icon('receipt') + '</div>' +
-            '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(s.title) + '</div>' +
-            '<div class="lr-sub">' + PU.toPersianDigits(s.count) + ' سفارش</div></div>' +
-            '<span style="font-weight:700;font-size:12px;color:var(--sky-deep)">' + fmt(s.revenue) + '</span></div>').join('') + '</div>'
-          : UI.emptyState('هنوز سفارش تحویل‌شده‌ای ثبت نشده', '', 'chart')) +
-
-        '<div class="section-title">' + icon('chart') + 'روند ۱۴ روز اخیر</div>' +
-        '<div class="card">' + stats.trend.map((d) =>
-          '<div class="list-row" style="padding:6px 0">' +
-            '<div class="lr-main"><div class="lr-title" style="font-size:12px">' + PU.toJalaliDateShort(d.date) + '</div>' +
-            '<div style="height:6px;border-radius:3px;background:var(--slate-soft);margin-top:5px;overflow:hidden">' +
-              '<div style="height:100%;background:var(--sky);width:' + Math.min(100, d.orders * 8) + '%"></div></div></div>' +
-            '<div class="lr-action" style="font-size:11px;color:var(--ink-soft)">' + PU.toPersianDigits(d.orders) + ' سفارش</div>' +
-          '</div>').join('') + '</div>'
-      );
+      $host.find('#admin-stats').html(dashboardStatsHtml(await api.fetchDashboardStats()));
     } catch (e) {
       $host.find('#admin-stats').html(UI.emptyState('خطا در بارگذاری آمار', e.message, 'alert'));
     }
   };
+
+  // No automatic `refresh_admin_dashboard` hook on purpose: the dashboard stats
+  // are a relatively heavy aggregate and are loaded once when the screen is
+  // entered (plus whenever the user navigates back). Re-fetching them on every
+  // background sync was one of the redundant request sources.
 
   /* ================= Services + form builder ================= */
 
@@ -76,7 +86,7 @@
         let html = '<button class="btn block sm" id="new-service" style="margin-bottom:10px">' + icon('plus') + 'خدمت جدید</button>';
         cats.forEach((c) => {
           const items = api.state.services.filter((s) => s.categoryId === c.id);
-          html += '<div style="font-size:12.5px;font-weight:700;margin:10px 2px 7px">' + renderServiceIcon(c.iconName) + ' ' + PU.escapeHtml(c.title) + '</div>';
+          html += '<div class="cat-head" style="margin:10px 2px 7px">' + renderServiceIcon(c.iconName) + ' ' + PU.escapeHtml(c.title) + '</div>';
           html += items.map((s) =>
             '<div class="list-row"><div class="lr-icon ' + (s.isActive ? 'tone-emerald' : 'tone-slate') + '">' + renderServiceIcon(s.icon) + '</div>' +
             '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(s.title) + '</div>' +

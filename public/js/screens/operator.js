@@ -211,5 +211,8 @@
       $(this).addClass('active');
       renderList();
     });
+
+    // Live refresh on background sync: repaint the queue in place (no rebuild).
+    $host.data('caffenetRefresh', function () { renderStats(); renderList(); });
   };
 })();

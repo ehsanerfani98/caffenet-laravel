@@ -20,6 +20,9 @@
   };
 
   let openSheets = [];
+  // Single owner of the hero-slider autoplay interval. Kept module-scoped so a
+  // re-render can never leak an old interval still driving a detached DOM.
+  let sliderTimer = null;
 
   window.UI = {
     STATUS_MAP,
@@ -167,7 +170,6 @@
       }
 
       let index = 0;
-      let timer = null;
 
       function render() {
         const inner = list.map((s) =>
@@ -196,8 +198,9 @@
       }
 
       render();
+      if (sliderTimer) { clearInterval(sliderTimer); sliderTimer = null; }
       if (list.length > 1) {
-        timer = setInterval(() => {
+        sliderTimer = setInterval(() => {
           index = (index + 1) % list.length;
           $container.find('.slides').css('transform', 'translateX(' + (index * 100) + '%)');
           $container.find('.dot').removeClass('on').each(function (i) { if (i === index) $(this).addClass('on'); });
@@ -217,6 +220,10 @@
         }
         startX = null;
       });
+    },
+
+    stopImageSlider() {
+      if (sliderTimer) { clearInterval(sliderTimer); sliderTimer = null; }
     },
 
     busy(on) {

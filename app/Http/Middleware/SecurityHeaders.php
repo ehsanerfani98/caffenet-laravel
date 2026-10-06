@@ -28,6 +28,15 @@ class SecurityHeaders
             "form-action 'self'",
         ]);
 
+        // The SPA shell is a Blade page whose <script> URLs are versioned by
+        // filemtime. If the HTML itself were cached, a browser could keep loading
+        // an old shell that points at old (polling) scripts — so never cache it.
+        if ($request->isMethod('GET') && ! $request->is('api/*')) {
+            $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+            $response->headers->set('Pragma', 'no-cache');
+            $response->headers->set('Expires', '0');
+        }
+
         $response->headers->set('Content-Security-Policy', $csp);
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-Frame-Options', 'DENY');

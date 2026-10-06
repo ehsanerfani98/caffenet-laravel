@@ -16,14 +16,35 @@
     boot() {
       this.renderSplash();
 
-      api.subscribe(() => {
-        // Re-render the active screen when data changes.
-        if (!this._rerendering) {
-          this._rerendering = true;
-          try { this.render(); } finally { this._rerendering = false; }
+      api.subscribe((state, event) => {
+        // Periodic data syncs must NOT wipe the screen: rebuilding the whole
+        // app bar / nav / screen on every notify is what made the SPA flicker
+        // and appear to "refresh" constantly. Instead, update only the live
+        // regions of the current screen in place. 'orders' only mutates order
+        // data, so it follows the same incremental path (plus the nav badge).
+        if (event === 'sync' || event === 'sync-error') {
+          this.refreshCurrentScreen();
+          // Refresh only the small header (wallet balance / sms badge) — the
+          // screen body is left untouched, so nothing visibly "reloads".
+          UI.renderAppBar({ titles: this.screenTitles() });
+          return;
         }
+        // Order mutations only change order data — refresh the live region and
+        // the pending-count badge without rebuilding the screen.
+        if (event === 'orders') {
+          this.refreshCurrentScreen();
+          UI.renderBottomNav(this.navItems(), this.screen);
+          return;
+        }
+        // Identity / route-affecting events (auth, logout) still need a full
+        // rebuild because navigation items and route guards may change.
+        if (this._rerendering) return;
+        this._rerendering = true;
+        try { this.render(); } finally { this._rerendering = false; }
       });
 
+      // A hash change is the single trigger for applying a route. navigate()
+      // only mutates the hash (see below), so each navigation applies once.
       window.addEventListener('hashchange', () => this.applyRoute(true));
 
       $(document).ready(async () => {
@@ -45,11 +66,44 @@
       );
     },
 
+    /* ---------------- incremental refresh ---------------- */
+
+    screenKey(screen) {
+      return screen === 'home' ? 'home' : String(screen).replace('/', '_');
+    },
+
+    /* Re-render only the data-bound regions of the active screen. A screen
+     * opts in by exposing Screens.refresh_<key>; screens without one simply
+     * keep their current markup (no destructive rebuild, no spinner flash). */
+    refreshCurrentScreen() {
+      const $host = $('#screen-host');
+      const explicit = window.Screens['refresh_' + this.screenKey(this.screen)];
+      const bound = $host.data('caffenetRefresh');
+      const ctx = {
+        user: api.state.currentUser,
+        screen: this.screen,
+        navigate: (k) => this.navigate(k),
+        state: api.state,
+      };
+      try {
+        if (typeof explicit === 'function') explicit($host, ctx);
+        else if (typeof bound === 'function') bound($host, ctx);
+      } catch (e) { /* never break the shell */ }
+    },
+
     /* ---------------- routing ---------------- */
 
     navigate(key) {
-      window.location.hash = '#/' + key;
-      this.applyRoute(true);
+      const target = '#/' + key;
+      // Changing location.hash fires the hashchange listener, which applies the
+      // route exactly once. Calling applyRoute() here as well rendered the
+      // screen twice, and every screen that fetches in its bind_* hook fired
+      // its request twice (e.g. GET /api/users, GET /api/dashboard/stats).
+      // Only when the hash already equals the target (a case where no
+      // hashchange event fires) do we apply the route directly, so tapping the
+      // currently-active tab still refreshes it.
+      if (window.location.hash === target) this.applyRoute(true);
+      else window.location.hash = target;
     },
 
     applyRoute(rerender) {
@@ -145,6 +199,9 @@
       const user = api.state.currentUser;
       const $host = $('#screen-host');
       $host.off();
+      // The home slider owns an interval — stop it before the DOM is replaced
+      // so re-renders cannot accumulate timers.
+      if (window.UI && UI.stopImageSlider) UI.stopImageSlider();
 
       UI.renderAppBar({ titles: this.screenTitles() });
       UI.renderBottomNav(this.navItems(), this.screen);
@@ -174,7 +231,7 @@
       $host.html('<div class="screen">' + html + '</div>');
 
       // Post-render bindings for the active screen.
-      const name = scr === 'home' ? 'home' : scr.replace('/', '_');
+      const name = this.screenKey(scr);
       if (window.Screens['bind_' + name]) window.Screens['bind_' + name]($host, ctx);
     },
 

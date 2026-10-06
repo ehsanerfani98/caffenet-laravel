@@ -26,7 +26,7 @@
     sheet.body.html(
       '<div style="text-align:center;padding:18px 0">' +
         '<div style="width:74px;height:74px;border-radius:24px;background:var(--amber-soft);color:var(--amber);display:flex;align-items:center;justify-content:center;margin:0 auto 14px">' +
-        icon('wallet') + '</div>' +
+        icon('wallet', 'i-lg') + '</div>' +
         '<div style="font-weight:800;font-size:14.5px;margin-bottom:6px">در حال انتقال به درگاه پرداخت امن</div>' +
         '<div style="font-size:12px;color:var(--ink-soft);line-height:2">پس از تکمیل پرداخت، به‌صورت خودکار به سامانه بازمی‌گردید.<br>لطفاً صفحه را نبندید.</div>' +
         '<div class="spinner" style="margin:16px auto 0"></div>' +

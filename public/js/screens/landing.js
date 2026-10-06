@@ -19,6 +19,23 @@
     );
   }
 
+  // The single live "current order" block, shared by the initial render and the
+  // in-place refresh so both stay identical without rebuilding the whole screen.
+  function activeOrderBlock(state) {
+    const active = (state.orders || []).find((o) =>
+      ['pending_payment', 'submitted', 'processing', 'ready'].includes(o.status));
+    if (!active) return '';
+    return (
+      '<div class="section-title">' + icon('folder') + 'سفارش جاری شما</div>' +
+      '<div class="order-card" data-track="' + active.id + '">' +
+        '<div class="oc-head"><span class="oc-num">' + PU.toPersianDigits(active.orderNumber) + '</span>' + UI.statusBadge(active.status) + '</div>' +
+        '<div class="oc-title">' + PU.escapeHtml(active.serviceTitle) + '</div>' +
+        '<div class="oc-foot"><span class="oc-price">' + PU.formatToman(Math.max(0, active.totalPrice - active.discountAmount)) + '</span>' +
+        '<span style="color:var(--sky);font-weight:700">پیگیری ↗</span></div>' +
+      '</div>'
+    );
+  }
+
   /* ---------------- Home ---------------- */
 
   Screens.home = function (ctx) {
@@ -29,17 +46,7 @@
     html += '<div id="hero-slider"></div>';
 
     if (ctx.user) {
-      const active = state.orders.find((o) => ['pending_payment', 'submitted', 'processing', 'ready'].includes(o.status));
-      if (active) {
-        html +=
-          '<div class="section-title">' + icon('folder') + 'سفارش جاری شما</div>' +
-          '<div class="order-card" data-track="' + active.id + '">' +
-            '<div class="oc-head"><span class="oc-num">' + PU.toPersianDigits(active.orderNumber) + '</span>' + UI.statusBadge(active.status) + '</div>' +
-            '<div class="oc-title">' + PU.escapeHtml(active.serviceTitle) + '</div>' +
-            '<div class="oc-foot"><span class="oc-price">' + PU.formatToman(Math.max(0, active.totalPrice - active.discountAmount)) + '</span>' +
-            '<span style="color:var(--sky);font-weight:700">پیگیری ↗</span></div>' +
-          '</div>';
-      }
+      html += '<div id="home-order-live">' + activeOrderBlock(state) + '</div>';
     }
 
     html += '<div class="section-title">' + icon('zap') + 'خدمات پرطرفدار</div>';
@@ -50,7 +57,7 @@
     state.categories.forEach((cat) => {
       const items = state.services.filter((s) => s.categoryId === cat.id && s.isActive);
       if (!items.length) return;
-      html += '<div style="font-size:12.5px;font-weight:700;margin:12px 2px 8px">' +
+      html += '<div class="cat-head" style="margin:12px 2px 8px">' +
         renderServiceIcon(cat.iconName) + ' ' + PU.escapeHtml(cat.title) + '</div>';
       html += '<div class="svc-grid">' + items.map((s) => serviceCard(s, settings)).join('') + '</div>';
     });
@@ -67,14 +74,21 @@
 
   Screens.bind_home = function ($host) {
     UI.imageSlider($host.find('#hero-slider'), api.state.slides.filter((s) => s.isActive));
-    $host.find('[data-service]').on('click', function () {
+    // Delegated so the handlers survive the #home-order-live innerHTML refresh.
+    $host.on('click', '[data-service]', function () {
       const svc = api.state.services.find((s) => s.id === $(this).data('service'));
       if (svc) Screens.openOrderForm(svc);
     });
-    $host.find('[data-track]').on('click', function () {
+    $host.on('click', '[data-track]', function () {
       const order = api.state.orders.find((o) => o.id === $(this).data('track'));
       if (order) Screens.openOrderTracker(order.id);
     });
+  };
+
+  // Live refresh on background sync: update only the active-order region, so the
+  // hero slider and its autoplay timer are left untouched (no flicker, no leak).
+  Screens.refresh_home = function ($host) {
+    $host.find('#home-order-live').html(activeOrderBlock(api.state));
   };
 
   /* ---------------- Catalog (guest/customer) ---------------- */
@@ -120,6 +134,8 @@
       $(this).addClass('active');
       renderList();
     });
+    // Live refresh on background sync: repaint the list in place.
+    $host.data('caffenetRefresh', renderList);
   };
 
   /* ---------------- Orders list (customer) ---------------- */
@@ -182,6 +198,8 @@
       $(this).addClass('active');
       renderList();
     });
+    // Live refresh on background sync: repaint the list in place.
+    $host.data('caffenetRefresh', renderList);
   };
 
   /* ---------------- Profile ---------------- */
@@ -194,7 +212,7 @@
       return (
         '<div class="card" style="text-align:center;padding:26px">' +
           '<div style="width:64px;height:64px;border-radius:20px;background:var(--sky-soft);color:var(--sky-deep);display:flex;align-items:center;justify-content:center;margin:0 auto 12px">' +
-          icon('user') + '</div>' +
+          icon('user', 'i-lg') + '</div>' +
           '<div style="font-weight:800;font-size:15px">کاربر مهمان</div>' +
           '<div style="font-size:12px;color:var(--ink-soft);margin:6px 0 16px">برای ثبت سفارش و استفاده از کیف پول وارد شوید</div>' +
           '<button class="btn block" id="profile-login">' + icon('lock') + 'ورود / ثبت‌نام</button>' +
@@ -211,7 +229,7 @@
     const roleLabel = PERM.ROLE_LABELS[user.role] || user.role;
     return (
       '<div class="card" style="text-align:center;padding:24px">' +
-        '<div style="width:64px;height:64px;border-radius:20px;background:var(--sky-soft);color:var(--sky-deep);display:flex;align-items:center;justify-content:center;margin:0 auto 12px">' + icon('user') + '</div>' +
+        '<div style="width:64px;height:64px;border-radius:20px;background:var(--sky-soft);color:var(--sky-deep);display:flex;align-items:center;justify-content:center;margin:0 auto 12px">' + icon('user', 'i-lg') + '</div>' +
         '<div style="font-weight:800;font-size:15px">' + PU.escapeHtml(user.name) + '</div>' +
         '<div style="font-size:12.5px;color:var(--ink-soft);margin:4px 0 8px">' + PU.toPersianDigits(user.phone) + '</div>' +
         '<span class="pill submitted">' + PU.escapeHtml(roleLabel) + '</span>' +
@@ -248,8 +266,10 @@
     $host.find('#profile-logout').on('click', async () => {
       await api.logout();
       UI.toast('از حساب خارج شدید.', 'info');
+      // navigate() changes the hash, which fires hashchange -> applyRoute and
+      // renders the home screen. Calling App.render() here as well would render
+      // a stale screen a second time.
       App.navigate('home');
-      App.render();
     });
     $host.find('#profile-install').on('click', async () => {
       const ok = await PWA.promptInstall();
