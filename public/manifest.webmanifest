@@ -1,0 +1,34 @@
+{
+  "id": "/",
+  "name": "کافی‌نت آنلاین - سامانه خدمات اینترنتی",
+  "short_name": "کافی‌نت",
+  "description": "اپلیکیشن پیشرو وب (PWA) ارائه آنلاین خدمات کافی‌نت، پرینت و ثبت‌نام با پیگیری سفارشات.",
+  "lang": "fa",
+  "dir": "rtl",
+  "theme_color": "#0284c7",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "orientation": "portrait",
+  "start_url": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

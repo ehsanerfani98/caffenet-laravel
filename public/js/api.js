@@ -1,0 +1,309 @@
+/* Caffenet Lite — api.js
+ * Client data layer — port of services/storageService.ts.
+ * Same sync cadence (15s + visibility + after every mutation), same observer
+ * pattern, no user data in localStorage. Session lives in the httpOnly
+ * cn_auth cookie and is recovered from /api/auth/me after reload. */
+(function () {
+  'use strict';
+
+  class ApiError extends Error {
+    constructor(message, status) {
+      super(message);
+      this.name = 'ApiError';
+      this.status = status;
+    }
+  }
+
+  const SYNC_INTERVAL_MS = 15000;
+
+  class Api {
+    constructor() {
+      this.state = {
+        currentUser: null,
+        categories: [],
+        services: [],
+        orders: [],
+        coupons: [],
+        settings: null,
+        slides: [],
+        smsInbox: [],
+      };
+      this._listeners = [];
+      this._timer = null;
+      this._visibleHandler = () => { if (!document.hidden) this.syncWithBackend(); };
+    }
+
+    subscribe(listener) {
+      this._listeners.push(listener);
+    }
+
+    notify(event) {
+      this._listeners.forEach((fn) => {
+        try { fn(this.state, event); } catch (e) { /* listener errors never break the app */ }
+      });
+    }
+
+    startSync() {
+      if (this._timer) return;
+      this._timer = setInterval(() => this.syncWithBackend(), SYNC_INTERVAL_MS);
+      document.addEventListener('visibilitychange', this._visibleHandler);
+    }
+
+    stopSync() {
+      clearInterval(this._timer);
+      this._timer = null;
+      document.removeEventListener('visibilitychange', this._visibleHandler);
+    }
+
+    /* ---------------- low-level request ---------------- */
+
+    async request(method, path, body, opts) {
+      opts = opts || {};
+      const init = {
+        method,
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      };
+      if (body !== undefined && !(body instanceof FormData)) {
+        init.headers['Content-Type'] = 'application/json';
+        init.body = JSON.stringify(body);
+      } else if (body instanceof FormData) {
+        init.body = body;
+      }
+      if (opts.skipOrigin !== true) {
+        // browsers set Origin automatically for same-origin fetch; nothing to do
+      }
+
+      let res;
+      try {
+        res = await fetch(path, init);
+      } catch (networkErr) {
+        throw new ApiError('ارتباط با سرور برقرار نشد. اتصال اینترنت را بررسی کنید.', 0);
+      }
+
+      let data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+
+      if (!res.ok) {
+        const message = (data && data.error) || 'خطای پردازش درخواست.';
+        throw new ApiError(message, res.status);
+      }
+      return data;
+    }
+
+    /* ---------------- session ---------------- */
+
+    async requestOtp(phone) {
+      const p = PU.normalizeIranianMobile(phone);
+      const r = await this.request('POST', '/api/auth/send-otp', { phone: p });
+      return { testCode: r.testCode || null, message: r.message || '' };
+    }
+
+    async verifyOtp(phone, code) {
+      const p = PU.normalizeIranianMobile(phone);
+      const user = await this.request('POST', '/api/auth/verify-otp', { phone: p, code });
+      this.state.currentUser = user;
+      this.notify('auth');
+      await this.syncWithBackend();
+      return user;
+    }
+
+    async logout() {
+      try { await this.request('POST', '/api/auth/logout', {}); } catch (e) { /* ignore */ }
+      this.state.currentUser = null;
+      this.state.orders = [];
+      this.notify('logout');
+    }
+
+    async getCurrentUser() {
+      try {
+        this.state.currentUser = await this.request('GET', '/api/auth/me');
+      } catch (e) {
+        this.state.currentUser = null;
+      }
+      return this.state.currentUser;
+    }
+
+    hasPermission(permission) {
+      const u = this.state.currentUser;
+      if (!u) return false;
+      return PERM.has(u.permissions || [], permission);
+    }
+
+    /* ---------------- sync ---------------- */
+
+    async syncWithBackend() {
+      const jobs = [
+        this.request('GET', '/api/categories').then((v) => { this.state.categories = v; }),
+        this.request('GET', '/api/services').then((v) => { this.state.services = v; }),
+        this.request('GET', '/api/settings').then((v) => { this.state.settings = v; }),
+        this.request('GET', '/api/slider').then((v) => { this.state.slides = v; }),
+      ];
+      if (this.state.currentUser) {
+        jobs.push(this.request('GET', '/api/orders').then((v) => { this.state.orders = v; }));
+      }
+      try {
+        await Promise.all(jobs);
+        this.notify('sync');
+      } catch (e) {
+        this.notify('sync-error');
+      }
+    }
+
+    /* ---------------- catalog admin ---------------- */
+
+    async saveCategory(data) {
+      const r = await this.request('POST', '/api/categories', data);
+      await this.syncWithBackend();
+      return r;
+    }
+
+    async deleteCategory(id) {
+      const r = await this.request('DELETE', '/api/categories/' + id);
+      await this.syncWithBackend();
+      return r;
+    }
+
+    async saveService(data) {
+      const r = await this.request('POST', '/api/services', data);
+      await this.syncWithBackend();
+      return r;
+    }
+
+    async deleteService(id) {
+      const r = await this.request('DELETE', '/api/services/' + id);
+      await this.syncWithBackend();
+      return r;
+    }
+
+    /* ---------------- orders ---------------- */
+
+    async fetchOrderById(id) {
+      return this.request('GET', '/api/orders/' + id);
+    }
+
+    async createOrder(payload) {
+      const order = await this.request('POST', '/api/orders', payload);
+      this.state.orders.unshift(order);
+      this.notify('orders');
+      return order;
+    }
+
+    async payOrderWithWallet(id) {
+      const order = await this.request('POST', '/api/orders/' + id + '/pay-wallet', {});
+      await this.syncWithBackend();
+      return order;
+    }
+
+    async updateOrderStatus(id, status, note) {
+      const order = await this.request('PATCH', '/api/orders/' + id + '/status', { status, note });
+      this._replaceOrder(order);
+      return order;
+    }
+
+    async updateOrder(id, fields) {
+      const order = await this.request('PATCH', '/api/orders/' + id, fields);
+      this._replaceOrder(order);
+      return order;
+    }
+
+    async addTicketMessage(id, message) {
+      const ticket = await this.request('POST', '/api/orders/' + id + '/ticket', { message });
+      try {
+        const order = await this.fetchOrderById(id);
+        this._replaceOrder(order);
+      } catch (e) { /* local-only update */ }
+      return ticket;
+    }
+
+    async deleteOrder(id) {
+      const r = await this.request('DELETE', '/api/orders/' + id);
+      this.state.orders = this.state.orders.filter((o) => o.id !== id);
+      this.notify('orders');
+      return r;
+    }
+
+    async uploadOrderResult(id, file) {
+      const fd = new FormData();
+      fd.append('file', file);
+      return this.request('POST', '/api/orders/' + id + '/result', fd);
+    }
+
+    async fetchDashboardStats() {
+      return this.request('GET', '/api/dashboard/stats');
+    }
+
+    _replaceOrder(order) {
+      const idx = this.state.orders.findIndex((o) => o.id === order.id);
+      if (idx >= 0) this.state.orders[idx] = order;
+      else this.state.orders.unshift(order);
+      this.notify('orders');
+    }
+
+    /* ---------------- uploads ---------------- */
+
+    async uploadRealFile(file) {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await this.request('POST', '/api/upload', fd);
+      return r.file;
+    }
+
+    async deleteUploadedFile(url) {
+      return this.request('DELETE', '/api/upload', { url });
+    }
+
+    /* ---------------- users / permissions ---------------- */
+
+    async getUsers() { return this.request('GET', '/api/users'); }
+    async addUser(data) { return this.request('POST', '/api/users', data); }
+    async updateUser(id, fields) { return this.request('PATCH', '/api/users/' + id, fields); }
+    async deleteUser(id) { return this.request('DELETE', '/api/users/' + id); }
+    async getPermissionCatalog() { return this.request('GET', '/api/permissions'); }
+
+    /* ---------------- coupons ---------------- */
+
+    async getCoupons() { return this.request('GET', '/api/coupons'); }
+    async validateCoupon(code, totalPrice) {
+      return this.request('POST', '/api/coupons/validate', { code, totalPrice });
+    }
+    async saveCoupon(data) { return this.request('POST', '/api/coupons', data); }
+    async updateCoupon(id, data) { return this.request('PATCH', '/api/coupons/' + id, data); }
+    async deleteCoupon(id) { return this.request('DELETE', '/api/coupons/' + id); }
+
+    /* ---------------- settings / sms ---------------- */
+
+    async saveSettings(fields) { return this.request('PUT', '/api/settings', fields); }
+    async fetchSystemSettings() { return this.request('GET', '/api/settings/system'); }
+    async updateSystemSettings(settings) {
+      return this.request('PUT', '/api/settings/system', { settings });
+    }
+    async getSmsInbox() { return this.request('GET', '/api/sms'); }
+
+    /* ---------------- slider ---------------- */
+
+    async uploadSliderImage(file) {
+      const fd = new FormData();
+      fd.append('image', file);
+      const r = await this.request('POST', '/api/slider/upload', fd);
+      return r.imageUrl;
+    }
+    async saveSlide(data) { return this.request('POST', '/api/slider', data); }
+    async reorderSlides(ids) { return this.request('PUT', '/api/slider/reorder', { ids }); }
+    async deleteSlide(id) { return this.request('DELETE', '/api/slider/' + id); }
+
+    /* ---------------- payments ---------------- */
+
+    async startPayment(purpose, payload) {
+      const body = Object.assign({ purpose }, payload || {});
+      return this.request('POST', '/api/payments/request', body);
+    }
+
+    async getPaymentStatus(authority) {
+      return this.request('GET', '/api/payments/status?authority=' + encodeURIComponent(authority));
+    }
+  }
+
+  window.ApiError = ApiError;
+  window.api = new Api();
+})();
