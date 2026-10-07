@@ -16,6 +16,7 @@ use App\Services\SmsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -68,6 +69,14 @@ class OrderController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->attributes->get('authUser');
+
+        // Only customers may place an order for themselves. Staff accounts
+        // (operator/admin) are not customers, so they must never create an
+        // order that would make them the customer of record.
+        if ($user->role !== 'customer') {
+            return response()->json(['error' => 'ثبت سفارش تنها با حساب مشتری امکان‌پذیر است.'], 403);
+        }
+
         $body = (array) $request->json()->all();
 
         $service = Service::where('id', $body['serviceId'] ?? '')->where('is_active', true)->first();
@@ -385,6 +394,27 @@ class OrderController extends Controller
 
         $files = $order->resultFiles();
         $files[] = $meta;
+
+        // Replace mode: when the operator replaces an existing file, drop the
+        // old entry (metadata + disk copy) within the same request so no stale
+        // duplicate is ever left behind.
+        $replaceUrl = (string) $request->input('replaceUrl', '');
+        $replaced = null;
+        if ($replaceUrl !== '') {
+            $files = array_values(array_filter($files, function ($f) use ($replaceUrl, &$replaced) {
+                if ((string) ($f['url'] ?? '') === $replaceUrl) {
+                    $replaced = $f;
+
+                    return false;
+                }
+
+                return true;
+            }));
+            if ($replaced) {
+                self::deleteStoredFile($replaceUrl);
+            }
+        }
+
         $order->result_files_json = json_encode($files, JSON_UNESCAPED_UNICODE);
         $order->updated_at = now()->toIso8601String();
         $order->save();
@@ -392,12 +422,113 @@ class OrderController extends Controller
         $user = $request->attributes->get('authUser');
         OrderLog::create([
             'order_id' => $order->id,
-            'action' => 'بارگذاری فایل خروجی',
+            'action' => $replaced ? 'جایگزینی فایل خروجی' : 'بارگذاری فایل خروجی',
             'performed_by' => $user->name,
             'timestamp' => now()->toIso8601String(),
         ]);
 
         return response()->json(['file' => $meta, 'order' => Formatter::order($order->fresh())]);
+    }
+
+    /** Remove a previously uploaded output file (metadata + disk copy). */
+    public function deleteResult(Request $request, string $id): JsonResponse
+    {
+        $order = Order::find($id);
+        if (! $order) {
+            return response()->json(['error' => 'سفارش یافت نشد'], 404);
+        }
+
+        $url = (string) ($request->json('url') ?? '');
+        if ($url === '') {
+            return response()->json(['error' => 'شناسه فایل نامعتبر است.'], 400);
+        }
+
+        $found = null;
+        $remaining = [];
+        foreach ($order->resultFiles() as $f) {
+            if ((string) ($f['url'] ?? '') === $url) {
+                $found = $f;
+                continue;
+            }
+            $remaining[] = $f;
+        }
+
+        if (! $found) {
+            return response()->json(['error' => 'فایل یافت نشد.'], 404);
+        }
+
+        $order->result_files_json = json_encode(array_values($remaining), JSON_UNESCAPED_UNICODE);
+        $order->updated_at = now()->toIso8601String();
+        $order->save();
+
+        self::deleteStoredFile($url);
+
+        $user = $request->attributes->get('authUser');
+        OrderLog::create([
+            'order_id' => $order->id,
+            'action' => 'حذف فایل خروجی',
+            'performed_by' => $user->name,
+            'timestamp' => now()->toIso8601String(),
+        ]);
+
+        return response()->json(Formatter::order($order->fresh()));
+    }
+
+    /** Remove a customer-uploaded attachment (metadata + disk copy) — orders.edit. */
+    public function deleteCustomerFile(Request $request, string $id): JsonResponse
+    {
+        $order = Order::find($id);
+        if (! $order) {
+            return response()->json(['error' => 'سفارش یافت نشد'], 404);
+        }
+
+        $url = (string) ($request->json('url') ?? '');
+        if ($url === '') {
+            return response()->json(['error' => 'شناسه فایل نامعتبر است.'], 400);
+        }
+
+        $found = null;
+        $remaining = [];
+        foreach ($order->customerFiles() as $f) {
+            if ((string) ($f['url'] ?? '') === $url) {
+                $found = $f;
+                continue;
+            }
+            $remaining[] = $f;
+        }
+
+        if (! $found) {
+            return response()->json(['error' => 'فایل یافت نشد.'], 404);
+        }
+
+        $order->customer_files_json = json_encode(array_values($remaining), JSON_UNESCAPED_UNICODE);
+        $order->updated_at = now()->toIso8601String();
+        $order->save();
+
+        self::deleteStoredFile($url);
+
+        $user = $request->attributes->get('authUser');
+        OrderLog::create([
+            'order_id' => $order->id,
+            'action' => 'حذف فایل پیوست مشتری',
+            'performed_by' => $user->name,
+            'timestamp' => now()->toIso8601String(),
+        ]);
+
+        return response()->json(Formatter::order($order->fresh()));
+    }
+
+    /** Deletes a private /uploads/... file from the uploads disk (safe no-op otherwise). */
+    private static function deleteStoredFile(string $url): void
+    {
+        if (! str_starts_with($url, '/uploads/')) {
+            return;
+        }
+
+        $name = basename(parse_url($url, PHP_URL_PATH) ?: '');
+        if ($name !== '') {
+            Storage::disk('uploads')->delete($name);
+        }
     }
 
     /** Order conversation message — owner or staff. */

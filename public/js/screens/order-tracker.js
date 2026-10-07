@@ -1,12 +1,100 @@
 /* Caffenet Lite — screens/order-tracker.js
- * Order tracking sheet with timeline / files / chat tabs, rating and
- * payment retry. Port of customer/OrderTrackerModal.tsx (5s polling). */
+ * Order tracking sheet with timeline / files tabs, rating and payment retry,
+ * plus a dedicated (separate) chat page for messaging about an order.
+ * Port of customer/OrderTrackerModal.tsx (5s polling). */
 (function () {
   'use strict';
 
   let pollTimer = null;
 
   window.Screens = window.Screens || {};
+
+  /* ---------------- dedicated chat page ---------------- */
+
+  /* Standalone chat view, opened from the order tracker (customer) and from the
+   * operator order detail. Kept separate so the conversation lives on its own
+   * page instead of sharing the details view. Polls for new messages, but never
+   * rebuilds the DOM while the user is typing (that is what made the mobile
+   * keyboard close and the page jump). */
+  Screens.openOrderChat = function (orderId, opts) {
+    opts = opts || {};
+    const isStaff = ['admin', 'operator'].includes(api.state.currentUser && api.state.currentUser.role);
+    let chatTimer = null;
+
+    const sheet = UI.sheet({
+      title: opts.title || 'گفتگو با پشتیبانی',
+      subtitle: opts.subtitle || '',
+      icon: 'sms',
+      tone: 'sky',
+      size: 'tall',
+      onClose: () => clearInterval(chatTimer),
+    });
+
+    /* True while focus sits in an input/textarea inside this sheet. */
+    function isTyping() {
+      const el = document.activeElement;
+      const root = sheet.body[0];
+      return !!el && !!root && root.contains(el) &&
+        (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+    }
+
+    function messageHtml(m) {
+      const mine = isStaff ? m.isOperatorResponse : !m.isOperatorResponse;
+      return '<div class="chat-bubble ' + (mine ? 'me' : 'them') + '">' +
+        '<div class="who">' + PU.escapeHtml(m.senderName) + '</div>' +
+        PU.escapeHtml(m.message) +
+        '<div class="when">' + PU.toJalaliDate(m.timestamp) + '</div></div>';
+    }
+
+    function renderMessages(messages) {
+      const $box = sheet.body.find('#chat-box');
+      $box.html(
+        (messages || []).map(messageHtml).join('') ||
+        '<div class="empty-state" style="padding:18px">' + icon('sms') + '<div class="e2">پیامی وجود ندارد</div></div>'
+      );
+      // Keep the newest message in view.
+      const body = sheet.body[0];
+      if (body) body.scrollTop = body.scrollHeight;
+    }
+
+    sheet.body.html(
+      '<div id="chat-box" style="padding:2px"></div>' +
+      '<div style="display:flex;gap:8px;margin-top:10px">' +
+        '<input class="input" id="chat-input" placeholder="پیام خود را بنویسید…">' +
+        '<button class="btn" id="chat-send">' + icon('send') + '</button>' +
+      '</div>'
+    );
+    renderMessages([]);
+
+    async function load(silent) {
+      try {
+        const o = await api.fetchOrderById(orderId);
+        // Never clobber the DOM (and steal focus / close the mobile keyboard)
+        // while the user is composing a message.
+        if (silent && isTyping()) return;
+        renderMessages(o.ticketMessages);
+      } catch (e) {
+        if (!silent) UI.toast(e.message, 'error');
+      }
+    }
+
+    function send() {
+      const $input = sheet.body.find('#chat-input');
+      const msg = ($input.val() || '').trim();
+      if (!msg) return;
+      $input.val('');
+      api.addTicketMessage(orderId, msg)
+        .then(() => load())
+        .catch((e) => UI.toast(e.message, 'error'));
+    }
+
+    sheet.body.find('#chat-send').on('click', send);
+    sheet.body.find('#chat-input').on('keydown', (e) => { if (e.key === 'Enter') send(); });
+
+    load().then(() => { chatTimer = setInterval(() => load(true), 5000); });
+  };
+
+  /* ---------------- order tracker ---------------- */
 
   Screens.openOrderTracker = function (orderId) {
     let current = null;
@@ -21,10 +109,21 @@
       onClose: () => clearInterval(pollTimer),
     });
 
+    /* True while focus sits in an input/textarea inside this sheet. */
+    function isTyping() {
+      const el = document.activeElement;
+      const root = sheet.body[0];
+      return !!el && !!root && root.contains(el) &&
+        (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+    }
+
     async function refresh(silent) {
       try {
         current = await api.fetchOrderById(orderId);
         sheet.el.find('.sh-sub').text(PU.toPersianDigits(current.orderNumber));
+        // Skip the re-render while the user is typing so the review/comment
+        // textarea is never wiped and the mobile keyboard is not dismissed.
+        if (silent && isTyping()) return;
         render();
       } catch (e) {
         if (!silent) UI.toast(e.message, 'error');
@@ -35,7 +134,6 @@
       const o = current;
       if (!o) return;
 
-      const staff = ['admin', 'operator'].includes(api.state.currentUser?.role);
       const isOwner = o.customerId === api.state.currentUser?.id;
       const paid = o.paidAmount > 0;
       const retryable = ['pending_payment', 'failed'].includes(o.status) && isOwner;
@@ -44,7 +142,6 @@
         '<div class="segmented" style="margin-bottom:14px">' +
           '<button class="seg ' + (tab === 'timeline' ? 'on' : '') + '" data-tab="timeline">روند سفارش</button>' +
           '<button class="seg ' + (tab === 'files' ? 'on' : '') + '" data-tab="files">فایل‌ها</button>' +
-          '<button class="seg ' + (tab === 'chat' ? 'on' : '') + '" data-tab="chat">گفتگو</button>' +
         '</div>';
 
       let body = '';
@@ -65,6 +162,10 @@
             '<span style="font-weight:800;color:var(--sky-deep)">' + PU.formatToman(paid ? o.paidAmount : Math.max(0, o.totalPrice - o.discountAmount)) + '</span>' +
           '</div>' +
         '</div>';
+
+      // Chat now lives on its own page; this is just the entry point.
+      body += '<button class="btn ghost block sm" id="open-chat" style="margin-bottom:12px">' +
+        icon('sms') + 'گفتگو با پشتیبانی</button>';
 
       if (retryable) {
         body +=
@@ -98,7 +199,7 @@
           '<div class="fc-icon">' + icon('file') + '</div>' +
           '<div class="fc-main"><div class="fc-name">' + PU.escapeHtml(f.name) + '</div>' +
           '<div class="fc-size">' + PU.formatBytes(f.size) + '</div></div>' +
-          icon('download') + '</div>'
+          icon('download') + '</a>'
         ).join('') || '<div class="empty-state" style="padding:18px">' + icon('file') + '<div class="e2">فایلی پیوست نشده</div></div>';
 
         body += '<div class="section-title">' + icon('downloadcloud') + 'فایل‌های خروجی</div>';
@@ -107,30 +208,26 @@
           '<div class="fc-icon" style="color:var(--emerald)">' + icon('download') + '</div>' +
           '<div class="fc-main"><div class="fc-name">' + PU.escapeHtml(f.name) + '</div>' +
           '<div class="fc-size">' + PU.formatBytes(f.size) + '</div></div>' +
-          icon('download') + '</div>'
+          icon('download') + '</a>'
         ).join('') || '<div class="empty-state" style="padding:18px">' + icon('clock') + '<div class="e2">هنوز فایل خروجی بارگذاری نشده</div></div>';
-      } else if (tab === 'chat') {
-        body += '<div id="chat-box" style="padding:2px">' +
-          (o.ticketMessages || []).map((m) => {
-            const mine = staff ? m.isOperatorResponse : !m.isOperatorResponse;
-            return '<div class="chat-bubble ' + (mine ? 'me' : 'them') + '">' +
-              '<div class="who">' + PU.escapeHtml(m.senderName) + '</div>' +
-              PU.escapeHtml(m.message) +
-              '<div class="when">' + PU.toJalaliDate(m.timestamp) + '</div></div>';
-          }).join('') +
-          (!(o.ticketMessages || []).length ? '<div class="empty-state" style="padding:18px">' + icon('sms') + '<div class="e2">پیامی وجود ندارد</div></div>' : '') +
-          '</div>' +
-          '<div style="display:flex;gap:8px;margin-top:10px">' +
-            '<input class="input" id="chat-input" placeholder="پیام خود را بنویسید…">' +
-            '<button class="btn" id="chat-send">' + icon('send') + '</button>' +
-          '</div>';
       }
 
+      // Preserve scroll position across the in-place repaint so polling does not
+      // make the sheet visibly jump.
+      const scrollTop = sheet.body.scrollTop();
       sheet.body.html(tabs + body);
+      sheet.body.scrollTop(scrollTop);
 
       sheet.body.find('[data-tab]').on('click', function () {
         tab = $(this).data('tab');
         render();
+      });
+
+      sheet.body.find('#open-chat').on('click', function () {
+        Screens.openOrderChat(o.id, {
+          title: 'گفتگو با پشتیبانی',
+          subtitle: PU.toPersianDigits(o.orderNumber),
+        });
       });
 
       if (retryable) sheet.body.find('#retry-pay').on('click', async function () {
@@ -164,19 +261,6 @@
           UI.toast('نظر شما ثبت شد.', 'success');
         } catch (e) { UI.toast(e.message, 'error'); }
       });
-
-      sheet.body.find('#chat-send').on('click', sendChat);
-      sheet.body.find('#chat-input').on('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
-
-      function sendChat() {
-        const $input = sheet.body.find('#chat-input');
-        const msg = ($input.val() || '').trim();
-        if (!msg) return;
-        $input.val('');
-        api.addTicketMessage(o.id, msg)
-          .then(() => refresh(true))
-          .catch((e) => UI.toast(e.message, 'error'));
-      }
     }
 
     refresh().then(() => {

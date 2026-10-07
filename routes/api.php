@@ -61,6 +61,10 @@ Route::middleware('auth.session')->group(function () {
     Route::post('/orders/{id}/pay-wallet', [OrderController::class, 'payWithWallet']);
     Route::post('/orders/{id}/result', [OrderController::class, 'uploadResult'])
         ->middleware('permission:orders.edit|orders.manage');
+    Route::delete('/orders/{id}/result', [OrderController::class, 'deleteResult'])
+        ->middleware('permission:orders.edit|orders.manage');
+    Route::delete('/orders/{id}/customer-file', [OrderController::class, 'deleteCustomerFile'])
+        ->middleware('permission:orders.edit|orders.manage');
     Route::post('/orders/{id}/ticket', [OrderController::class, 'ticket']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])
         ->middleware('permission:orders.edit|orders.manage');
@@ -108,5 +112,6 @@ Route::middleware(['auth.session', 'permission:slider.create|slider.edit|slider.
 Route::middleware(['auth.session', 'permission:slider.edit|slider.manage'])->put('/slider/reorder', [SliderController::class, 'reorder']);
 Route::middleware(['auth.session', 'permission:slider.delete|slider.manage'])->delete('/slider/{id}', [SliderController::class, 'destroy']);
 
-// Ownership-checked private file download (below in web.php — needs session
-// cookie access and streams outside the /api prefix, same as the original).
+// Order files are stored in public/uploads (no symlink needed) and served
+// directly from /uploads/*; the fallback route in web.php keeps the
+// ownership check for requests that still reach PHP.

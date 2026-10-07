@@ -162,12 +162,14 @@
       }
       if (user.role === 'operator') {
         return [
+          { key: 'home', label: 'خانه', icon: 'home' },
           { key: 'operator', label: 'صف کار', icon: 'folder' },
           { key: 'profile', label: 'پروفایل', icon: 'user' },
         ];
       }
       // admin
       return [
+        { key: 'home', label: 'خانه', icon: 'home' },
         { key: 'admin/dashboard', label: 'داشبورد', icon: 'chart' },
         { key: 'admin/services', label: 'خدمات', icon: 'cog' },
         { key: 'admin/users', label: 'کاربران', icon: 'users' },

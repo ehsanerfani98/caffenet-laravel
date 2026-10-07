@@ -57,6 +57,12 @@
   Screens.openOrderForm = function (service) {
     const user = api.state.currentUser;
     if (!user) { Screens.openAuth(); return; }
+    // Only customers place orders for themselves; operators/admins are staff
+    // accounts and are not the customer of an order.
+    if (user.role !== 'customer') {
+      UI.toast('ثبت سفارش تنها با حساب مشتری امکان‌پذیر است.', 'warning');
+      return;
+    }
 
     const settings = api.state.settings || {};
     const state = {

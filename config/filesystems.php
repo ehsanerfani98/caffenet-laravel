@@ -61,13 +61,16 @@ return [
         ],
 
         /*
-        | Caffenet private uploads — served ONLY through the ownership-checked
-        | /uploads/:filename route (mirrors the original UPLOADS_DIR).
+        | Caffenet order uploads — stored directly under public/uploads so the
+        | app works on shared hosting that cannot create the storage:link
+        | symlink. The /uploads/:filename route remains as a graceful fallback
+        | for requests that still reach PHP (it keeps the ownership check).
         */
         'uploads' => [
             'driver' => 'local',
-            'root' => env('UPLOADS_DIR', storage_path('app/uploads')),
-            'visibility' => 'private',
+            'root' => env('UPLOADS_DIR', public_path('uploads')),
+            'url' => '/uploads',
+            'visibility' => 'public',
             'throw' => false,
             'report' => false,
         ],

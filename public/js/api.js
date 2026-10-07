@@ -116,7 +116,15 @@
     }
 
     async logout() {
-      try { await this.request('POST', '/api/auth/logout', {}); } catch (e) { /* ignore */ }
+      try {
+        const r = await this.request('POST', '/api/auth/logout', {});
+        // Laravel invalidates the session and rotates the CSRF token on logout
+        // (AuthController::logout). The SPA never reloads, so the freshly minted
+        // token that ships with the response must replace the stale one — else
+        // the next login (send-otp/verify-otp) fails with a 419 CSRF mismatch
+        // until the page is refreshed.
+        if (r && r.csrf && window.__APP_BOOT) window.__APP_BOOT.csrf = r.csrf;
+      } catch (e) { /* ignore */ }
       this.state.currentUser = null;
       this.state.orders = [];
       this.notify('logout');
@@ -237,10 +245,25 @@
       return r;
     }
 
-    async uploadOrderResult(id, file) {
+    async uploadOrderResult(id, file, replaceUrl) {
       const fd = new FormData();
       fd.append('file', file);
+      // Replace mode: the server drops the old file (metadata + disk) together
+      // with the new upload, so the operator never sees a stale duplicate.
+      if (replaceUrl) fd.append('replaceUrl', replaceUrl);
       return this.request('POST', '/api/orders/' + id + '/result', fd);
+    }
+
+    async deleteOrderResult(id, url) {
+      const order = await this.request('DELETE', '/api/orders/' + id + '/result', { url });
+      this._replaceOrder(order);
+      return order;
+    }
+
+    async deleteOrderCustomerFile(id, url) {
+      const order = await this.request('DELETE', '/api/orders/' + id + '/customer-file', { url });
+      this._replaceOrder(order);
+      return order;
     }
 
     async fetchDashboardStats() {

@@ -293,46 +293,75 @@
     return '<div id="users-list"><div class="spinner" style="margin:30px auto"></div></div>';
   };
 
-  S.bind_admin_users = async function ($host, ctx) {
+  // Shared list renderer: used on first bind and on every background sync so
+  // the table reflects create/edit/delete without a full screen rebuild.
+  async function renderUsersList($host) {
+    const $v = $host.find('#users-list');
+    if (! $v.length) return;
     try {
       const users = await api.getUsers();
-      const $v = $host.find('#users-list');
-      $v.html(
-        users.map((u) =>
-          '<div class="list-row"><div class="lr-icon ' +
-            ({ admin: 'tone-rose', operator: 'tone-indigo', customer: 'tone-sky' }[u.role] || 'tone-slate') + '">' + icon('user') + '</div>' +
-          '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(u.name) + (u.isBlocked ? ' ⛔' : '') + '</div>' +
-          '<div class="lr-sub">' + PU.toPersianDigits(u.phone) + ' • ' + PU.escapeHtml(PERM.ROLE_LABELS[u.role] || u.role) + ' • ' + PU.formatToman(u.walletBalance) + '</div></div>' +
-          '<button class="icon-btn" style="background:var(--slate-soft);color:var(--ink)" data-edit-user="' + u.id + '">' + icon('edit') + '</button></div>'
-        ).join('')
-      );
+      // The “create user” action is gated by the users.create permission; an
+      // admin (or a user with users.manage) always passes the check.
+      const newButton = api.hasPermission('users.create')
+        ? '<button class="btn block sm" id="new-user" style="margin-bottom:10px">' + icon('plus') + 'کاربر جدید</button>'
+        : '';
+      const rows = users.map((u) =>
+        '<div class="list-row"><div class="lr-icon ' +
+          ({ admin: 'tone-rose', operator: 'tone-indigo', customer: 'tone-sky' }[u.role] || 'tone-slate') + '">' + icon('user') + '</div>' +
+        '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(u.name) + (u.isBlocked ? ' ⛔' : '') + '</div>' +
+        '<div class="lr-sub">' + PU.toPersianDigits(u.phone) + ' • ' + PU.escapeHtml(PERM.ROLE_LABELS[u.role] || u.role) + ' • ' + PU.formatToman(u.walletBalance) + '</div></div>' +
+        '<button class="icon-btn" style="background:var(--slate-soft);color:var(--ink)" data-edit-user="' + u.id + '">' + icon('edit') + '</button></div>'
+      ).join('');
+
+      $v.html(newButton + (rows || UI.emptyState('کاربری ثبت نشده', '', 'user')));
+
+      $v.find('#new-user').on('click', () => openUserForm(null));
       $v.find('[data-edit-user]').on('click', function () {
         const user = users.find((u) => u.id === $(this).data('edit-user'));
         openUserForm(user);
       });
     } catch (e) {
-      $host.find('#users-list').html(UI.emptyState('خطا در بارگذاری کاربران', e.message, 'alert'));
+      $v.html(UI.emptyState('خطا در بارگذاری کاربران', e.message, 'alert'));
     }
+  }
+
+  S.bind_admin_users = function ($host, ctx) {
+    renderUsersList($host);
+  };
+
+  // Background syncs (fired after create/edit) re-render just the list.
+  S.refresh_admin_users = function ($host) {
+    renderUsersList($host);
   };
 
   function openUserForm(user) {
+    const isNew = ! user;
+    if (isNew) {
+      user = { id: null, name: '', phone: '', role: 'customer', isBlocked: false, permissions: [], walletBalance: 0 };
+    }
     let catalog = null;
     let effective = user.permissions || [];
 
     const sheet = UI.sheet({
-      title: 'ویرایش کاربر',
-      subtitle: user.name + ' — ' + user.phone,
+      title: isNew ? 'کاربر جدید' : 'ویرایش کاربر',
+      subtitle: isNew ? 'افزودن کاربر تازه به سیستم' : user.name + ' — ' + user.phone,
       icon: 'user', tone: 'indigo', size: 'tall',
     });
 
     api.getPermissionCatalog().then((cat) => {
       catalog = cat;
-      effective = PERM.resolve(user.role, user.permissions && user.permissions.length ? JSON.stringify(user.permissions) : null);
+      effective = isNew
+        ? PERM.resolve(user.role, null)
+        : PERM.resolve(user.role, user.permissions && user.permissions.length ? JSON.stringify(user.permissions) : null);
       renderBody();
     });
 
     function renderBody() {
       sheet.body.html(
+        (isNew
+          ? '<label class="field-label">شماره موبایل <span class="req">*</span></label>' +
+            '<input class="input" id="u-phone" inputmode="numeric" dir="ltr" placeholder="09xxxxxxxxx" value="' + PU.escapeHtml(user.phone) + '">'
+          : '') +
         '<label class="field-label">نام</label>' +
         '<input class="input" id="u-name" value="' + PU.escapeHtml(user.name) + '">' +
         '<label class="field-label">نقش</label>' +
@@ -340,10 +369,11 @@
           ['customer', 'operator', 'admin'].map((r) =>
             '<button class="seg ' + (user.role === r ? 'on' : '') + '" data-role="' + r + '">' + PERM.ROLE_LABELS[r] + '</button>').join('') +
         '</div>' +
-        '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;margin:14px 2px">' +
-          '<input type="checkbox" id="u-blocked"' + (user.isBlocked ? ' checked' : '') + '> حساب مسدود باشد</label>' +
-        '<label class="field-label">تغییر موجودی کیف پول (مبلغ با علامت؛ مثلاً ۵۰۰۰۰ یا -۲۰۰۰۰)</label>' +
-        '<input class="input" id="u-wallet" inputmode="numeric" placeholder="۰">' +
+        (isNew ? '' :
+          '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;margin:14px 2px">' +
+            '<input type="checkbox" id="u-blocked"' + (user.isBlocked ? ' checked' : '') + '> حساب مسدود باشد</label>' +
+          '<label class="field-label">تغییر موجودی کیف پول (مبلغ با علامت؛ مثلاً ۵۰۰۰۰ یا -۲۰۰۰۰)</label>' +
+          '<input class="input" id="u-wallet" inputmode="numeric" placeholder="۰">') +
 
         '<div class="section-title">' + icon('shield') + 'ماتریس مجوزها</div>' +
         '<div id="perm-matrix"></div>'
@@ -378,18 +408,30 @@
       });
     }
 
-    sheet.footer.html('<button class="btn emerald block" id="u-save">ذخیره کاربر</button>');
+    sheet.footer.html('<button class="btn emerald block" id="u-save">' + (isNew ? 'ایجاد کاربر' : 'ذخیره کاربر') + '</button>');
     sheet.footer.find('#u-save').on('click', async function () {
       try {
-        const walletDelta = Number(PU.toLatinDigits(sheet.body.find('#u-wallet').val()).replace(/[^\d-]/g, '')) || 0;
-        await api.updateUser(user.id, {
-          name: sheet.body.find('#u-name').val(),
-          role: user.role,
-          isBlocked: sheet.body.find('#u-blocked').is(':checked'),
-          walletChange: walletDelta,
-          permissions: effective,
-        });
-        UI.toast('کاربر ذخیره شد.', 'success');
+        if (isNew) {
+          const phone = PU.toLatinDigits(String(sheet.body.find('#u-phone').val() || '')).replace(/\D/g, '');
+          if (!/^09\d{9}$/.test(phone)) { UI.toast('شماره موبایل معتبر نیست (مثال: 09123456789).', 'warning'); return; }
+          await api.addUser({
+            phone,
+            name: sheet.body.find('#u-name').val(),
+            role: user.role,
+            permissions: effective,
+          });
+          UI.toast('کاربر ایجاد شد.', 'success');
+        } else {
+          const walletDelta = Number(PU.toLatinDigits(sheet.body.find('#u-wallet').val()).replace(/[^\d-]/g, '')) || 0;
+          await api.updateUser(user.id, {
+            name: sheet.body.find('#u-name').val(),
+            role: user.role,
+            isBlocked: sheet.body.find('#u-blocked').is(':checked'),
+            walletChange: walletDelta,
+            permissions: effective,
+          });
+          UI.toast('کاربر ذخیره شد.', 'success');
+        }
         sheet.close();
         api.syncWithBackend();
       } catch (e) { UI.toast(e.message, 'error'); }

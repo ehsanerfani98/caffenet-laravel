@@ -26,29 +26,24 @@
       ['pending_payment', 'submitted', 'processing', 'ready'].includes(o.status));
     if (!active) return '';
     return (
-      '<div class="section-title">' + icon('folder') + 'سفارش جاری شما</div>' +
-      '<div class="order-card" data-track="' + active.id + '">' +
-        '<div class="oc-head"><span class="oc-num">' + PU.toPersianDigits(active.orderNumber) + '</span>' + UI.statusBadge(active.status) + '</div>' +
-        '<div class="oc-title">' + PU.escapeHtml(active.serviceTitle) + '</div>' +
-        '<div class="oc-foot"><span class="oc-price">' + PU.formatToman(Math.max(0, active.totalPrice - active.discountAmount)) + '</span>' +
-        '<span style="color:var(--sky);font-weight:700">پیگیری ↗</span></div>' +
+      '<div class="home-order-block">' +
+        '<div class="section-title">' + icon('folder') + 'سفارش جاری شما</div>' +
+        '<div class="order-card" data-track="' + active.id + '">' +
+          '<div class="oc-head"><span class="oc-num">' + PU.toPersianDigits(active.orderNumber) + '</span>' + UI.statusBadge(active.status) + '</div>' +
+          '<div class="oc-title">' + PU.escapeHtml(active.serviceTitle) + '</div>' +
+          '<div class="oc-foot"><span class="oc-price">' + PU.formatToman(Math.max(0, active.totalPrice - active.discountAmount)) + '</span>' +
+          '<span style="color:var(--sky);font-weight:700">پیگیری ↗</span></div>' +
+        '</div>' +
       '</div>'
     );
   }
 
   /* ---------------- Home ---------------- */
 
-  Screens.home = function (ctx) {
-    const state = api.state;
-    const settings = state.settings || {};
+  // Default home service listing (popular + per-category). Kept as a helper so
+  // the search box can restore it verbatim when the query is cleared.
+  function homeServicesHtml(state, settings) {
     let html = '';
-
-    html += '<div id="hero-slider"></div>';
-
-    if (ctx.user) {
-      html += '<div id="home-order-live">' + activeOrderBlock(state) + '</div>';
-    }
-
     html += '<div class="section-title">' + icon('zap') + 'خدمات پرطرفدار</div>';
     const popular = state.services.filter((s) => s.isActive).slice(0, 4);
     html += '<div class="svc-grid">' + (popular.map((s) => serviceCard(s, settings)).join('') || '') + '</div>';
@@ -61,20 +56,55 @@
         renderServiceIcon(cat.iconName) + ' ' + PU.escapeHtml(cat.title) + '</div>';
       html += '<div class="svc-grid">' + items.map((s) => serviceCard(s, settings)).join('') + '</div>';
     });
+    return html;
+  }
 
-    html +=
-      '<div class="info-box" style="margin-top:16px">' +
-        '<b>' + PU.escapeHtml(settings.siteTitle || 'کافی‌نت آنلاین') + '</b><br>' +
-        (settings.workingHours ? 'ساعت کاری: ' + PU.escapeHtml(settings.workingHours) + '<br>' : '') +
-        (settings.coffeenetPhone ? 'تلفن: ' + PU.toPersianDigits(settings.coffeenetPhone) : '') +
-      '</div>';
+  Screens.home = function (ctx) {
+    const state = api.state;
+    const settings = state.settings || {};
+    let html = '';
+
+    html += '<div id="hero-slider"></div>';
+
+    // Search field directly below the slider.
+    html += '<div class="search-box">' + icon('search') +
+      '<input class="input" id="home-search" placeholder="جستجوی خدمات…" autocomplete="off"></div>';
+
+    if (ctx.user) {
+      html += '<div id="home-order-live">' + activeOrderBlock(state) + '</div>';
+    }
+
+    html += '<div id="home-services">' + homeServicesHtml(state, settings) + '</div>';
 
     return html;
   };
 
   Screens.bind_home = function ($host) {
     UI.imageSlider($host.find('#hero-slider'), api.state.slides.filter((s) => s.isActive));
-    // Delegated so the handlers survive the #home-order-live innerHTML refresh.
+
+    function renderHomeServices() {
+      const q = ($host.find('#home-search').val() || '').trim().toLowerCase();
+      const $box = $host.find('#home-services');
+      if (!q) {
+        $box.html(homeServicesHtml(api.state, api.state.settings || {}));
+        return;
+      }
+      const items = api.state.services.filter((s) =>
+        s.isActive && (s.title + ' ' + (s.description || '')).toLowerCase().includes(q));
+      if (!items.length) {
+        $box.html(UI.emptyState('خدمتی یافت نشد', 'عبارت دیگری را جستجو کنید', 'search'));
+        return;
+      }
+      $box.html(
+        '<div class="section-title">' + icon('search') + 'نتایج جستجو</div>' +
+        '<div class="svc-grid">' + items.map((s) => serviceCard(s)).join('') + '</div>'
+      );
+    }
+
+    $host.on('input', '#home-search', PU.debounce(renderHomeServices, 200));
+
+    // Delegated so the handlers survive the #home-order-live / #home-services
+    // innerHTML refreshes.
     $host.on('click', '[data-service]', function () {
       const svc = api.state.services.find((s) => s.id === $(this).data('service'));
       if (svc) Screens.openOrderForm(svc);
@@ -244,7 +274,6 @@
         '<div class="card" style="margin-top:10px;display:flex;align-items:center;gap:10px;cursor:pointer" id="profile-queue">' +
           '<div class="lr-icon tone-sky">' + icon('folder') + '</div>' +
           '<div class="lr-main"><div class="lr-title">صف کار</div><div class="lr-sub">سفارش‌های پرداخت‌شده</div></div>' +
-          icon('arrowleft') +
         '</div>' : '') +
       '<div class="card" style="margin-top:10px">' +
         '<div class="list-row" id="profile-install"><div class="lr-icon tone-indigo">' + icon('download') + '</div>' +

@@ -17,8 +17,10 @@ Route::get('/', function () {
     return view('app');
 })->name('home');
 
-// Private uploads: authenticated users only, with per-order ownership check
-// (GET /uploads/:filename → orders.customer_files_json / result_files_json).
+// Order uploads physically live in public/uploads (no storage:link symlink
+// needed on shared hosting) and are normally served directly by the web
+// server. This route is the fallback for requests that reach PHP: it keeps the
+// per-order ownership check (orders.customer_files_json / result_files_json).
 Route::get('/uploads/{filename}', function (Request $request, string $filename) {
     // Fortify session authentication.
     $user = $request->user();
@@ -27,7 +29,15 @@ Route::get('/uploads/{filename}', function (Request $request, string $filename) 
     }
 
     $filename = basename($filename);
-    $isStaff = $user->hasAnyRole(['admin', 'operator']);
+
+    // Staff detection uses the canonical `role` column (the same source used by
+    // OrderController::canAccess and the SPA). It must NOT rely solely on the
+    // spatie role name: when a per-user permission override exists,
+    // User::syncAccess() stores the generic `customer` spatie role while the
+    // real role stays in the `role` column — so hasAnyRole() would wrongly
+    // report an operator as a non-staff customer.
+    $isStaff = in_array($user->role, ['admin', 'operator'], true)
+        || $user->hasAnyRole(['admin', 'operator']);
 
     if (! $isStaff) {
         $owns = Order::where('customer_id', $user->id)
@@ -45,7 +55,9 @@ Route::get('/uploads/{filename}', function (Request $request, string $filename) 
         abort(404, 'فایل یافت نشد.');
     }
 
-    return response()->download(Storage::disk('uploads')->path($filename), $filename);
+    // Inline so images/PDFs can be previewed in the browser instead of always
+    // being force-downloaded.
+    return response()->file(Storage::disk('uploads')->path($filename));
 })->where('filename', '[A-Za-z0-9._-]+');
 
 // Internal test gateway (paymentTestMode) — mirrors /test-gateway of the

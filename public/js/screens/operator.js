@@ -9,6 +9,78 @@
 
   window.Screens = window.Screens || {};
 
+  /* Fallback Persian labels for the seeded catalog fields/options — used when
+   * the order's service was edited or removed after the order was placed, so an
+   * operator never sees a latin field id or raw option value. */
+  const FIELD_LABELS = {
+    pageCount: 'تعداد صفحات',
+    copies: 'تعداد نسخه',
+    printColor: 'نوع چاپ',
+    paperSize: 'سایز کاغذ',
+    binding: 'صحافی',
+    university: 'نام دانشگاه',
+    serviceLevel: 'سطح خدمات',
+    subject: 'موضوع پیگیری',
+    taxType: 'نوع خدمت',
+  };
+
+  const OPTION_LABELS = {
+    bw: 'سیاه‌وسفید (۱۵۰۰ تومان/صفحه)',
+    color: 'رنگی (۵۵۰۰ تومان/صفحه)',
+    A4: 'A4',
+    A3: 'A3 (دو برابر A4)',
+    none: 'بدون صحافی',
+    plastic_coil: 'فن پلاستیکی (۲۵٬۰۰۰ تومان)',
+    metal_coil: 'فن فلزی (۴۰٬۰۰۰ تومان)',
+    basic: 'فقط ثبت‌نام',
+    full: 'ثبت‌نام + انتخاب واحد (۲۰٬۰۰۰ تومان اضافه)',
+    declaration: 'اظهارنامه مالیاتی (۵۰٬۰۰۰ تومان اضافه)',
+    loan: 'مشاوره وام',
+  };
+
+  /* Field definitions of the service an order belongs to (may be empty when
+   * the service has since been removed). */
+  function serviceFieldsFor(order) {
+    const service = (api.state.services || []).find((s) => s.id === order.serviceId);
+    return (service && service.fields) || [];
+  }
+
+  /* Any stored value → Persian display string: booleans become بله/خیر,
+   * numbers/ids get Persian digits, arrays are comma-joined, empty → «—». */
+  function toPersianValue(v) {
+    if (v === true || v === 'true') return 'بله';
+    if (v === false || v === 'false') return 'خیر';
+    if (v === null || v === undefined || v === '') return '—';
+    if (Array.isArray(v)) return v.map(toPersianValue).join('، ');
+    return PU.toPersianDigits(String(v));
+  }
+
+  /* Maps raw formData (latin field ids + option values) to Persian label/value
+   * rows for the order detail sheet, using the order's service field defs. */
+  function orderFormDataRows(order) {
+    const fields = serviceFieldsFor(order);
+    return Object.entries(order.formData || {}).map(function (entry) {
+      const key = entry[0];
+      const raw = entry[1];
+      const field = fields.find((f) => f.id === key);
+      const label = (field && field.label) || FIELD_LABELS[key] || key;
+      let value;
+
+      if (field && field.type === 'checkbox') {
+        value = toPersianValue(raw === true || raw === 'true' || raw === '1' || raw === 1 || raw === 'on');
+      } else if (field && Array.isArray(field.options)) {
+        const opt = field.options.find((o) => String(o.value) === String(raw));
+        value = opt ? PU.toPersianDigits(String(opt.label)) : toPersianValue(raw);
+      } else if (OPTION_LABELS[raw] !== undefined) {
+        value = PU.toPersianDigits(String(OPTION_LABELS[raw]));
+      } else {
+        value = toPersianValue(raw);
+      }
+
+      return { label: String(label), value: String(value) };
+    });
+  }
+
   Screens.operator = function (ctx) {
     if (!ctx.user || !['operator', 'admin'].includes(ctx.user.role)) {
       return UI.emptyState('این بخش برای اپراتورها است', 'وارد حساب اپراتوری شوید', 'lock');
@@ -96,6 +168,7 @@
 
     function openDetail(orderId) {
       api.fetchOrderById(orderId).then((o) => {
+        let currentOrder = o;
         const sheet = UI.sheet({
           title: 'جزئیات سفارش',
           subtitle: o.orderNumber + ' — ' + o.customerName,
@@ -123,9 +196,12 @@
 
           (Object.keys(o.formData || {}).length ?
             '<div class="section-title">' + icon('receipt') + 'مشخصات سفارش</div>' +
-            '<div class="card">' + Object.entries(o.formData).map(([k, v]) =>
-              '<div class="list-row" style="padding:7px 0"><div class="lr-main"><div class="lr-sub" style="margin:0">' + PU.escapeHtml(k) + '</div>' +
-              '<div class="lr-title" style="font-size:12.5px">' + PU.escapeHtml(String(v)) + '</div></div></div>').join('') + '</div>' : '') +
+            '<div class="card">' + orderFormDataRows(o).map((row) =>
+              '<div class="list-row" style="padding:7px 0"><div class="lr-main"><div class="lr-sub" style="margin:0">' + PU.escapeHtml(row.label) + '</div>' +
+              '<div class="lr-title" style="font-size:12.5px">' + PU.escapeHtml(row.value) + '</div></div></div>').join('') + '</div>' : '') +
+
+          '<div class="section-title">' + icon('files') + 'فایل‌های پیوست مشتری</div>' +
+          '<div id="customer-files"></div>' +
 
           '<div class="section-title">' + icon('edit') + 'تغییر وضعیت</div>' +
           '<div class="chip-row" id="status-chips">' +
@@ -136,28 +212,13 @@
           '<textarea class="textarea" id="op-note" rows="2">' + PU.escapeHtml(o.internalNote || '') + '</textarea>' +
           '<button class="btn ghost block sm" id="save-note" style="margin-top:8px">ذخیره یادداشت</button>' +
 
-          '<div class="section-title">' + icon('upload') + 'بارگذاری فایل خروجی</div>' +
-          '<div id="result-files">' +
-            (o.resultFiles || []).map((f) =>
-              '<a class="file-chip" href="' + PU.escapeHtml(f.url) + '" target="_blank" style="text-decoration:none;color:inherit">' +
-              '<div class="fc-icon">' + icon('file') + '</div>' +
-              '<div class="fc-main"><div class="fc-name">' + PU.escapeHtml(f.name) + '</div><div class="fc-size">' + PU.formatBytes(f.size) + '</div></div>' +
-              icon('download') + '</div>').join('') +
-          '</div>' +
-          '<button class="btn block sm" id="upload-result">' + icon('upload') + 'انتخاب فایل خروجی</button>' +
+          '<div class="section-title">' + icon('upload') + 'فایل خروجی سفارش</div>' +
+          '<div id="result-files"></div>' +
+          '<button class="btn block sm" id="upload-result" style="margin-bottom:18px">' + icon('upload') + 'افزودن فایل خروجی</button>' +
           '<input type="file" id="result-input" class="hidden">' +
 
           '<div class="section-title">' + icon('users') + 'گفتگو با مشتری</div>' +
-          '<div id="chat-box">' +
-            (o.ticketMessages || []).map((m) =>
-              '<div class="chat-bubble ' + (m.isOperatorResponse ? 'me' : 'them') + '">' +
-              '<div class="who">' + PU.escapeHtml(m.senderName) + '</div>' + PU.escapeHtml(m.message) +
-              '<div class="when">' + PU.toJalaliDate(m.timestamp) + '</div></div>').join('') +
-          '</div>' +
-          '<div style="display:flex;gap:8px;margin-top:8px">' +
-            '<input class="input" id="op-chat" placeholder="پاسخ به مشتری…">' +
-            '<button class="btn" id="op-chat-send">' + icon('send') + '</button>' +
-          '</div>'
+          '<button class="btn ghost block sm" id="open-chat">' + icon('sms') + 'ورود به صفحه گفتگو با مشتری</button>'
         );
 
         sheet.body.find('[data-newstatus]').on('click', async function () {
@@ -176,29 +237,124 @@
           } catch (e) { UI.toast(e.message, 'error'); }
         });
 
-        sheet.body.find('#upload-result').on('click', () => sheet.body.find('#result-input').trigger('click'));
+        // Uploaded result files: view / replace / delete are all available to
+        // the operator. The list re-renders in place from the latest order
+        // payload the server returns, so the sheet never has to be reopened.
+        let replaceTarget = null;
+
+        function renderResultFiles() {
+          const files = currentOrder.resultFiles || [];
+          const $box = sheet.body.find('#result-files');
+          if (!files.length) {
+            $box.html('<div class="help-text">هنوز فایل خروجی بارگذاری نشده است.</div>');
+            return;
+          }
+          $box.html(files.map(function (f) {
+            return '<div class="file-chip">' +
+              '<div class="fc-icon">' + icon('file') + '</div>' +
+              '<div class="fc-main"><div class="fc-name">' + PU.escapeHtml(f.name) + '</div>' +
+              '<div class="fc-size">' + PU.formatBytes(f.size) + '</div></div>' +
+              '<div class="fc-actions">' +
+                '<a class="fc-act" href="' + PU.escapeHtml(f.url) + '" target="_blank" rel="noopener" title="مشاهده فایل">' + icon('eye') + '</a>' +
+                '<button class="fc-act" data-replace-file="' + PU.escapeHtml(f.url) + '" title="جایگزینی فایل">' + icon('refresh') + '</button>' +
+                '<button class="fc-act danger" data-delete-file="' + PU.escapeHtml(f.url) + '" title="حذف فایل">' + icon('trash') + '</button>' +
+              '</div>' +
+            '</div>';
+          }).join(''));
+        }
+
+        // Customer attachments: view or delete. Deletion removes the metadata
+        // and the disk copy server-side and re-renders from the latest order.
+        function renderCustomerFiles() {
+          const files = currentOrder.customerFiles || [];
+          const $box = sheet.body.find('#customer-files');
+          if (!files.length) {
+            $box.html('<div class="help-text">مشتری فایلی پیوست نکرده است.</div>');
+            return;
+          }
+          $box.html(files.map(function (f) {
+            return '<div class="file-chip">' +
+              '<div class="fc-icon">' + icon('file') + '</div>' +
+              '<div class="fc-main"><div class="fc-name">' + PU.escapeHtml(f.name) + '</div>' +
+              '<div class="fc-size">' + PU.formatBytes(f.size) + '</div></div>' +
+              '<div class="fc-actions">' +
+                '<a class="fc-act" href="' + PU.escapeHtml(f.url) + '" target="_blank" rel="noopener" title="مشاهده فایل">' + icon('eye') + '</a>' +
+                '<button class="fc-act danger" data-delete-cfile="' + PU.escapeHtml(f.url) + '" title="حذف فایل">' + icon('trash') + '</button>' +
+              '</div>' +
+            '</div>';
+          }).join(''));
+        }
+
+        function applyOrder(updated) {
+          if (updated && updated.id) currentOrder = updated;
+          renderCustomerFiles();
+          renderResultFiles();
+        }
+
+        sheet.body.on('click', '[data-delete-cfile]', async function () {
+          const url = $(this).data('delete-cfile');
+          const file = (currentOrder.customerFiles || []).find((f) => f.url === url);
+          if (!window.confirm('فایل «' + (file ? file.name : '') + '» حذف شود؟')) return;
+          UI.busy(true);
+          try {
+            const updated = await api.deleteOrderCustomerFile(currentOrder.id, url);
+            applyOrder(updated);
+            UI.toast('فایل پیوست مشتری حذف شد.', 'success');
+          } catch (e) {
+            UI.toast(e.message, 'error');
+          } finally { UI.busy(false); }
+        });
+
+        // "افزودن فایل" and "جایگزینی" share one hidden input; replaceTarget
+        // tells the change handler whether to drop an existing file.
+        sheet.body.find('#upload-result').on('click', function () {
+          replaceTarget = null;
+          sheet.body.find('#result-input').trigger('click');
+        });
+
+        sheet.body.on('click', '[data-replace-file]', function () {
+          replaceTarget = $(this).data('replace-file');
+          sheet.body.find('#result-input').trigger('click');
+        });
+
+        sheet.body.on('click', '[data-delete-file]', async function () {
+          const url = $(this).data('delete-file');
+          const file = (currentOrder.resultFiles || []).find((f) => f.url === url);
+          if (!window.confirm('فایل «' + (file ? file.name : '') + '» حذف شود؟')) return;
+          UI.busy(true);
+          try {
+            const updated = await api.deleteOrderResult(currentOrder.id, url);
+            applyOrder(updated);
+            UI.toast('فایل خروجی حذف شد.', 'success');
+          } catch (e) {
+            UI.toast(e.message, 'error');
+          } finally { UI.busy(false); }
+        });
+
         sheet.body.find('#result-input').on('change', async function () {
           const file = this.files[0];
+          const target = replaceTarget;
+          replaceTarget = null;
           if (!file) return;
           UI.busy(true);
           try {
-            await api.uploadOrderResult(o.id, file);
-            UI.toast('فایل خروجی بارگذاری شد.', 'success');
-            sheet.close();
+            const res = await api.uploadOrderResult(currentOrder.id, file, target || undefined);
+            applyOrder(res && res.order);
+            UI.toast(target ? 'فایل خروجی جایگزین شد.' : 'فایل خروجی بارگذاری شد.', 'success');
           } catch (e) {
             UI.toast(e.message, 'error');
           } finally { UI.busy(false); }
           $(this).val('');
         });
 
-        sheet.body.find('#op-chat-send').on('click', async () => {
-          const msg = (sheet.body.find('#op-chat').val() || '').trim();
-          if (!msg) return;
-          try {
-            await api.addTicketMessage(o.id, msg);
-            UI.toast('پیام ارسال شد.', 'success');
-            sheet.close();
-          } catch (e) { UI.toast(e.message, 'error'); }
+        renderCustomerFiles();
+        renderResultFiles();
+
+        sheet.body.find('#open-chat').on('click', function () {
+          Screens.openOrderChat(o.id, {
+            title: 'گفتگو با مشتری',
+            subtitle: PU.toPersianDigits(o.orderNumber) + ' — ' + o.customerName,
+          });
         });
       }).catch((e) => UI.toast(e.message, 'error'));
     }

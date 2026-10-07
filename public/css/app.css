@@ -125,7 +125,11 @@ svg.i.i-lg { width: 30px; height: 30px; }
 /* ---------- screen host ---------- */
 .screen-host {
     flex: 1; overflow-y: auto; overflow-x: hidden;
-    padding: 14px 14px calc(var(--nav-h) + env(safe-area-inset-bottom) + 18px);
+    /* The bottom nav is an in-flow flex sibling (not fixed), so flexbox already
+       reserves its height and the safe-area inset lives on .bottom-nav.
+       Only a small breathing gap is needed here — re-adding --nav-h/safe-area
+       created ~80px of dead space at the end of every screen. */
+    padding: 14px 14px 18px;
     -webkit-overflow-scrolling: touch;
 }
 .screen { animation: screenIn .28s ease both; }
@@ -175,7 +179,7 @@ svg.i.i-lg { width: 30px; height: 30px; }
 .btn.amber { background: var(--amber); }
 .btn.slate { background: var(--slate); }
 .btn.ghost { background: var(--slate-soft); color: var(--ink); }
-.btn.block { width: 100%; }
+.btn.block { display: flex; width: 100%; }
 .btn.sm { padding: 8px 12px; font-size: 12px; border-radius: 10px; }
 
 .chip {
@@ -243,7 +247,12 @@ svg.i.i-lg { width: 30px; height: 30px; }
 .order-card .oc-foot { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
 .order-card .oc-price { font-weight: 700; color: var(--sky-deep); }
 
+/* Live "current order" block on home — keep distance from the next section
+   (the following .section-title is :first-child so its top margin collapses). */
+.home-order-block { margin-bottom: 16px; }
+
 /* ---------- slider ---------- */
+#hero-slider { margin-top: 8px; margin-bottom: 16px; }
 .hero-slider { position: relative; border-radius: 18px; overflow: hidden; margin-bottom: 14px; }
 .hero-slider .slides { display: flex; transition: transform .45s ease; }
 .hero-slide { flex: 0 0 100%; position: relative; }
@@ -386,6 +395,12 @@ svg.i.i-lg { width: 30px; height: 30px; }
 .file-chip .fc-del { border: none; background: none; color: var(--rose); cursor: pointer; padding: 5px; }
 .file-chip .fc-del svg { width: 16px; height: 16px; }
 .file-chip > svg.i { width: 16px; height: 16px; color: var(--ink-soft); flex-shrink: 0; }
+.file-chip .fc-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.file-chip .fc-act { border: none; background: none; color: var(--sky); cursor: pointer; padding: 5px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; border-radius: 8px; }
+.file-chip .fc-act:hover { background: rgba(2, 132, 199, .12); }
+.file-chip .fc-act svg { width: 16px; height: 16px; }
+.file-chip .fc-act.danger { color: var(--rose); }
+.file-chip .fc-act.danger:hover { background: rgba(225, 29, 72, .12); }
 
 /* modal form fields inside sheets */
 .radio-card, .check-card {

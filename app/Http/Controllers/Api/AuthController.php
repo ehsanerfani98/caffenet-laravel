@@ -124,12 +124,20 @@ class AuthController extends Controller
         // Fortify's AuthenticatedSessionController::destroy pattern.
         Auth::guard('web')->logout();
 
+        // invalidate() flushes the old session and regenerateToken() mints a
+        // brand-new CSRF token on the server. The SPA never reloads, so unless
+        // the rotated token is shipped back here it keeps sending the stale one
+        // and every later mutation (e.g. the next send-otp/verify-otp) fails
+        // with a 419 CSRF token mismatch until the page is manually refreshed.
+        // Mirror FortifyLoginResponse: hand the fresh token to the client.
+        $csrf = null;
         if ($request->hasSession()) {
             $request->session()->invalidate();
             $request->session()->regenerateToken();
+            $csrf = csrf_token();
         }
 
-        return response()->json(['message' => 'خروج انجام شد.']);
+        return response()->json(['message' => 'خروج انجام شد.', 'csrf' => $csrf]);
     }
 
     public function me(Request $request): JsonResponse

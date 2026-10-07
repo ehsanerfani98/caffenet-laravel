@@ -8,9 +8,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * File upload endpoints — order files (private, 30MB) with a MIME/extension
- * whitelist identical to ALLOWED_* in the original routes.ts. Slider images
- * are handled by SliderController into the public media disk (5MB).
+ * File upload endpoints — order files (public/uploads, 30MB) with a
+ * MIME/extension whitelist identical to ALLOWED_* in the original routes.ts.
+ * Files live under public/ so no storage:link symlink is required on shared
+ * hosting. Slider images are handled by SliderController into public/media.
  */
 class UploadController extends Controller
 {
@@ -55,8 +56,8 @@ class UploadController extends Controller
             return response()->json(['error' => 'پسوند فایل مجاز نیست.'], 400);
         }
 
-        // Store with a random private name; served only through the
-        // ownership-checked /uploads route.
+        // Store with a random name; the file lands in public/uploads and is
+        // served from /uploads/<name>.
         $stored = $file->storeAs('', 'up-'.\Illuminate\Support\Str::uuid().'.'.$ext, 'uploads');
 
         $meta = [
