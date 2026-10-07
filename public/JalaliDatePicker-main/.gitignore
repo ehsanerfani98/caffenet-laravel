@@ -1,0 +1,27 @@
+﻿# Logs
+logs
+*.log
+*-debug.log*
+
+node_modules
+dist
+dist-ssr
+coverage
+tmp
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.history/*
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+Thumbs.db
+**/*.js.map
+package-lock.json
+.vs/*
+*.vsix
+.idea/*

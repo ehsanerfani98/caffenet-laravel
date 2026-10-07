@@ -87,7 +87,7 @@ class CatalogController extends Controller
 
         // Validate dynamic fields structure (form-builder contract).
         $fields = is_array($body['fields'] ?? null) ? array_values($body['fields']) : [];
-        $allowedTypes = ['text', 'number', 'textarea', 'select', 'radio', 'checkbox', 'file'];
+        $allowedTypes = ['text', 'number', 'textarea', 'date', 'select', 'radio', 'checkbox', 'file'];
         $clean = [];
         foreach ($fields as $f) {
             $type = (string) ($f['type'] ?? '');

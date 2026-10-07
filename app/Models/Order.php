@@ -46,6 +46,21 @@ class Order extends CaffenetModel
     /** Never shown in the operator queue. */
     public const NON_QUEUE_STATUSES = [self::STATUS_PENDING_PAYMENT, self::STATUS_FAILED];
 
+    /**
+     * Contact channels the customer can prefer (multi-select). Keys are stored
+     * in orders.contact_methods_json; titles are the operator-facing labels.
+     */
+    public const CONTACT_METHODS = [
+        'app_chat' => 'چت داخلی برنامه',
+        'phone' => 'تماس تلفنی',
+        'sms' => 'پیامک',
+        'telegram' => 'تلگرام',
+        'whatsapp' => 'واتساپ',
+        'rubika' => 'روبیکا',
+        'bale' => 'بله',
+        'eitaa' => 'ایتا',
+    ];
+
     protected const ID_PREFIX = 'ord';
 
     protected $table = 'orders';
@@ -56,7 +71,7 @@ class Order extends CaffenetModel
         'delivery_postal_code', 'form_data_json', 'customer_files_json', 'result_files_json',
         'total_price', 'discount_amount', 'paid_amount', 'payment_method', 'payment_tracking_code',
         'assigned_operator_id', 'assigned_operator_name', 'internal_note', 'customer_note',
-        'coupon_id', 'rating', 'review_comment', 'created_at', 'updated_at',
+        'contact_methods_json', 'coupon_id', 'rating', 'review_comment', 'created_at', 'updated_at',
     ];
 
     protected $casts = [
@@ -91,6 +106,25 @@ class Order extends CaffenetModel
         $decoded = json_decode((string) $this->form_data_json, true);
 
         return is_array($decoded) ? $decoded : [];
+    }
+
+    /** Preferred contact channels as a clean, de-duplicated list of keys. */
+    public function contactMethods(): array
+    {
+        $decoded = json_decode((string) $this->contact_methods_json, true);
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $allowed = array_keys(self::CONTACT_METHODS);
+        $out = [];
+        foreach ($decoded as $method) {
+            if (is_string($method) && in_array($method, $allowed, true) && ! in_array($method, $out, true)) {
+                $out[] = $method;
+            }
+        }
+
+        return $out;
     }
 
     public function customerFiles(): array

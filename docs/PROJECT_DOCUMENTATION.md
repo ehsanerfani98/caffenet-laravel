@@ -213,10 +213,28 @@ flowchart TD
 | `ensureJwtSecret()` | تولید و ذخیرهٔ راز JWT در صورت نبود |
 | `listSystemSettings()` / `updateSystemSettings()` | خواندن/نوشتن تنظیمات سیستمی از پنل |
 
-### دسته‌بندی تنظیمات سیستمی
-`SystemSettingCategory = general | auth | sms | payment | test | runtime`
-- `runtime`: همان پنج مقدار فقط‌بوت که فقط به‌صورت **فقط‌خواندنی** در پنل نمایش داده می‌شوند.
-- `test`: `smsTestMode`, `paymentTestMode`, `otpTestMode`.
+### چیدمان شیت «تنظیمات سیستمی»
+دسته‌بندی سطح داده همان `SystemSettingCategory = general | auth | sms | payment | test | runtime` است، اما شیت یک چیدمان دامنه‌محور دارد و تنها دو انتخاب کاربری برای پرداخت نشان می‌دهد:
+- **عمومی**: `appUrl`, `adminPhones`.
+- **پیامک**: `smsEnabled` و سلکتور `شبیه‌ساز / واقعی`؛ اعتبارنامه‌ها (`smsApiKey`, `smsSender`, `smsOtpPattern` و `smsBaseUrl` در «تنظیمات پیشرفته») فقط وقتی نمایش داده می‌شوند که سامانه فعال و حالت «واقعی» باشد. اگر `smsEnabled` خاموش باشد، سلکتور حالت غیرفعال می‌شود و هیچ مودی (نه واقعی و نه شبیه‌ساز) کار نمی‌کند.
+- **پرداخت**: انتخاب **تک‌گانهٔ نوع درگاه** (`paymentEnabled` = زرین‌پال یا `bazaarEnabled` = کافه‌بازار — فقط یک درگاه هم‌زمان) به‌همراه یک سلکتور سراسری **گزینه درگاه پرداخت**؛ فیلدهای اعتبارنامهٔ هر درگاه تنها وقتی نمایش داده می‌شوند که آن درگاه فعال **و** حالت «واقعی» باشد (در «سندباکس» و «تست آفلاین» پنهان می‌مانند، اما مقدارشان حفظ می‌شود) و همهٔ URLها/تایم‌اوت‌ها/پکیج فروشنده/سطح دسترسی داخل «تنظیمات پیشرفته» می‌مانند.
+- پنج کلید خام (`paymentEnabled`, `paymentSandbox`, `paymentTestMode`, `bazaarEnabled`, `bazaarTestMode`) و کلید پیامک (`smsTestMode`) هرگز به‌صورت کنترل خام نمایش داده نمی‌شوند.
+- هر کلید سیستمی که چیدمان سفارشی پوشش ندهد، خودکار زیر «سایر تنظیمات» رندر می‌شود تا هیچ کلیدی دست‌نیافتنی نشود.
+
+### نگاشت انتخاب‌های UI به کلیدها
+سلکتورها هنگام ذخیره این بولین‌ها را می‌سازند:
+- **نوع درگاه** (تک‌گانه): `paymentEnabled` (زرین‌پال) یا `bazaarEnabled` (کافه‌بازار)؛ حداکثر یکی فعال است و با فعال‌کردن درگاه دیگر، درگاه قبلی غیرفعال می‌شود.
+- **گزینه درگاه پرداخت** (سراسری):
+
+| گزینه | paymentSandbox | paymentTestMode | bazaarTestMode |
+|---|---|---|---|
+| واقعی | 0 | 0 | 0 |
+| سندباکس | 1 | 0 | 0 |
+| تست آفلاین | 1 | 0 | 1 |
+
+  - `paymentTestMode` همیشه `0` است؛ «تست آفلاین» برای زرین‌پال خودکار به سندباکس زرین‌پال تبدیل می‌شود. `paymentSandbox` تنها وقتی `1` می‌شود که زرین‌پال فعال و حالت غیرِ «واقعی» باشد؛ `bazaarTestMode` تنها وقتی `1` می‌شود که کافه‌بازار فعال و حالت «تست آفلاین» باشد. چون تنها یک درگاه فعال است، کلید مربوط به درگاه غیرفعال همیشه `0` می‌ماند.
+- **حالت پیامک** (`شبیه‌ساز / واقعی`): `smsTestMode` به `1/0` تنظیم می‌شود. کلید `otpTestMode` حذف شده است، چون حالت شبیه‌ساز همهٔ پیامک‌ها از جمله OTP را پوشش می‌دهد.
+- **وقتی `smsEnabled=0` باشد هیچ مودی کار نمی‌کند:** `POST /api/auth/send-otp` با خطای «سامانه پیامک غیرفعال است» (کد ۵۰۳) پاسخ می‌دهد و کدی ساخته یا نمایش داده نمی‌شود (نه واقعی، نه شبیه‌ساز). صفحهٔ ورود کلاینت این وضعیت را از پرچم عمومی `smsEnabled` در `GET /api/settings` می‌خواند، پیام هشدار نشان می‌دهد و دکمهٔ ارسال کد را غیرفعال می‌کند.
 
 ### تفکیک scope: کسب‌وکار در برابر سیستمی
 هر تعریف در `DEFS` یک `scope` دارد (`business` یا `system`) و هر کلید **فقط** در یک پنل ویرایش می‌شود:
@@ -494,9 +512,12 @@ erDiagram
 | `POST /api/orders/:id/result` | `orders.edit` | بارگذاری فایل خروجی |
 | `POST /api/orders/:id/ticket` | مالک/کارکنان | ارسال پیام گفتگو |
 | `DELETE /api/orders/:id` | `orders.delete` | حذف سفارش پرداخت‌نشده |
-| `POST /api/payments/request` | مالک | ایجاد تراکنش |
-| `GET /api/payments/verify` | عمومی (callback) | بازگشت از درگاه و تایید |
+| `POST /api/payments/request` | مالک | ایجاد تراکنش **شارژ کیف پول** (`purpose` فقط `wallet`; پارامتر `gateway`: online/bazaar) |
+| `GET /api/payments/verify` | عمومی (callback) | بازگشت از درگاه و تایید (زرین‌پال) |
 | `GET /api/payments/status` | مالک | وضعیت تراکنش |
+| `GET /bazaar-iap/callback` | عمومی (callback) | بازگشت از کافه‌بازار + مصرف سرور‌محور |
+| `GET /bazaar-iap/status` | عمومی | وضعیت تراکنش کافه‌بازار |
+| `POST /bazaar-iap/start` | عمومی | ایجاد بازدید و دریافت دیپ‌لینک |
 | `GET /api/users` | `users.view` | فهرست کاربران |
 | `POST /api/users` | `users.create` | ایجاد کاربر |
 | `PATCH /api/users/:id` | `users.edit/permissions` | نقش، بلوک، کیف پول، مجوزها |
@@ -534,17 +555,24 @@ erDiagram
 - **Sandbox**: در صورت فعال بودن، پایهٔ آدرس به `sandbox.zarinpal.com` تغییر می‌کند (مستقل از test mode).
 - **حالت آزمایشی داخلی** (`paymentTestMode`): `requestPayment` یک authority با پیشوند `TEST-` می‌سازد و به `/test-gateway` هدایت می‌کند؛ `verifyPayment` تراکنش را خودکار تایید می‌کند.
 - تایید موفق کدهای `100` (موفق) و `101` (قبلاً تاییدشده) را می‌پذیرد.
+- در پنل «تنظیمات سیستمی» این دو حالت با یک سلکتور سراسری `واقعی` / `سندباکس` / `تست آفلاین` نمایش داده می‌شوند (به بخش «نگاشت انتخاب‌های UI به کلیدها» مراجعه کنید).
 - Timeout درخواست‌ها ۲۰ ثانیه با `AbortController`.
 
 ### درگاه آزمایشی داخلی (`/test-gateway`)
 در [`src/server/app.ts`](src/server/app.ts:135) یک صفحهٔ HTML فارسی با دکمه‌های «پرداخت موفق» و «انصراف» رندر می‌شود که با `Status=OK` یا `Status=NOK` به آدرس callback برمی‌گردد و همان خط لولهٔ verify را طی می‌کند.
 
 ### کیف پول
-- شارژ آنلاین از `POST /api/payments/request` با `purpose: "wallet"`.
+- شارژ آنلاین از `POST /api/payments/request` با `purpose: "wallet"` — این تنها `purpose` پذیرفته‌شده است.
 - محدودهٔ مجاز هر تراکنش: **۱۰٬۰۰۰ تا ۵۰٬۰۰۰٬۰۰۰ تومان** (`MIN_WALLET_TOPUP` و `MAX_WALLET_TOPUP` در [`src/server/routes.ts`](src/server/routes.ts:111)).
 - مبالغ پیشنهادی از کلید `walletTopUpPresets` خوانده می‌شود.
 - افزایش موجودی فقط در callback تاییدشده و داخل تراکنش دیتابیس.
 - پرداخت سفارش با کیف پول در `POST /api/orders/:id/pay-wallet` به‌صورت تراکنشی (کسر موجودی + تغییر وضعیت).
+- **پرداخت خدمات فقط از کیف پول است:** درگاه (زرین‌پال/کافه‌بازار) فقط برای **شارژ کیف پول**
+  به کار می‌رود و در `POST /api/payments/request` هر `purpose` غیر از `wallet` با کد
+  `WALLET_ONLY` (۴۰۰) رد می‌شود.
+- هنگام **ثبت سفارش**، اگر موجودی کیف پول کمتر از مبلغ قابل پرداخت باشد، سفارش **ثبت نمی‌شود** و
+  پاسخ ساختاریافتهٔ `INSUFFICIENT_WALLET` (شامل `required`, `balance`, `shortfall`) بازمی‌گردد تا
+  UI کاربر را به «شارژ کیف پول» هدایت کند. همین بررسی به‌صورت اتمیک در `pay-wallet` هم تکرار می‌شود.
 
 ### چرخه عمر سفارش (پرداخت‌محور)
 ```mermaid
@@ -564,6 +592,30 @@ stateDiagram-v2
 - سفارش‌های `pending_payment` و `failed` **هرگز** در صف اپراتور نمایش داده نمی‌شوند (ثابت `NON_QUEUE_STATUSES` در [`OperatorDashboard`](src/components/operator/OperatorDashboard.tsx:48)).
 - استفاده از کد تخفیف فقط **رزرو** می‌شود و `usage_count` پس از تایید پرداخت یک‌بار افزایش می‌یابد.
 - تایید تراکنش **idempotent** است.
+
+### درگاه درون‌برنامه‌ای کافه‌بازار (افزودهٔ Laravel)
+
+- کتابخانه: `packages/caffenet/bazaar-iap` (namespace: `Caffenet\BazaarIap`).
+- **کاربرد در این برنامه فقط شارژ کیف پول است؛** پرداخت خدمات از کیف پول انجام می‌شود و مسیر
+  پرداخت مستقیم خدمات از درگاه حذف شده است (`purpose` در `POST /api/payments/request` تنها
+  `wallet` است).
+- انتخاب با `gateway` در `POST /api/payments/request`؛ در حالت `bazaar` دیپ‌لینک
+  `bazaar://in_app` ساخته می‌شود و یک ردیف `payments` با `gateway='bazaar'`، `purpose='wallet'`
+  و `authority = visit_id` ثبت می‌گردد.
+- بازگشت از کافه‌بازار به `GET /bazaar-iap/callback` می‌رسد؛ مصرف خرید (consume) در سرور با
+  هدر `CAFEBAZAAR-PISHKHAN-API-SECRET` انجام و رویداد `PurchaseConsumed` منتشر می‌شود.
+- اعمال اثر پرداخت (**شارژ کیف پول**) از طریق شنوندهٔ `App\Listeners\FulfillBazaarPurchase` و
+  اکشن مشترک `App\Services\PaymentFulfillmentService` به‌صورت idempotent انجام می‌شود — همان
+  منطقی که جریان زرین‌پال نیز از آن استفاده می‌کند.
+- اعتبارنامه‌ها از پنل تنظیمات سیستمی (`bazaarEnabled`, `bazaarPackageName`, `bazaarApiSecret`,
+  `bazaarSku`, …) خوانده می‌شوند و کلید API هرگز به مرورگر ارسال نمی‌شود.
+- **قیمت‌گذاری کافه‌بازار ثابت است:** هر SKU یک **قیمت ثابت** در پنل دارد و دیپ‌لینک پرداخت
+  پارامتر مبلغ نمی‌پذیرد؛ بنابراین داخل وبه‌ویو کافه‌بازار، مبلغ شارژ کیف پول باید یکی از
+  **بسته‌های پیشنهادی** (`walletTopUpPresets`، هم‌تراز با SKUهای پنل) باشد و برای مبلغ دلخواه
+  باید از زرین‌پال استفاده شود. جزئیات در [`docs/BAZAAR_IAP_LIBRARY.md`](BAZAAR_IAP_LIBRARY.md:1)
+  بخش ۱۴ آمده است.
+- فایل سمت مرورگر: `public/js/bazaar-iap.js` (شیء `window.BazaarIap`).
+- مستندات کامل: [`docs/BAZAAR_IAP_LIBRARY.md`](BAZAAR_IAP_LIBRARY.md).
 
 ---
 
@@ -777,7 +829,7 @@ stateDiagram-v2
 - `users` ([خط ۱۶۲۲](src/components/admin/AdminDashboard.tsx:1623)) — کاربران، نقش، بلوک، کیف پول و ماتریس مجوزها.
 - `more` ([خط ۱۸۲۸](src/components/admin/AdminDashboard.tsx:1829)) — میان‌برها به Sheetهای زیرین.
 
-Sheetهای داخلی (با state `openSheet`): `coupons`، `settings` (کسب‌وکار)، `systemSettings` (تنظیمات دیتابیسی)، `slider`، `guide` (راهنمای استقرار).
+Sheetهای داخلی (با state `openSheet`): `coupons`، `settings` (کسب‌وکار)، `systemSettings` (تنظیمات دیتابیسی)، `slider`.
 
 - مدیریت خطا: `NoAccessCard` برای نبود مجوز.
 - محتوای metacategory تنظیمات: `SYSTEM_CATEGORY_META`.

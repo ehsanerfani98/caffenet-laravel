@@ -169,6 +169,7 @@ class Formatter
             'assignedOperatorName' => $o->assigned_operator_name,
             'internalNote' => $o->internal_note,
             'customerNote' => $o->customer_note,
+            'contactMethods' => $o->contactMethods(),
             'rating' => $o->rating,
             'reviewComment' => $o->review_comment,
             'createdAt' => $o->created_at,

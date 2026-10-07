@@ -4,10 +4,16 @@ namespace App\Providers;
 
 use App\Http\Responses\FortifyLockoutResponse;
 use App\Http\Responses\FortifyLoginResponse;
+use App\Listeners\FulfillBazaarPurchase;
 use App\Models\User;
 use App\Services\AuthService;
+use App\Services\BazaarIapSettingsResolver;
+use Caffenet\BazaarIap\Contracts\BazaarIapSettings;
+use Caffenet\BazaarIap\Events\PurchaseConsumed;
+use Caffenet\BazaarIap\Events\PurchaseFailed;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Fortify\Actions\AttemptToAuthenticate;
@@ -25,6 +31,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Bazaar IAP credentials come from the database-backed settings panel
+        // (system scope). Binding the package's settings contract here makes
+        // the gateway read them instead of `.env`.
+        $this->app->singleton(BazaarIapSettings::class, BazaarIapSettingsResolver::class);
+
         // The API contract keeps its own /api/auth/* endpoints, so Fortify's
         // route registration is skipped; AuthController drives the exact
         // same login pipeline pieces below.
@@ -97,6 +108,12 @@ class AppServiceProvider extends ServiceProvider
 
             return null;
         });
+
+        // Fulfil Cafe Bazaar in-app purchases once the package has consumed
+        // the token (order → submitted / wallet credit), and roll back on
+        // failure — reusing the same idempotent action as the Zarinpal flow.
+        Event::listen(PurchaseConsumed::class, [FulfillBazaarPurchase::class, 'handleConsumed']);
+        Event::listen(PurchaseFailed::class, [FulfillBazaarPurchase::class, 'handleFailed']);
     }
 
     /** Counts the attempt against Fortify's login limiter, then fails. */

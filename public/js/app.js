@@ -120,9 +120,17 @@
       if (this.screen === 'operator' && (!user || !['operator', 'admin'].includes(user.role))) {
         this.screen = user ? this.defaultScreen(user) : 'home';
       }
-      if (['wallet', 'orders', 'catalog'].includes(this.screen) && !user) {
+      // Guests may browse the full catalog (services are public reads), but the
+      // wallet and their own orders require a session. Ordering still prompts
+      // for login from the order form.
+      if (['wallet', 'orders'].includes(this.screen) && !user) {
         this.screen = 'home';
       }
+
+      // Any navigation dismisses every open popup/sheet so a stale modal can
+      // never linger over the newly rendered screen (e.g. after jumping to the
+      // wallet from the "charge wallet" button on the shortage prompt).
+      UI.closeAllSheets();
 
       if (rerender !== false) this.render();
     },
@@ -264,7 +272,10 @@
       if (params.status === 'success' && params.authority) {
         api.getPaymentStatus(params.authority)
           .then((st) => {
-            api.syncWithBackend();
+            // Refresh the wallet balance too — syncWithBackend() does not
+            // re-read /api/auth/me, so a top-up return would otherwise show a
+            // stale balance in the header and the order form.
+            api.getCurrentUser().catch(() => {}).then(() => api.syncWithBackend());
             if (st.status === 'paid') {
               UI.toast('پرداخت با موفقیت انجام شد.', 'success');
             } else if (st.status === 'pending') {

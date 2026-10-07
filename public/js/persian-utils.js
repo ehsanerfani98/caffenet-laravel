@@ -105,5 +105,28 @@
         t = setTimeout(() => fn.apply(this, args), wait);
       };
     },
+
+    /** Preferred contact channels (multi-select), shared across screens. */
+    contactMethods: [
+      ['app_chat', 'چت داخلی برنامه'],
+      ['phone', 'تماس تلفنی'],
+      ['sms', 'پیامک'],
+      ['telegram', 'تلگرام'],
+      ['whatsapp', 'واتساپ'],
+      ['rubika', 'روبیکا'],
+      ['bale', 'بله'],
+      ['eitaa', 'ایتا'],
+    ],
+
+    contactMethodLabel(key) {
+      const found = PU.contactMethods.find((m) => m[0] === key);
+      return found ? found[1] : String(key ?? '');
+    },
+
+    /** Joins selected channel keys into a Persian comma-separated list. */
+    contactMethodsText(list) {
+      if (!Array.isArray(list) || !list.length) return '';
+      return list.map((k) => PU.contactMethodLabel(k)).join('، ');
+    },
   };
 })();

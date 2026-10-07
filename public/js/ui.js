@@ -78,6 +78,10 @@
 
     closeAllSheets() {
       openSheets.slice().forEach((s) => s.close());
+      // Also dismiss any stray busy overlay so navigation never leaves a
+      // blocking spinner on screen.
+      $('#busy-overlay').addClass('hidden');
+      document.body.style.removeProperty('overflow');
     },
 
     /* ---------- Toast ---------- */

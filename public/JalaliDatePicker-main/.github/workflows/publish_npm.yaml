@@ -1,0 +1,79 @@
+name: publish npm
+
+on:
+  push:
+    tags:
+      - "version:*"
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy_npm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: development
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # اطمینان از دریافت تاریخچه کامل گیت
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+
+      - name: Show tool versions
+        run: |
+          node --version
+          npm --version
+
+      - name: Use stable npm
+        run: npm install -g npm@10.9.2
+
+      - name: Check if version needs publishing
+        id: check_version
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          NPM_VERSION=$(npm show @majidh1/jalalidatepicker version || echo "0.0.0")
+
+          echo "Package.json version: $PACKAGE_VERSION"
+          echo "Published npm version: $NPM_VERSION"
+
+          if [ "$PACKAGE_VERSION" != "$NPM_VERSION" ]; then
+            echo "New version detected. Proceeding with publish."
+            echo "publish=true" >> $GITHUB_ENV
+          else
+            echo "No new version found. Skipping publish."
+            echo "publish=false" >> $GITHUB_ENV
+          fi
+
+      - name: Install dependencies
+        if: env.publish == 'true'
+        timeout-minutes: 5
+        run: npm i
+
+      - name: Verify build dependencies
+        if: env.publish == 'true'
+        run: npm ls typescript vite vitest --depth=0
+
+      - name: Run build and prepare release
+        if: env.publish == 'true'
+        run: npm run build
+
+      - name: Commit & Push changes
+        if: env.publish == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "chore: update build files before npm publish" || echo "No changes to commit"
+          git push origin main
+
+      - name: Publish to NPM
+        if: env.publish == 'true'
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

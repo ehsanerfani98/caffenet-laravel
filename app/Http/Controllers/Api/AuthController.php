@@ -51,6 +51,12 @@ class AuthController extends Controller
             return response()->json(['error' => 'شماره موبایل معتبر نیست.'], 400);
         }
 
+        // SMS disabled ⇒ nothing works, neither real nor simulator: the OTP is
+        // never generated or surfaced, and the client is told why it cannot log in.
+        if (! SettingsService::bool('smsEnabled')) {
+            return response()->json(['error' => 'سامانه پیامک غیرفعال است؛ امکان دریافت کد تایید وجود ندارد.'], 503);
+        }
+
         if (\App\Models\User::where('phone', $phone)->where('is_blocked', true)->exists()) {
             return response()->json(['error' => 'حساب کاربری شما مسدود شده است.'], 403);
         }
@@ -63,9 +69,9 @@ class AuthController extends Controller
         AuthService::storeOtp($phone, $code, $request->ip());
         SmsService::sendOtp($phone, $code);
 
-        // In either test mode the code is surfaced instead of being SMSed.
-        $testMode = SettingsService::bool('otpTestMode')
-            || SettingsService::bool('smsTestMode');
+        // SMS is enabled at this point; in simulator mode the code is surfaced
+        // instead of being SMSed (the simulator never runs while SMS is disabled).
+        $testMode = SettingsService::bool('smsTestMode');
 
         $payload = ['message' => 'کد تایید ارسال شد.'];
         if ($testMode) {

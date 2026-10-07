@@ -17,7 +17,6 @@
       ['system', 'settings', 'tone-indigo', 'تنظیمات سیستمی', 'اعتبارنامه پیامک و درگاه، حالت‌های آزمایشی'],
       ['slider', 'image', 'tone-emerald', 'اسلایدر صفحه اصلی', 'بنرهای صفحه ورود'],
       ['sms', 'sms', 'tone-slate', 'لاگ پیامک‌ها', 'آرشیو پیامک‌های ارسالی'],
-      ['guide', 'info', 'tone-dark', 'راهنمای استقرار', 'نکات نصب و راه‌اندازی'],
     ];
     return '<div class="card">' + rows.map(([key, ic, tone, t1, t2]) =>
       '<div class="list-row" data-open="' + key + '" style="cursor:pointer">' +
@@ -35,7 +34,6 @@
       else if (key === 'system') openSystemSettings();
       else if (key === 'slider') openSliderManager();
       else if (key === 'sms') openSmsInbox();
-      else if (key === 'guide') openGuide();
     });
   };
 
@@ -53,7 +51,7 @@
             '<div class="lr-main"><div class="lr-title" style="direction:ltr;text-align:right">' + PU.escapeHtml(c.code) + ' — ' + PU.toPersianDigits(c.percent) + '٪</div>' +
             '<div class="lr-sub">سقف: ' + PU.formatToman(c.maxAmount) + ' • حداقل: ' + PU.formatToman(c.minOrderAmount) +
             ' • مصرف: ' + PU.toPersianDigits(c.usageCount) + '/' + PU.toPersianDigits(c.maxUsage || '∞') +
-            ' • انقضا: ' + PU.toPersianDigits(c.expireDate) + (c.isActive ? '' : ' • غیرفعال') + '</div></div>' +
+            ' • انقضا: ' + PU.toJalaliDateShort(c.expireDate) + (c.isActive ? '' : ' • غیرفعال') + '</div></div>' +
             '<button class="icon-btn" style="background:var(--slate-soft);color:var(--ink)" data-edit="' + c.id + '">' + icon('edit') + '</button>' +
             '<button class="icon-btn" style="background:var(--rose-soft);color:var(--rose)" data-del="' + c.id + '">' + icon('trash') + '</button></div>'
           ).join('') || UI.emptyState('کد تخفیفی ثبت نشده', '', 'tag'))
@@ -80,8 +78,9 @@
         '<input class="input" id="c-max" inputmode="numeric" value="' + (c ? c.maxAmount : 0) + '">' +
         '<label class="field-label">حداقل مبلغ سفارش</label>' +
         '<input class="input" id="c-min" inputmode="numeric" value="' + (c ? c.minOrderAmount : 0) + '">' +
-        '<label class="field-label">تاریخ انقضا (میلادی YYYY-MM-DD)</label>' +
-        '<input class="input" id="c-exp" value="' + PU.escapeHtml(c ? c.expireDate : '') + '" dir="ltr">' +
+        '<label class="field-label">تاریخ انقضا</label>' +
+        '<input class="input" id="c-exp-view" data-jdp data-jdp-target-value-input="#c-exp" data-jdp-target-value-type="gregorian" readonly placeholder="انتخاب تاریخ…" value="' + PU.escapeHtml(c && c.expireDate ? JDP.gregorianToJalaliString(c.expireDate) : '') + '">' +
+        '<input type="hidden" id="c-exp" value="' + PU.escapeHtml(c ? c.expireDate : '') + '">' +
         '<label class="field-label">حداکثر استفاده (۰ = بی‌نهایت)</label>' +
         '<input class="input" id="c-maxuse" inputmode="numeric" value="' + (c ? c.maxUsage : 0) + '">' +
         '<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;font-weight:600;margin:12px 2px">' +
@@ -111,6 +110,37 @@
     render();
   }
 
+  /* Wallet top-up presets — each row pairs an amount with the Cafe Bazaar SKU
+     whose fixed panel price equals it. Accepts both the object shape
+     ({amount, sku}) and legacy plain numbers. */
+  const WALLET_DEFAULT_PRESETS = [50000, 100000, 200000, 500000];
+
+  function presetRowHtml(preset) {
+    const isObj = preset && typeof preset === 'object';
+    const amount = isObj ? (preset.amount || '') : (preset || '');
+    const sku = isObj ? (preset.sku || '') : '';
+    return '<div class="preset-row" data-row>' +
+      '<input class="input" data-preset-amount inputmode="numeric" placeholder="مبلغ (تومان)" value="' + PU.escapeHtml(String(amount)) + '">' +
+      '<input class="input" data-preset-sku dir="ltr" autocomplete="off" placeholder="SKU کافه‌بازار" value="' + PU.escapeHtml(sku) + '">' +
+      '<button type="button" class="btn rose sm" data-remove-preset title="حذف">' + icon('trash') + '</button>' +
+    '</div>';
+  }
+
+  function presetRowsHtml(raw) {
+    const list = Array.isArray(raw) && raw.length ? raw : WALLET_DEFAULT_PRESETS;
+    return list.map(presetRowHtml).join('');
+  }
+
+  function collectPresets($body) {
+    const out = [];
+    $body.find('#s-presets [data-row]').each(function () {
+      const amount = Number(PU.toLatinDigits(String($(this).find('[data-preset-amount]').val() || '')).replace(/[^\d]/g, ''));
+      const sku = String($(this).find('[data-preset-sku]').val() || '').trim();
+      if (amount > 0) out.push({ amount: amount, sku: sku });
+    });
+    return out;
+  }
+
   /* ================= Business settings ================= */
 
   function openBusinessSettings() {
@@ -126,13 +156,25 @@
       '<label class="field-label">ضریب سفارش فوری</label><input class="input" id="s-urgent" value="' + (s.urgentPriceMultiplier || 1.3) + '">' +
       '<label class="field-label">ضریب سفارش آنی</label><input class="input" id="s-immediate" value="' + (s.immediatePriceMultiplier || 1.6) + '">' +
       '<label class="field-label">هزینه پیک (تومان)</label><input class="input" id="s-courier" inputmode="numeric" value="' + (s.courierCost || 35000) + '">' +
-      '<label class="field-label">مبالغ پیشنهادی شارژ کیف پول (با کاما جدا کنید)</label>' +
-      '<input class="input" id="s-presets" dir="ltr" value="' + PU.escapeHtml((s.walletTopUpPresets || [50000, 100000, 200000, 500000]).join(', ')) + '">' +
-      '<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;font-weight:600;margin:12px 2px">' +
-      '<input type="checkbox" id="s-wallet"' + (s.enableWalletPayment !== false ? ' checked' : '') + '> پرداخت با کیف پول فعال باشد</label>' +
+      '<div class="section-title">' + icon('wallet') + 'مبالغ آماده شارژ کیف پول</div>' +
+      '<div class="help-text" style="margin:0 2px 8px">برای هر مبلغ، شناسه (SKU) متناظر کافه‌بازار را وارد کنید؛ قیمت همان SKU در پنل کافه‌بازار باید با این مبلغ برابر باشد. داخل اپ کافه‌بازار فقط همین بسته‌ها قابل پرداخت‌اند.</div>' +
+      '<div id="s-presets">' + presetRowsHtml(s.walletTopUpPresets) + '</div>' +
+      '<button type="button" class="btn ghost block sm" id="s-add-preset" style="margin-top:8px">' + icon('plus') + 'افزودن مبلغ</button>' +
+      '<div class="info-box" style="margin:12px 2px">پرداخت خدمات همیشه از طریق <b>کیف پول</b> انجام می‌شود و فعال است.</div>' +
       '<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;font-weight:600;margin:12px 2px">' +
       '<input type="checkbox" id="s-coupons"' + (s.enableCoupons !== false ? ' checked' : '') + '> کدهای تخفیف فعال باشند</label>'
     );
+    // Preset editor: append/remove amount+SKU rows (keep at least one).
+    sheet.body.on('click', '#s-add-preset', function () {
+      sheet.body.find('#s-presets').append(presetRowHtml(null));
+    });
+    sheet.body.on('click', '[data-remove-preset]', function () {
+      if (sheet.body.find('#s-presets [data-row]').length > 1) {
+        $(this).closest('[data-row]').remove();
+      } else {
+        $(this).closest('[data-row]').find('input').val('');
+      }
+    });
     sheet.footer.html('<button class="btn block" id="s-save">ذخیره تنظیمات</button>');
     sheet.footer.find('#s-save').on('click', async function () {
       try {
@@ -145,9 +187,7 @@
           urgentPriceMultiplier: Number(sheet.body.find('#s-urgent').val()),
           immediatePriceMultiplier: Number(sheet.body.find('#s-immediate').val()),
           courierCost: Number(sheet.body.find('#s-courier').val()),
-          walletTopUpPresets: String(sheet.body.find('#s-presets').val() || '')
-            .split(',').map((v) => Number(PU.toLatinDigits(v.trim()))).filter((n) => n > 0),
-          enableWalletPayment: sheet.body.find('#s-wallet').is(':checked'),
+          walletTopUpPresets: collectPresets(sheet.body),
           enableCoupons: sheet.body.find('#s-coupons').is(':checked'),
         });
         UI.toast('تنظیمات ذخیره شد.', 'success');
@@ -158,36 +198,224 @@
 
   /* ================= System settings ================= */
 
+  /* Bespoke, sectioned layout. Payments expose only two user choices — a
+     single-select «نوع درگاه» plus one global «گزینه درگاه پرداخت» — and the
+     save handler derives every underlying boolean. The SMS section mirrors this
+     with a single «شبیه‌ساز / واقعی» selector that drives smsTestMode. Unknown
+     system keys still render under «سایر تنظیمات». */
   function openSystemSettings() {
     const sheet = UI.sheet({ title: 'تنظیمات سیستمی', subtitle: 'اعتبارنامه‌ها ماسک‌شده نمایش داده می‌شوند', icon: 'settings', tone: 'indigo', size: 'tall' });
     sheet.body.html('<div class="spinner" style="margin:30px auto"></div>');
 
-    const CATEGORY_TITLES = {
-      general: 'عمومی', auth: 'احراز هویت', sms: 'پیامک',
-      payment: 'پرداخت', test: 'حالت‌های آزمایشی', runtime: 'محیط اجرا (فقط‌خواندنی)',
-    };
+    const esc = (v) => PU.escapeHtml(v == null ? '' : String(v));
 
     api.fetchSystemSettings().then((r) => {
       const settings = r.settings || [];
-      const grouped = {};
-      settings.forEach((s) => { (grouped[s.category] = grouped[s.category] || []).push(s); });
+      const byKey = {};
+      settings.forEach((s) => { byKey[s.key] = s; });
+      const val = (k) => (byKey[k] && byKey[k].value != null ? String(byKey[k].value) : '');
+      const on = (k) => { const v = val(k).toLowerCase(); return v === '1' || v === 'true'; };
+      const rendered = {};
+      /* Derived from the visible selectors — never rendered as raw controls. */
+      ['paymentEnabled', 'paymentSandbox', 'paymentTestMode', 'bazaarEnabled', 'bazaarTestMode', 'smsTestMode', 'bazaarSku']
+        .forEach((k) => { rendered[k] = true; });
 
-      sheet.body.html(Object.keys(CATEGORY_TITLES).map((cat) => {
-        const items = grouped[cat] || [];
-        if (!items.length) return '';
-        return '<div class="section-title">' + CATEGORY_TITLES[cat] + '</div>' + items.map((s) => {
-          if (s.readOnly) {
-            return '<div class="list-row"><div class="lr-main"><div class="lr-title" style="font-size:12px">' + PU.escapeHtml(s.label) + '</div>' +
-              '<div class="lr-sub" dir="ltr">' + PU.escapeHtml(s.value || '—') + '</div></div>' + icon('lock') + '</div>';
-          }
-          if (s.type === 'boolean') {
-            return '<div class="perm-item"><div class="pi-label">' + PU.escapeHtml(s.label) + '</div>' +
-              '<label class="switch"><input type="checkbox" data-set="' + s.key + '"' + (s.value === '1' || s.value === 'true' ? ' checked' : '') + '><span class="track"></span></label></div>';
-          }
-          return '<label class="field-label">' + PU.escapeHtml(s.label) + (s.type === 'secret' ? ' (ماسک‌شده)' : '') + '</label>' +
-            '<input class="input" data-set="' + s.key + '" type="text" dir="ltr" value="' + PU.escapeHtml(s.value || '') + '">';
-        }).join('');
-      }).join(''));
+      const state = {
+        paymentMode: (on('paymentTestMode') || on('bazaarTestMode')) ? 'test' : (on('paymentSandbox') ? 'sandbox' : 'real'),
+        smsSim: on('smsTestMode'),
+      };
+
+      function textField(key, label, opts) {
+        opts = opts || {};
+        rendered[key] = true;
+        const isSecret = byKey[key] && byKey[key].type === 'secret';
+        return '<label class="field-label">' + esc(label) + (isSecret ? ' (ماسک‌شده)' : '') + (opts.req ? ' <span class="req">*</span>' : '') + '</label>' +
+          '<input class="input" data-set="' + key + '" type="text" dir="ltr" autocomplete="off" placeholder="' + esc(opts.placeholder || '') + '" value="' + esc(val(key)) + '">' +
+          (opts.help ? '<div class="help-text">' + esc(opts.help) + '</div>' : '');
+      }
+
+      function switchRow(key, label, help) {
+        rendered[key] = true;
+        return '<div class="perm-item"><div class="pi-label">' + esc(label) + (help ? '<div class="pi-desc">' + esc(help) + '</div>' : '') + '</div>' +
+          '<label class="switch"><input type="checkbox" data-set="' + key + '"' + (on(key) ? ' checked' : '') + '><span class="track"></span></label></div>';
+      }
+
+      function advBox(title, inner) {
+        return '<details class="adv-box"><summary>' + icon('settings') + esc(title) +
+          '<span class="adv-caret">' + icon('chevrondown') + '</span></summary><div class="adv-body">' + inner + '</div></details>';
+      }
+
+      function segment(group, current, label, options, help) {
+        return '<label class="field-label">' + esc(label) + '</label>' +
+          '<div class="segmented" data-mode="' + group + '">' + options.map(([v, t]) =>
+            '<button type="button" class="seg ' + (current === v ? 'on' : '') + '" data-mode-val="' + v + '">' + t + '</button>'
+          ).join('') + '</div>' +
+          (help ? '<div class="help-text">' + esc(help) + '</div>' : '');
+      }
+
+      /* ---- عمومی ---- */
+      const generalHtml =
+        '<div class="section-title">' + icon('cog') + 'عمومی</div>' +
+        textField('appUrl', 'نشانی پایه سایت', { placeholder: 'https://example.com', help: 'برای ساخت خودکار نشانی بازگشت درگاه لازم است.' }) +
+        textField('adminPhones', 'شماره‌های مدیران (با کاما)', { placeholder: '09120000000, 09130000000' });
+
+      /* ---- پیامک ---- */
+      const smsHtml =
+        '<div class="section-title">' + icon('sms') + 'پیامک</div>' +
+        switchRow('smsEnabled', 'سامانه پیامک فعال') +
+        segment('sms', state.smsSim ? 'sim' : 'real', 'حالت پیامک',
+          [['real', 'واقعی'], ['sim', 'شبیه‌ساز']],
+          'در حالت شبیه‌ساز، پیامکی ارسال نمی‌شود و کد تایید به‌صورت آزمایشی نمایش داده می‌شود.') +
+        '<div class="warn-box hidden" id="sms-disabled-note" style="margin-top:10px">سامانه پیامک غیرفعال است؛ تا زمانی که آن را فعال نکنید هیچ پیامکی ارسال نمی‌شود — نه واقعی و نه شبیه‌ساز.</div>' +
+        '<div id="sms-fields">' +
+          textField('smsApiKey', 'کلید دسترسی ippanel', { req: true }) +
+          textField('smsSender', 'شماره فرستنده', { req: true }) +
+          textField('smsOtpPattern', 'کد پترن کد تایید') +
+          advBox('تنظیمات پیشرفته پیامک', textField('smsBaseUrl', 'آدرس پایه ippanel', { placeholder: 'https://api2.ippanel.com/api/v1' })) +
+        '</div>';
+
+      /* ---- پرداخت ---- */
+      const zarinpalBlock =
+        '<div class="gw-block" data-gw-block="paymentEnabled">' +
+          '<div class="gw-title">' + icon('landmark') + 'زرین‌پال</div>' +
+          textField('paymentMerchantId', 'کد پذیرنده زرین‌پال', { req: true, placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', help: 'از پنل زرین‌پال دریافت می‌شود.' }) +
+          advBox('تنظیمات پیشرفته زرین‌پال',
+            textField('paymentBaseUrl', 'آدرس پایه زرین‌پال', { placeholder: 'https://payment.zarinpal.com' }) +
+            textField('paymentCallbackUrl', 'نشانی بازگشت درگاه', { placeholder: 'خالی = ساخت خودکار از نشانی سایت' })
+          ) +
+        '</div>';
+
+      const bazaarBlock =
+        '<div class="gw-block" data-gw-block="bazaarEnabled">' +
+          '<div class="gw-title">' + icon('building') + 'کافه‌بازار</div>' +
+          textField('bazaarPackageName', 'نام پکیج اپلیکیشن', { req: true, placeholder: 'ir.example.app' }) +
+          textField('bazaarApiSecret', 'کلید API سرور', { req: true }) +
+          '<div class="help-text" style="margin:6px 2px">SKU هر مبلغ شارژ همراه با همان مبلغ در «تنظیمات کسب‌وکار» تعریف می‌شود.</div>' +
+          advBox('تنظیمات پیشرفته کافه‌بازار',
+            textField('bazaarDealerPackageName', 'پکیج فروشنده', { placeholder: 'خالی = همان پکیج اپ' }) +
+            textField('bazaarPermissionScope', 'سطح دسترسی لاگین درون‌برنامه‌ای', { placeholder: '1' }) +
+            textField('bazaarRedirectUrl', 'نشانی بازگشت کافه‌بازار', { placeholder: 'خالی = مسیر پیش‌فرض کتابخانه' }) +
+            textField('bazaarConsumeUrl', 'آدرس مصرف خرید') +
+            textField('bazaarValidateUrl', 'آدرس اعتبارسنجی خرید') +
+            textField('bazaarTimeout', 'مهلت ارتباط (ثانیه)', { placeholder: '20' })
+          ) +
+        '</div>';
+
+      const paymentHtml =
+        '<div class="section-title">' + icon('wallet') + 'پرداخت</div>' +
+        '<label class="field-label">نوع درگاه</label>' +
+        '<div class="chip-row" id="gw-chips">' +
+          '<button type="button" class="chip' + (on('paymentEnabled') ? ' active' : '') + '" data-gw="paymentEnabled">' + icon('landmark') + 'زرین‌پال</button>' +
+          '<button type="button" class="chip' + (on('bazaarEnabled') ? ' active' : '') + '" data-gw="bazaarEnabled">' + icon('building') + 'کافه‌بازار</button>' +
+        '</div>' +
+        '<div class="help-text">فقط یک درگاه می‌تواند فعال باشد؛ برای فعال‌کردن درگاه دیگر ابتدا درگاه فعلی را غیرفعال کنید.</div>' +
+        segment('payment', state.paymentMode, 'گزینه درگاه پرداخت',
+          [['real', 'واقعی'], ['sandbox', 'سندباکس'], ['test', 'تست آفلاین']],
+          '«سندباکس» به محیط آزمایشی زرین‌پال وصل می‌شود؛ «تست آفلاین» برای زرین‌پال خودکار به سندباکس و برای کافه‌بازار به شبیه‌ساز تبدیل می‌شود. فیلدهای اعتبارنامه فقط در حالت «واقعی» نمایش داده می‌شوند.') +
+        zarinpalBlock + bazaarBlock;
+
+      /* ---- fallback: any system key the layout above did not claim ---- */
+      const leftoverItems = settings.filter((s) => !s.readOnly && !rendered[s.key]);
+      const leftoversHtml = leftoverItems.length
+        ? '<div class="section-title">' + icon('more') + 'سایر تنظیمات</div>' + leftoverItems.map((s) =>
+            s.type === 'boolean' ? switchRow(s.key, s.label) : textField(s.key, s.label, {})
+          ).join('')
+        : '';
+
+      sheet.body.html(
+        '<div class="status-line" id="sys-status"><span class="dot"></span><span id="sys-status-text"></span></div>' +
+        generalHtml + smsHtml + paymentHtml + leftoversHtml
+      );
+
+      /* ---- behaviour ---- */
+      function chipOn(key) { return sheet.body.find('[data-gw="' + key + '"]').hasClass('active'); }
+
+      /* «تست آفلاین» با زرین‌پالِ تنها خودکار به «سندباکس» می‌رود؛ حالت‌های
+         بی‌معنا هم اصلاح می‌شوند (مثلاً سندباکس بدون زرین‌پال). */
+      function normalizePaymentMode() {
+        const zOn = chipOn('paymentEnabled');
+        const bOn = chipOn('bazaarEnabled');
+        if (state.paymentMode === 'sandbox' && !zOn) state.paymentMode = 'real';
+        else if (state.paymentMode === 'test' && zOn && !bOn) state.paymentMode = 'sandbox';
+        else if (state.paymentMode === 'test' && !zOn && !bOn) state.paymentMode = 'real';
+      }
+
+      function paintPaymentMode() {
+        sheet.body.find('[data-mode="payment"] .seg').removeClass('on')
+          .filter('[data-mode-val="' + state.paymentMode + '"]').addClass('on');
+      }
+
+      /* اعتبارنامه‌ها فقط وقتی نمایش داده می‌شوند که سامانه پیامک فعال و حالت
+         «واقعی» باشد؛ وقتی سامانه غیرفعال است هیچ مودی کار نمی‌کند. */
+      function refreshSmsFields() {
+        const enabled = sheet.body.find('[data-set="smsEnabled"]').is(':checked');
+        sheet.body.find('[data-mode="sms"] .seg').prop('disabled', !enabled);
+        sheet.body.find('#sms-fields').toggle(enabled && !state.smsSim);
+        sheet.body.find('#sms-disabled-note').toggle(!enabled);
+      }
+
+      function refreshStatus() {
+        const names = [];
+        if (chipOn('paymentEnabled')) names.push('زرین‌پال');
+        if (chipOn('bazaarEnabled')) names.push('کافه‌بازار');
+        const modeLabel = { real: 'واقعی', sandbox: 'سندباکس', test: 'تست آفلاین' }[state.paymentMode];
+        const $line = sheet.body.find('#sys-status');
+        if (names.length) {
+          $line.addClass('on');
+          sheet.body.find('#sys-status-text').text(
+            'درگاه‌های فعال: ' + names.join('، ') + ' • وضعیت: ' + modeLabel + (state.smsSim ? ' • پیامک: شبیه‌ساز' : '')
+          );
+        } else {
+          $line.removeClass('on');
+          sheet.body.find('#sys-status-text').text(state.smsSim ? 'پیامک روی شبیه‌ساز است؛ هیچ درگاهی فعال نیست.' : 'هیچ درگاهی فعال نیست.');
+        }
+      }
+
+      /* Only the active gateway's fields show, and (like SMS) only in «واقعی»
+         mode — sandbox/test need no credentials. */
+      function syncGatewayBlocks() {
+        const realMode = state.paymentMode === 'real';
+        sheet.body.find('[data-gw]').each(function () {
+          const active = $(this).hasClass('active');
+          sheet.body.find('[data-gw-block="' + $(this).data('gw') + '"]').toggle(active && realMode);
+        });
+      }
+
+      syncGatewayBlocks();
+      normalizePaymentMode();
+      paintPaymentMode();
+      refreshSmsFields();
+
+      sheet.body.find('[data-gw]').on('click', function () {
+        const wasActive = $(this).hasClass('active');
+        sheet.body.find('[data-gw]').removeClass('active');
+        if (!wasActive) $(this).addClass('active');
+        syncGatewayBlocks();
+        normalizePaymentMode();
+        paintPaymentMode();
+        refreshStatus();
+      });
+
+      sheet.body.find('.segmented[data-mode]').on('click', '[data-mode-val]', function () {
+        const $group = $(this).closest('[data-mode]');
+        const group = $group.data('mode');
+        $group.find('.seg').removeClass('on');
+        $(this).addClass('on');
+        if (group === 'payment') {
+          state.paymentMode = $(this).data('mode-val');
+          normalizePaymentMode();
+          paintPaymentMode();
+          syncGatewayBlocks();
+        } else if (group === 'sms') {
+          state.smsSim = ($(this).data('mode-val') === 'sim');
+          refreshSmsFields();
+        }
+        refreshStatus();
+      });
+
+      sheet.body.find('[data-set="smsEnabled"]').on('change', refreshSmsFields);
+
+      refreshStatus();
 
       sheet.footer.html('<button class="btn block" id="sys-save">ذخیره تنظیمات سیستمی</button>');
       sheet.footer.find('#sys-save').on('click', async function () {
@@ -196,9 +424,27 @@
           const key = $(this).data('set');
           payload[key] = $(this).is(':checkbox') ? (this.checked ? '1' : '0') : $(this).val();
         });
+        sheet.body.find('[data-gw]').each(function () {
+          payload[$(this).data('gw')] = $(this).hasClass('active') ? '1' : '0';
+        });
+        /* Derive the raw flags from the two visible selectors. */
+        payload.paymentSandbox = (payload.paymentEnabled === '1' && state.paymentMode !== 'real') ? '1' : '0';
+        payload.paymentTestMode = '0';
+        payload.bazaarTestMode = (payload.bazaarEnabled === '1' && state.paymentMode === 'test') ? '1' : '0';
+        payload.smsTestMode = state.smsSim ? '1' : '0';
+
+        const warnings = [];
+        if (payload.paymentEnabled === '1' && !(byKey.paymentMerchantId && byKey.paymentMerchantId.hasValue)) {
+          warnings.push('زرین‌پال فعال است اما کد پذیرنده ثبت نشده است.');
+        }
+        if (payload.bazaarEnabled === '1') {
+          if (!(byKey.bazaarPackageName && byKey.bazaarPackageName.value)) warnings.push('کافه‌بازار فعال است اما نام پکیج ثبت نشده است.');
+          if (payload.bazaarTestMode === '0' && !(byKey.bazaarApiSecret && byKey.bazaarApiSecret.hasValue)) warnings.push('کافه‌بازار در حالت واقعی است اما کلید API ثبت نشده است.');
+        }
+
         try {
           await api.updateSystemSettings(payload);
-          UI.toast('تنظیمات سیستمی ذخیره شد.', 'success');
+          UI.toast(warnings.length ? warnings[0] : 'تنظیمات سیستمی ذخیره شد.', warnings.length ? 'warning' : 'success');
           sheet.close();
         } catch (e) { UI.toast(e.message, 'error'); }
       });
@@ -322,42 +568,57 @@
 
   function openSmsInbox() {
     const sheet = UI.sheet({ title: 'لاگ پیامک‌ها', subtitle: 'آرشیو ممیزی ارسال', icon: 'sms', tone: 'slate', size: 'tall' });
-    sheet.body.html('<div class="spinner" style="margin:30px auto"></div>');
+    const canDelete = api.hasPermission('sms.delete') || api.hasPermission('sms.manage');
 
-    api.getSmsInbox().then((logs) => {
-      sheet.body.html(logs.map((l) =>
-        '<div class="list-row"><div class="lr-icon ' +
-          ({ sent: 'tone-emerald', failed: 'tone-rose', test: 'tone-amber' }[l.status] || 'tone-slate') + '">' + icon('sms') + '</div>' +
-        '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(l.text) + '</div>' +
-        '<div class="lr-sub">' + PU.toPersianDigits(l.phone) + ' • ' + PU.toJalaliDate(l.timestamp) +
-        (l.error ? ' • خطا: ' + PU.escapeHtml(l.error) : '') + '</div></div></div>'
-      ).join('') || UI.emptyState('پیامکی ارسال نشده', '', 'sms'));
-    }).catch((e) => {
-      sheet.body.html(UI.emptyState('خطا در بارگذاری لاگ', e.message, 'alert'));
-    });
+    function render() {
+      sheet.body.html('<div class="spinner" style="margin:30px auto"></div>');
+
+      api.getSmsInbox().then((logs) => {
+        const clearBtn = (canDelete && logs.length)
+          ? '<button class="btn ghost block sm" id="sms-clear" style="margin-bottom:10px">' + icon('trash') + 'حذف همه لاگ‌ها</button>'
+          : '';
+        const list = logs.map((l) =>
+          '<div class="list-row"><div class="lr-icon ' +
+            ({ sent: 'tone-emerald', failed: 'tone-rose', test: 'tone-amber' }[l.status] || 'tone-slate') + '">' + icon('sms') + '</div>' +
+          '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(l.text) + '</div>' +
+          '<div class="lr-sub">' + PU.toPersianDigits(l.phone) + ' • ' + PU.toJalaliDate(l.timestamp) +
+          (l.error ? ' • خطا: ' + PU.escapeHtml(l.error) : '') + '</div></div>' +
+          (canDelete ? '<button class="icon-btn" style="background:var(--rose-soft);color:var(--rose)" data-del="' + l.id + '">' + icon('trash') + '</button>' : '') +
+          '</div>'
+        ).join('');
+
+        sheet.body.html(clearBtn + (list || UI.emptyState('پیامکی ارسال نشده', '', 'sms')));
+
+        sheet.body.find('[data-del]').on('click', async function () {
+          if (!window.confirm('این لاگ پیامک حذف شود؟')) return;
+          UI.busy(true);
+          try {
+            await api.deleteSmsLog($(this).data('del'));
+            UI.toast('لاگ پیامک حذف شد.', 'success');
+            render();
+          } catch (e) { UI.toast(e.message, 'error'); }
+          finally { UI.busy(false); }
+        });
+
+        sheet.body.find('#sms-clear').on('click', async function () {
+          if (!window.confirm('تمام لاگ‌های پیامک حذف شوند؟ این عملیات قابل بازگشت نیست.')) return;
+          UI.busy(true);
+          try {
+            await api.clearSmsLogs();
+            UI.toast('تمام لاگ‌های پیامک حذف شدند.', 'success');
+            render();
+          } catch (e) { UI.toast(e.message, 'error'); }
+          finally { UI.busy(false); }
+        });
+      }).catch((e) => {
+        sheet.body.html(UI.emptyState('خطا در بارگذاری لاگ', e.message, 'alert'));
+      });
+    }
+
+    render();
   }
 
   Screens.openSmsInbox = openSmsInbox;
-
-  /* ================= Deployment guide ================= */
-
-  function openGuide() {
-    const sheet = UI.sheet({ title: 'راهنمای استقرار', icon: 'info', tone: 'dark', size: 'tall' });
-    sheet.body.html(
-      '<div class="info-box" style="line-height:2.4;direction:ltr;text-align:left;font-family:monospace;font-size:11px">' +
-        'composer install --no-dev<br>' +
-        'cp .env.example .env<br>' +
-        'php artisan key:generate<br>' +
-        'touch database/database.sqlite<br>' +
-        'php artisan migrate --seed<br>' +
-        'php artisan admin:set 09xxxxxxxxx<br>' +
-        'php artisan serve<br>' +
-        '# scheduler (crontab):<br>' +
-        '* * * * * php artisan schedule:run' +
-      '</div>' +
-      '<div class="info-box" style="margin-top:12px">تنظیمات پیامک و درگاه را از «تنظیمات سیستمی» وارد کنید. برای راه‌اندازی بدون اعتبار واقعی، حالت‌های آزمایشی را فعال کنید.</div>'
-    );
-  }
 
   Object.assign(window.Screens, S);
 })();

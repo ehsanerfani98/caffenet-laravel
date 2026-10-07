@@ -79,7 +79,8 @@ class SettingsService
         ['key' => 'enableCoupons', 'category' => 'payment', 'type' => 'boolean', 'scope' => self::SCOPE_BUSINESS,
             'label' => 'فعال بودن کدهای تخفیف', 'default' => '1'],
         ['key' => 'walletTopUpPresets', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_BUSINESS,
-            'label' => 'مبالغ پیشنهادی شارژ کیف پول', 'default' => '[50000,100000,200000,500000]'],
+            'label' => 'مبالغ آماده شارژ کیف پول و SKU کافه‌بازار',
+            'default' => '[{"amount":50000,"sku":""},{"amount":100000,"sku":""},{"amount":200000,"sku":""},{"amount":500000,"sku":""}]'],
 
         // ---- sms — system ----
         ['key' => 'smsEnabled', 'category' => 'sms', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
@@ -105,13 +106,35 @@ class SettingsService
         ['key' => 'paymentCallbackUrl', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'نشانی بازگشت درگاه', 'default' => ''],
 
+        // ---- payment (Cafe Bazaar in-app gateway) — system ----
+        ['key' => 'bazaarEnabled', 'category' => 'payment', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'فعال بودن درگاه درون‌برنامه‌ای کافه‌بازار', 'default' => '0'],
+        ['key' => 'bazaarPackageName', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'نام پکیج اپلیکیشن در کافه‌بازار', 'default' => ''],
+        ['key' => 'bazaarApiSecret', 'category' => 'payment', 'type' => 'secret', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'کلید API کافه‌بازار (سرور)‌', 'default' => ''],
+        ['key' => 'bazaarSku', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'شناسه محصول (SKU) کافه‌بازار', 'default' => ''],
+        ['key' => 'bazaarDealerPackageName', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'پکیج نام فروشنده (خالی = همان پکیج اپ)', 'default' => ''],
+        ['key' => 'bazaarPermissionScope', 'category' => 'payment', 'type' => 'number', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'سطح دسترسی لاگین درون‌برنامه‌ای', 'default' => '1'],
+        ['key' => 'bazaarRedirectUrl', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'نشانی بازگشت کافه‌بازار (خالی = مسیر پیش‌فرض کتابخانه)', 'default' => ''],
+        ['key' => 'bazaarConsumeUrl', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'آدرس پایه مصرف خرید کافه‌بازار', 'default' => 'https://pardakht.cafebazaar.ir/devapi/v2/api/consume'],
+        ['key' => 'bazaarValidateUrl', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'آدرس پایه اعتبارسنجی خرید کافه‌بازار', 'default' => 'https://pardakht.cafebazaar.ir/devapi/v2/api/validate'],
+        ['key' => 'bazaarTimeout', 'category' => 'payment', 'type' => 'number', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'مهلت ارتباط با کافه‌بازار (ثانیه)', 'default' => '20'],
+
         // ---- test modes — system ----
-        ['key' => 'otpTestMode', 'category' => 'test', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
-            'label' => 'حالت آزمایشی کد تایید', 'default' => '0'],
         ['key' => 'smsTestMode', 'category' => 'test', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'حالت آزمایشی پیامک', 'default' => '0'],
         ['key' => 'paymentTestMode', 'category' => 'test', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'حالت آزمایشی درگاه', 'default' => '0'],
+        ['key' => 'bazaarTestMode', 'category' => 'test', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'حالت آزمایشی درگاه کافه‌بازار', 'default' => '0'],
     ];
 
     /**
@@ -128,6 +151,98 @@ class SettingsService
                 static fn (array $def): bool => ($def['scope'] ?? self::SCOPE_SYSTEM) === self::SCOPE_BUSINESS
             )
         ));
+    }
+
+    /**
+     * Wallet top-up presets, each carrying the Cafe Bazaar SKU whose fixed
+     * panel price equals the amount. The value is stored as JSON and may be
+     * either the current object shape
+     *   [{"amount":50000,"sku":"topup_50k"}, …]
+     * or the legacy plain-number shape ([50000, …]); both are normalised here so
+     * older rows keep working without a data migration.
+     *
+     * @return array<int, array{amount:int, sku:string}>
+     */
+    public static function walletTopUpPresets(): array
+    {
+        return self::normalizeWalletTopUpPresets(self::raw('walletTopUpPresets'));
+    }
+
+    /**
+     * @param  array<int|string, mixed>|string|null  $input
+     * @return array<int, array{amount:int, sku:string}>
+     */
+    public static function normalizeWalletTopUpPresets($input): array
+    {
+        if (is_string($input)) {
+            $input = json_decode($input, true);
+        }
+        if (! is_array($input)) {
+            $input = [];
+        }
+
+        $presets = [];
+        foreach ($input as $item) {
+            if (is_array($item)) {
+                $amount = (int) ($item['amount'] ?? 0);
+                $sku = trim((string) ($item['sku'] ?? ''));
+            } else {
+                $amount = (int) $item;
+                $sku = '';
+            }
+            if ($amount > 0) {
+                $presets[] = ['amount' => $amount, 'sku' => $sku];
+            }
+        }
+
+        if ($presets === []) {
+            foreach ([50000, 100000, 200000, 500000] as $amount) {
+                $presets[] = ['amount' => $amount, 'sku' => ''];
+            }
+        }
+
+        return $presets;
+    }
+
+    /** The Cafe Bazaar SKU mapped to a wallet top-up amount ('' when none). */
+    public static function walletTopUpSkuFor(int $amount): string
+    {
+        foreach (self::walletTopUpPresets() as $preset) {
+            if ($preset['amount'] === $amount) {
+                return $preset['sku'];
+            }
+        }
+
+        return '';
+    }
+
+    /** The wallet amount a Cafe Bazaar SKU maps to (null when unknown). */
+    public static function walletTopUpAmountForSku(string $sku): ?int
+    {
+        $sku = trim($sku);
+        if ($sku === '') {
+            return null;
+        }
+
+        foreach (self::walletTopUpPresets() as $preset) {
+            if ($preset['sku'] !== '' && $preset['sku'] === $sku) {
+                return $preset['amount'];
+            }
+        }
+
+        return null;
+    }
+
+    /** Whether an amount is one of the configured wallet top-up presets. */
+    public static function isWalletTopUpPreset(int $amount): bool
+    {
+        foreach (self::walletTopUpPresets() as $preset) {
+            if ($preset['amount'] === $amount) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static function raw(string $key): ?string
@@ -221,6 +336,32 @@ class SettingsService
         ];
     }
 
+    /**
+     * Cafe Bazaar in-app gateway snapshot for the admin panel and the client
+     * (only non-secret fields are ever exposed to the browser).
+     *
+     * @return array{enabled: bool, testMode: bool, available: bool, sku: string, packageName: string, dealerPackageName: string, permissionScope: int}
+     */
+    public static function bazaarIapSettings(): array
+    {
+        $packageName = trim((string) self::raw('bazaarPackageName'));
+        $apiSecret = trim((string) self::raw('bazaarApiSecret'));
+        $enabled = self::bool('bazaarEnabled');
+        $testMode = self::bool('bazaarTestMode');
+
+        return [
+            'enabled' => $enabled,
+            'testMode' => $testMode,
+            // Usable only when enabled and fully configured (test mode still
+            // needs the package name to build a valid deep link).
+            'available' => $enabled && $packageName !== '' && ($testMode || $apiSecret !== ''),
+            'sku' => trim((string) self::raw('bazaarSku')),
+            'packageName' => $packageName,
+            'dealerPackageName' => trim((string) self::raw('bazaarDealerPackageName')) ?: $packageName,
+            'permissionScope' => (int) self::num('bazaarPermissionScope', 1),
+        ];
+    }
+
     public static function urgencyMultipliers(): array
     {
         return [
@@ -238,11 +379,6 @@ class SettingsService
     public static function fileRetentionDays(): int
     {
         return max(1, (int) self::num('fileRetentionDays', 14));
-    }
-
-    public static function otpTestMode(): bool
-    {
-        return self::bool('otpTestMode');
     }
 
     /**

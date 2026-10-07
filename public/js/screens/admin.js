@@ -188,8 +188,8 @@
           '<div style="display:flex;gap:7px;margin-bottom:7px">' +
             '<input class="input" data-f="label" placeholder="عنوان فیلد" value="' + PU.escapeHtml(f.label || '') + '">' +
             '<select class="select" data-f="type" style="width:130px;flex:none">' +
-              ['text', 'number', 'textarea', 'select', 'radio', 'checkbox'].map((t) =>
-                '<option value="' + t + '"' + (f.type === t ? ' selected' : '') + '>' + ({ text: 'متن', number: 'عدد', textarea: 'متن بلند', select: 'انتخابی', radio: 'رادیویی', checkbox: 'چک‌باکس' }[t]) + '</option>').join('') +
+              ['text', 'number', 'textarea', 'date', 'select', 'radio', 'checkbox'].map((t) =>
+                '<option value="' + t + '"' + (f.type === t ? ' selected' : '') + '>' + ({ text: 'متن', number: 'عدد', textarea: 'متن بلند', date: 'تاریخ (شمسی)', select: 'انتخابی', radio: 'رادیویی', checkbox: 'چک‌باکس' }[t]) + '</option>').join('') +
             '</select>' +
           '</div>' +
           '<div style="display:flex;gap:7px;align-items:center">' +

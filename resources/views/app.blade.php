@@ -16,7 +16,10 @@
     <meta name="apple-mobile-web-app-title" content="{{ \App\Services\SettingsService::get('siteTitle', 'کافی‌نت آنلاین') }}">
 
     <link rel="stylesheet" href="/css/app.css?v={{ filemtime(public_path('css/app.css')) }}">
+    {{-- Self-hosted Jalali (shamsi) date picker — powers every input[data-jdp]. --}}
+    <link rel="stylesheet" href="/JalaliDatePicker-main/dist/jalalidatepicker.min.css?v={{ filemtime(public_path('JalaliDatePicker-main/dist/jalalidatepicker.min.css')) }}">
     <script defer src="/js/jquery.min.js?v={{ filemtime(public_path('js/jquery.min.js')) }}"></script>
+    <script defer src="/JalaliDatePicker-main/dist/jalalidatepicker.min.js?v={{ filemtime(public_path('JalaliDatePicker-main/dist/jalalidatepicker.min.js')) }}"></script>
 </head>
 <body>
     <div class="stage">
@@ -47,9 +50,11 @@
     <script defer src="/js/icons.js?v={{ filemtime(public_path('js/icons.js')) }}"></script>
     <script defer src="/js/permissions.js?v={{ filemtime(public_path('js/permissions.js')) }}"></script>
     <script defer src="/js/pricing.js?v={{ filemtime(public_path('js/pricing.js')) }}"></script>
+    <script defer src="/js/bazaar-iap.js?v={{ filemtime(public_path('js/bazaar-iap.js')) }}"></script>
     <script defer src="/js/api.js?v={{ filemtime(public_path('js/api.js')) }}"></script>
     <script defer src="/js/ui.js?v={{ filemtime(public_path('js/ui.js')) }}"></script>
     <script defer src="/js/pwa.js?v={{ filemtime(public_path('js/pwa.js')) }}"></script>
+    <script defer src="/js/datepicker.js?v={{ filemtime(public_path('js/datepicker.js')) }}"></script>
     <script defer src="/js/app.js?v={{ filemtime(public_path('js/app.js')) }}"></script>
     <script defer src="/js/screens/auth.js?v={{ filemtime(public_path('js/screens/auth.js')) }}"></script>
     <script defer src="/js/screens/landing.js?v={{ filemtime(public_path('js/screens/landing.js')) }}"></script>

@@ -104,6 +104,10 @@ Route::middleware(['auth.session', 'permission:settings.edit|settings.manage'])-
 
 // ---------------- SMS log ----------------
 Route::middleware(['auth.session', 'permission:sms.view|sms.manage'])->get('/sms', [SmsController::class, 'index']);
+Route::middleware(['auth.session', 'permission:sms.delete|sms.manage'])->group(function () {
+    Route::delete('/sms', [SmsController::class, 'clear']);
+    Route::delete('/sms/{id}', [SmsController::class, 'destroy']);
+});
 
 // ---------------- Slider ----------------
 Route::middleware('auth.optional')->get('/slider', [SliderController::class, 'index']);

@@ -8,6 +8,13 @@
 
   window.Screens = window.Screens || {};
 
+  // Values coming back from the API may be numbers while option values are
+  // strings (or vice-versa); compare loosely so a configured default still
+  // matches its option when we build the markup.
+  function sameValue(a, b) {
+    return a != null && b != null && String(a) === String(b);
+  }
+
   function fieldInput(f, value) {
     const v = value != null ? value : (f.defaultValue != null ? f.defaultValue : '');
     const req = f.required ? ' <span class="req">*</span>' : '';
@@ -28,14 +35,14 @@
         html += '<option value="">انتخاب کنید…</option>';
         (f.options || []).forEach((o) => {
           const extra = o.extraPrice ? ' (+' + PU.toPersianDigits(Number(o.extraPrice).toLocaleString('en-US')) + ' تومان)' : '';
-          html += '<option value="' + PU.escapeHtml(o.value) + '"' + (v === o.value ? ' selected' : '') + '>' +
+          html += '<option value="' + PU.escapeHtml(o.value) + '"' + (sameValue(v, o.value) ? ' selected' : '') + '>' +
             PU.escapeHtml(o.label) + extra + '</option>';
         });
         html += '</select>';
         break;
       case 'radio':
         (f.options || []).forEach((o) => {
-          const sel = v === o.value;
+          const sel = sameValue(v, o.value);
           html += '<div class="radio-card ' + (sel ? 'sel' : '') + '" data-field-radio="' + f.id + '" data-value="' + PU.escapeHtml(o.value) + '">' +
             '<span class="rc-dot"></span><span>' + PU.escapeHtml(o.label) + '</span>' +
             (o.extraPrice ? '<span class="rc-price">+' + PU.toPersianDigits(Number(o.extraPrice).toLocaleString('en-US')) + ' ت</span>' : '') +
@@ -45,6 +52,13 @@
       case 'checkbox':
         html += '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;margin-bottom:8px">' +
           '<input type="checkbox" data-field="' + f.id + '"' + (v ? ' checked' : '') + '> ' + PU.escapeHtml(f.label) + '</label>';
+        break;
+      case 'date':
+        // Jalali date field — the shared datepicker.js watcher binds any
+        // input[data-jdp] through a delegated focusin listener, so it works
+        // inside this dynamically rendered sheet without extra wiring.
+        html += '<input class="input" data-jdp data-field="' + f.id + '" readonly value="' + PU.escapeHtml(v) + '"' +
+          (f.placeholder ? ' placeholder="' + PU.escapeHtml(f.placeholder) + '"' : '') + '>';
         break;
       default:
         html += '<input class="input" data-field="' + f.id + '" value="' + PU.escapeHtml(v) + '">';
@@ -72,12 +86,26 @@
       deliveryAddress: '',
       deliveryPostalCode: '',
       customerNote: '',
+      contactMethods: [],
       files: [],
       couponCode: '',
       couponDiscount: 0,
       couponError: null,
-      paymentMethod: 'online', // online | wallet
     };
+
+    // Pre-populate formData from each field's configured default value. Without
+    // this, a select/radio that already renders with a default selection is not
+    // reflected in state.formData, so required-field validation fails until the
+    // customer manually re-picks the option (which is what fires the handlers
+    // that normally populate formData).
+    (service.fields || []).forEach((f) => {
+      const def = f.defaultValue;
+      if (def !== undefined && def !== null && def !== '') {
+        state.formData[f.id] = def;
+      } else if (f.type === 'checkbox') {
+        state.formData[f.id] = false;
+      }
+    });
 
     const sheet = UI.sheet({
       title: 'ثبت سفارش',
@@ -89,7 +117,6 @@
 
     function renderForm() {
       const needsAddress = state.deliveryMethod === 'courier';
-      const walletEnabled = settings.enableWalletPayment !== false;
       const couponsEnabled = settings.enableCoupons !== false;
 
       sheet.body.html(
@@ -117,6 +144,15 @@
           '<label class="field-label">کد پستی</label>' +
           '<input class="input" id="delivery-postal" inputmode="numeric" value="' + PU.escapeHtml(state.deliveryPostalCode) + '">' : '') +
 
+        /* contact methods — multi-select */
+        '<label class="field-label">راه‌های ارتباط با شما <span class="req">*</span></label>' +
+        '<div class="contact-grid" id="contact-methods">' +
+          PU.contactMethods.map(([k, l]) =>
+            '<span class="chip ' + (state.contactMethods.includes(k) ? 'active' : '') + '" data-contact="' + k + '">' + l + '</span>'
+          ).join('') +
+        '</div>' +
+        '<div class="help-text">می‌توانید چند گزینه را انتخاب کنید تا اپراتور از همان راه با شما در تماس باشد.</div>' +
+
         /* files */
         '<label class="field-label">فایل‌های پیوست (اختیاری — حداکثر ' + PU.toPersianDigits(MAX_FILE_MB) + ' مگابایت)</label>' +
         '<div id="files-list"></div>' +
@@ -136,12 +172,7 @@
         '<label class="field-label">توضیحات سفارش</label>' +
         '<textarea class="textarea" id="customer-note" rows="2" placeholder="هر نکته‌ای برای اپراتور…">' + PU.escapeHtml(state.customerNote) + '</textarea>' +
 
-        /* payment method */
-        '<label class="field-label">روش پرداخت</label>' +
-        '<div class="segmented" id="paymethod-seg">' +
-          '<button class="seg ' + (state.paymentMethod === 'online' ? 'on' : '') + '" data-pay="online">' + icon('wallet') + ' درگاه آنلاین</button>' +
-          (walletEnabled ? '<button class="seg ' + (state.paymentMethod === 'wallet' ? 'on' : '') + '" data-pay="wallet">کیف پول (' + PU.formatToman(user.walletBalance) + ')</button>' : '') +
-        '</div>' +
+
 
         /* live price */
         '<div id="price-summary" style="margin-top:16px"></div>'
@@ -185,6 +216,8 @@
 
     function renderPrice() {
       const p = livePricing();
+      const balance = Number((api.state.currentUser && api.state.currentUser.walletBalance) || 0);
+      const shortfall = Math.max(0, p.payable - balance);
       sheet.body.find('#price-summary').html(
         '<div class="price-summary">' +
           '<div class="ps-row"><span>جمع خدمات</span><span>' + PU.formatToman(p.subtotal) + '</span></div>' +
@@ -192,7 +225,10 @@
           (p.deliveryCost > 0 ? '<div class="ps-row"><span>هزینه پیک</span><span>' + PU.formatToman(p.deliveryCost) + '</span></div>' : '') +
           (p.discountAmount > 0 ? '<div class="ps-row" style="color:var(--emerald)"><span>تخفیف</span><span>−' + PU.formatToman(p.discountAmount) + '</span></div>' : '') +
           '<div class="ps-row total"><span>مبلغ قابل پرداخت</span><span class="val">' + PU.formatToman(p.payable) + '</span></div>' +
-        '</div>'
+        '</div>' +
+        (shortfall > 0
+          ? '<div class="warn-box" style="margin-top:10px">موجودی کیف پول کافی نیست؛ <b>' + PU.formatToman(shortfall) + '</b> کمبود دارید. ابتدا کیف پول را شارژ کنید.</div>'
+          : '')
       );
     }
 
@@ -229,10 +265,12 @@
       renderForm(); // address fields toggle
     });
 
-    sheet.body.on('click', '[data-pay]', function () {
-      state.paymentMethod = $(this).data('pay');
-      sheet.body.find('[data-pay]').removeClass('on');
-      $(this).addClass('on');
+    sheet.body.on('click', '[data-contact]', function () {
+      const key = $(this).data('contact');
+      const idx = state.contactMethods.indexOf(key);
+      if (idx === -1) state.contactMethods.push(key);
+      else state.contactMethods.splice(idx, 1);
+      $(this).toggleClass('active', state.contactMethods.includes(key));
     });
 
     sheet.body.on('click', '#add-file', () => sheet.body.find('#file-input').trigger('click'));
@@ -300,6 +338,18 @@
         UI.toast('برای ارسال با پیک، وارد کردن آدرس الزامی است.', 'warning');
         return;
       }
+      if (!state.contactMethods.length) {
+        UI.toast('حداقل یک راه ارتباطی را انتخاب کنید.', 'warning');
+        return;
+      }
+
+      // Services are paid from the wallet only — never persist an order the
+      // customer cannot pay for; guide them to top up first instead.
+      const balance = Number((api.state.currentUser && api.state.currentUser.walletBalance) || 0);
+      if (balance < p.payable) {
+        Screens.openWalletShortage(p.payable, balance);
+        return;
+      }
 
       const payload = {
         serviceId: service.id,
@@ -309,6 +359,7 @@
         deliveryAddress: state.deliveryAddress || undefined,
         deliveryPostalCode: state.deliveryPostalCode || undefined,
         customerNote: state.customerNote || undefined,
+        contactMethods: state.contactMethods,
         customerFiles: state.files,
         couponCode: state.couponCode || undefined,
       };
@@ -317,25 +368,29 @@
       UI.busy(true);
       try {
         const order = await api.createOrder(payload);
-
-        if (state.paymentMethod === 'wallet') {
-          try {
-            await api.payOrderWithWallet(order.id);
-            sheet.close();
-            UI.toast('پرداخت از کیف پول انجام شد و سفارش به صف کار اضافه شد.', 'success');
-            Screens.openOrderTracker(order.id);
-          } catch (e) {
-            UI.toast(e.message + ' — می‌توانید از صفحه سفارش‌ها دوباره تلاش کنید.', 'error');
-            sheet.close();
-            Screens.openOrderTracker(order.id);
-          }
-        } else {
-          // online → payment request → gateway
-          const pay = await api.startPayment('order', { orderId: order.id });
+        try {
+          await api.payOrderWithWallet(order.id);
           sheet.close();
-          Screens.openPaymentRedirect(pay);
+          UI.toast('پرداخت از کیف پول انجام شد و سفارش به صف کار اضافه شد.', 'success');
+          Screens.openOrderTracker(order.id);
+        } catch (e) {
+          if (e.code === 'INSUFFICIENT_WALLET') {
+            // Rare race: the balance changed between the check and the debit.
+            sheet.close();
+            Screens.openWalletShortage(e.data && e.data.required, e.data && e.data.balance);
+            Screens.openOrderTracker(order.id);
+            return;
+          }
+          UI.toast(e.message + ' — می‌توانید از صفحه سفارش‌ها دوباره تلاش کنید.', 'error');
+          sheet.close();
+          Screens.openOrderTracker(order.id);
         }
       } catch (e) {
+        if (e.code === 'INSUFFICIENT_WALLET') {
+          // Server-side guard: no order was created.
+          Screens.openWalletShortage(e.data && e.data.required, e.data && e.data.balance);
+          return;
+        }
         UI.toast(e.message, 'error');
       } finally {
         $btn.prop('disabled', false);

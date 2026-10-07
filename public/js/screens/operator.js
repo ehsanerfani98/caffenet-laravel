@@ -191,6 +191,7 @@
               'تخفیف: ' + PU.formatToman(o.discountAmount) + '<br>' +
               'روش دریافت: ' + ({ download: 'دانلود آنلاین', in_person: 'حضوری', courier: 'پیک' }[o.deliveryMethod] || o.deliveryMethod) +
               (o.deliveryAddress ? '<br>آدرس: ' + PU.escapeHtml(o.deliveryAddress) : '') +
+              (o.contactMethods && o.contactMethods.length ? '<br>راه‌های ارتباطی: <b>' + PU.escapeHtml(PU.contactMethodsText(o.contactMethods)) + '</b>' : '') +
             '</div>' +
           '</div>' +
 

@@ -85,6 +85,10 @@ class OrderController extends Controller
         }
 
         $formData = is_array($body['formData'] ?? null) ? $body['formData'] : [];
+        $contactMethods = self::sanitizeContactMethods($body['contactMethods'] ?? []);
+        if (count($contactMethods) === 0) {
+            return response()->json(['error' => 'حداقل یک راه ارتباطی را انتخاب کنید.'], 400);
+        }
         $urgency = PricingService::isValidUrgency($body['urgency'] ?? null) ? $body['urgency'] : 'normal';
         $deliveryMethod = PricingService::isValidDelivery($body['deliveryMethod'] ?? null) ? $body['deliveryMethod'] : 'download';
 
@@ -122,8 +126,24 @@ class OrderController extends Controller
             }
         }
 
+        // Services are paid from the wallet only. Guard at creation time so an
+        // order is NEVER persisted when the customer cannot pay for it — the
+        // client shows a shortage warning and sends the user to top up instead.
+        $payable = max(0, (int) $pricing['totalBeforeDiscount'] - $discount);
+        $freshUser = User::find($user->id);
+        $balance = (int) ($freshUser->wallet_balance ?? 0);
+        if ($balance < $payable) {
+            return response()->json([
+                'error' => 'موجودی کیف پول کافی نیست؛ لطفاً ابتدا کیف پول خود را شارژ کنید.',
+                'code' => 'INSUFFICIENT_WALLET',
+                'required' => $payable,
+                'balance' => $balance,
+                'shortfall' => max(0, $payable - $balance),
+            ], 400);
+        }
+
         $order = null;
-        DB::transaction(function () use (&$order, $user, $service, $body, $formData, $urgency, $deliveryMethod, $pricing, $discount, $appliedCoupon) {
+        DB::transaction(function () use (&$order, $user, $service, $body, $formData, $contactMethods, $urgency, $deliveryMethod, $pricing, $discount, $appliedCoupon) {
             $order = Order::create([
                 'order_number' => self::generateOrderNumber(),
                 'service_id' => $service->id,
@@ -142,9 +162,10 @@ class OrderController extends Controller
                 'total_price' => $pricing['totalBeforeDiscount'],
                 'discount_amount' => $discount,
                 'paid_amount' => 0,
-                'payment_method' => 'online',
+                'payment_method' => 'wallet',
                 'payment_tracking_code' => '',
                 'customer_note' => isset($body['customerNote']) ? (string) $body['customerNote'] : null,
+                'contact_methods_json' => json_encode($contactMethods, JSON_UNESCAPED_UNICODE),
                 'created_at' => now()->toIso8601String(),
                 'updated_at' => now()->toIso8601String(),
             ]);
@@ -180,18 +201,25 @@ class OrderController extends Controller
         if ((int) $order->paid_amount > 0) {
             return response()->json(['error' => 'این سفارش قبلاً پرداخت شده است.'], 400);
         }
-        if (! \App\Services\SettingsService::bool('enableWalletPayment')) {
-            return response()->json(['error' => 'پرداخت با کیف پول غیرفعال است.'], 400);
-        }
-
         $payable = max(0, (int) $order->total_price - (int) $order->discount_amount);
         if ($payable <= 0) {
             return response()->json(['error' => 'مبلغ قابل پرداخت نامعتبر است.'], 400);
         }
 
+        // Wallet is the only way to pay for a service, so this path is not
+        // gated by any toggle. The balance is re-read here (authoritative
+        // check) and a structured shortage payload is returned so the UI can
+        // offer a top-up instead of a generic failure.
         $freshUser = User::find($user->id);
-        if ((int) $freshUser->wallet_balance < $payable) {
-            return response()->json(['error' => 'موجودی کیف پول کافی نیست.'], 400);
+        $balance = (int) $freshUser->wallet_balance;
+        if ($balance < $payable) {
+            return response()->json([
+                'error' => 'موجودی کیف پول کافی نیست؛ لطفاً ابتدا کیف پول خود را شارژ کنید.',
+                'code' => 'INSUFFICIENT_WALLET',
+                'required' => $payable,
+                'balance' => $balance,
+                'shortfall' => max(0, $payable - $balance),
+            ], 400);
         }
 
         $trackingCode = 'WLT-'.random_int(100000, 999999);
@@ -628,6 +656,25 @@ class OrderController extends Controller
         } while (Order::where('order_number', $number)->exists());
 
         return $number;
+    }
+
+    /** Keeps only known contact-channel keys, de-duplicated and ordered. */
+    private static function sanitizeContactMethods(mixed $methods): array
+    {
+        if (! is_array($methods)) {
+            return [];
+        }
+
+        $allowed = array_keys(Order::CONTACT_METHODS);
+        $out = [];
+        foreach ($methods as $method) {
+            $method = (string) $method;
+            if (in_array($method, $allowed, true) && ! in_array($method, $out, true)) {
+                $out[] = $method;
+            }
+        }
+
+        return $out;
     }
 
     /** Keeps only the safe fields of client-sent uploaded file metadata. */

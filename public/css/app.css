@@ -192,6 +192,16 @@ svg.i.i-lg { width: 30px; height: 30px; }
 .chip-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px; scrollbar-width: none; }
 .chip-row::-webkit-scrollbar { display: none; }
 
+/* Compact 4-per-row multi-select used by the order form's contact channels. */
+.contact-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 6px; padding: 2px;
+}
+.contact-grid .chip {
+    justify-content: center; padding: 6px 4px; font-size: 10.5px;
+    border-radius: 10px; overflow: hidden; text-overflow: ellipsis;
+}
+
 .input, .select, .textarea {
     width: 100%; border: 1.5px solid var(--line); border-radius: 12px;
     padding: 11px 13px; font-family: inherit; font-size: 13.5px; color: var(--ink);
@@ -214,6 +224,10 @@ svg.i.i-lg { width: 30px; height: 30px; }
     transition: transform .12s;
 }
 .svc-card:active { transform: scale(.97); }
+.svc-card.selected { border-color: var(--sky); box-shadow: 0 0 0 2px var(--sky-soft); }
+/* Wallet top-up preset editor rows (amount + Cafe Bazaar SKU + remove). */
+.preset-row { display: grid; grid-template-columns: 1fr 1.15fr auto; gap: 6px; align-items: center; margin-bottom: 6px; }
+.preset-row .input { margin: 0; }
 .svc-card .svc-icon {
     width: 42px; height: 42px; border-radius: 13px; display: flex; align-items: center; justify-content: center;
     background: var(--sky-soft); color: var(--sky-deep);
@@ -445,6 +459,24 @@ svg.i.i-lg { width: 30px; height: 30px; }
 .segmented .seg { flex: 1; border: none; background: none; border-radius: 10px; padding: 8px 6px; font-family: inherit; font-size: 11.5px; font-weight: 700; color: var(--ink-soft); cursor: pointer; }
 .segmented .seg.on { background: #fff; color: var(--sky-deep); box-shadow: 0 2px 8px rgba(15,23,42,.08); }
 .segmented .seg svg { width: 15px; height: 15px; vertical-align: -2px; }
+.segmented .seg:disabled { opacity: .38; cursor: not-allowed; }
+
+/* ---------- system settings: gateway blocks + collapsible advanced ---------- */
+.gw-block { border: 1px solid var(--line); border-radius: 14px; padding: 2px 13px 13px; margin-top: 10px; }
+.gw-block .gw-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; margin: 12px 0 2px; }
+.gw-block .gw-title svg { width: 16px; height: 16px; color: var(--sky); }
+.adv-box { border: 1px solid var(--line); border-radius: 12px; margin-top: 12px; background: var(--slate-soft); overflow: hidden; }
+.adv-box > summary { list-style: none; cursor: pointer; padding: 10px 12px; font-size: 11.5px; font-weight: 700; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; }
+.adv-box > summary::-webkit-details-marker { display: none; }
+.adv-box > summary svg { width: 14px; height: 14px; }
+.adv-box > summary .adv-caret { margin-inline-start: auto; transition: transform .2s; }
+.adv-box[open] > summary .adv-caret { transform: rotate(180deg); }
+.adv-box .adv-body { background: var(--card); padding: 2px 12px 12px; }
+.status-line { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600; padding: 8px 11px; border-radius: 11px; background: var(--slate-soft); color: var(--ink-soft); margin-bottom: 12px; }
+.status-line .dot { width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; flex-shrink: 0; }
+.status-line.on { background: var(--emerald-soft); color: #065f46; }
+.status-line.on .dot { background: var(--emerald); }
+.chip svg { width: 15px; height: 15px; }
 
 .splash { position: absolute; inset: 0; z-index: 200; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
 .splash svg { width: 64px; height: 64px; color: var(--sky); animation: floatUp 2s ease-in-out infinite; }

@@ -1,7 +1,7 @@
 /* Caffenet Lite — service worker (hand-written, autoUpdate semantics).
  * cache-first for static assets; network-only for /api, /uploads, /media
  * (they are never served the SPA fallback). */
-const CACHE = 'caffenet-v2';
+const CACHE = 'caffenet-v6';
 const SHELL = ['/', '/css/app.css', '/js/jquery.min.js', '/js/persian-utils.js', '/js/icons.js',
   '/js/permissions.js', '/js/pricing.js', '/js/api.js', '/js/ui.js', '/js/pwa.js', '/js/app.js'];
 

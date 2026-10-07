@@ -19,6 +19,19 @@
 
     function go() {
       if (redirecting) return;
+
+      // Cafe Bazaar in-app gateway: hand the deep link to the browser helper.
+      // It only works inside the Bazaar webview, so warn otherwise.
+      if (payResult && payResult.gateway === 'bazaar') {
+        if (window.BazaarIap && window.BazaarIap.isInBazaar()) {
+          redirecting = true;
+          window.BazaarIap.pay(payResult);
+        } else {
+          UI.toast('پرداخت کافه‌بازار فقط داخل اپلیکیشن کافه‌بازار امکان‌پذیر است.', 'warning');
+        }
+        return;
+      }
+
       redirecting = true;
       window.location.href = payResult.redirectUrl;
     }

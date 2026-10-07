@@ -34,6 +34,7 @@
 
     sheet.body.html(
       '<div class="step-phone">' +
+        '<div class="warn-box hidden" id="auth-sms-off" style="margin-bottom:12px">سامانه پیامک غیرفعال است؛ در حال حاضر امکان دریافت کد تایید وجود ندارد. با مدیر سامانه تماس بگیرید.</div>' +
         '<label class="field-label">شماره موبایل <span class="req">*</span></label>' +
         '<input class="input" id="auth-phone" inputmode="tel" placeholder="۰۹xxxxxxxxx" dir="ltr" style="text-align:center;font-size:16px">' +
         '<button class="btn block" id="auth-send" style="margin-top:14px">' + icon('send') + 'دریافت کد تایید</button>' +
@@ -50,6 +51,15 @@
     );
 
     const phone = PU.normalizeIranianMobile(api.state.currentUser ? '' : '') ;
+
+    // SMS off ⇒ the login cannot proceed (no real SMS, no simulator). Tell the
+    // user up-front instead of failing silently on the send attempt.
+    const smsOn = !(api.state.settings && api.state.settings.smsEnabled === false);
+    if (!smsOn) {
+      sheet.body.find('#auth-sms-off').removeClass('hidden');
+      sheet.body.find('#auth-send').prop('disabled', true);
+      UI.toast('سامانه پیامک غیرفعال است.', 'warning');
+    }
 
     $('#auth-phone').on('input', function () {
       this.value = PU.sanitizePhoneInput(this.value);

@@ -89,7 +89,15 @@
 
       if (!res.ok) {
         const message = (data && data.error) || 'خطای پردازش درخواست.';
-        throw new ApiError(message, res.status);
+        const err = new ApiError(message, res.status);
+        // Preserve the structured server payload (e.g. code=INSUFFICIENT_WALLET
+        // carrying required/balance/shortfall) so screens can react precisely
+        // instead of only showing a generic message.
+        if (data && typeof data === 'object') {
+          err.code = data.code;
+          err.data = data;
+        }
+        throw err;
       }
       return data;
     }
@@ -316,6 +324,8 @@
       return this.request('PUT', '/api/settings/system', { settings });
     }
     async getSmsInbox() { return this.request('GET', '/api/sms'); }
+    async deleteSmsLog(id) { return this.request('DELETE', '/api/sms/' + id); }
+    async clearSmsLogs() { return this.request('DELETE', '/api/sms'); }
 
     /* ---------------- slider ---------------- */
 

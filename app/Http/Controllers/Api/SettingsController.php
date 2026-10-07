@@ -16,13 +16,18 @@ class SettingsController extends Controller
     public function business(): JsonResponse
     {
         $out = [];
+        // Expose the Cafe Bazaar in-app gateway snapshot (no secrets) so the
+        // client knows whether to offer that payment method.
+        $out['bazaar'] = SettingsService::bazaarIapSettings();
+        // Public read-only flag so the client can warn users when SMS is off.
+        $out['smsEnabled'] = SettingsService::bool('smsEnabled');
         foreach (SettingsService::businessKeys() as $key) {
             $raw = SettingsService::raw($key);
             if (in_array($key, ['enableWalletPayment', 'enableCoupons'], true)) {
                 $out[$key] = SettingsService::bool($key);
             } elseif ($key === 'walletTopUpPresets') {
-                $decoded = json_decode((string) $raw, true);
-                $out[$key] = is_array($decoded) ? $decoded : [50000, 100000, 200000, 500000];
+                // Each preset carries its own Cafe Bazaar SKU ({amount, sku}).
+                $out[$key] = SettingsService::walletTopUpPresets();
             } elseif (in_array($key, ['fileRetentionDays', 'courierCost'], true)) {
                 $out[$key] = (int) $raw;
             } elseif (in_array($key, ['urgentPriceMultiplier', 'immediatePriceMultiplier'], true)) {
@@ -44,7 +49,14 @@ class SettingsController extends Controller
                 continue;
             }
             $value = $body[$key];
-            if (is_array($value)) {
+            if ($key === 'walletTopUpPresets') {
+                // Normalise to [{amount, sku}] so the stored JSON shape stays
+                // canonical regardless of what the client sends.
+                $value = json_encode(
+                    SettingsService::normalizeWalletTopUpPresets($value),
+                    JSON_UNESCAPED_UNICODE
+                );
+            } elseif (is_array($value)) {
                 $value = json_encode($value, JSON_UNESCAPED_UNICODE);
             } elseif (is_bool($value)) {
                 $value = $value ? '1' : '0';

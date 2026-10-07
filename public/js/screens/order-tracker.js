@@ -156,6 +156,7 @@
             'ثبت: ' + PU.toJalaliDate(o.createdAt) +
             (o.paymentTrackingCode ? '<br>کد پیگیری پرداخت: <b>' + PU.toPersianDigits(o.paymentTrackingCode) + '</b>' : '') +
             (o.assignedOperatorName ? '<br>اپراتور: ' + PU.escapeHtml(o.assignedOperatorName) : '') +
+            (o.contactMethods && o.contactMethods.length ? '<br>راه ارتباطی: <b>' + PU.escapeHtml(PU.contactMethodsText(o.contactMethods)) + '</b>' : '') +
           '</div>' +
           '<div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:9px;border-top:1px dashed var(--line)">' +
             '<span style="font-size:12px;color:var(--ink-soft)">' + (paid ? 'پرداخت‌شده' : 'قابل پرداخت') + '</span>' +
@@ -233,15 +234,16 @@
       if (retryable) sheet.body.find('#retry-pay').on('click', async function () {
         const $btn = $(this).prop('disabled', true);
         try {
+          // Services are paid from the wallet only — there is no gateway
+          // fallback here anymore.
           await api.payOrderWithWallet(o.id);
           UI.toast('پرداخت از کیف پول انجام شد.', 'success');
           refresh(true);
         } catch (e) {
-          try {
-            const pay = await api.startPayment('order', { orderId: o.id });
-            Screens.openPaymentRedirect(pay);
-          } catch (e2) {
-            UI.toast(e2.message, 'error');
+          if (e.code === 'INSUFFICIENT_WALLET') {
+            Screens.openWalletShortage(e.data && e.data.required, e.data && e.data.balance);
+          } else {
+            UI.toast(e.message, 'error');
           }
         } finally { $btn.prop('disabled', false); }
       });
