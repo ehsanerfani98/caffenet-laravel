@@ -16,9 +16,9 @@ class SettingsController extends Controller
     public function business(): JsonResponse
     {
         $out = [];
-        foreach (SettingsService::BUSINESS_KEYS as $key) {
+        foreach (SettingsService::businessKeys() as $key) {
             $raw = SettingsService::raw($key);
-            if (in_array($key, ['enableWalletPayment', 'enableCoupons', 'otpTestMode'], true)) {
+            if (in_array($key, ['enableWalletPayment', 'enableCoupons'], true)) {
                 $out[$key] = SettingsService::bool($key);
             } elseif ($key === 'walletTopUpPresets') {
                 $decoded = json_decode((string) $raw, true);
@@ -39,7 +39,7 @@ class SettingsController extends Controller
     {
         $body = (array) $request->json()->all();
 
-        foreach (SettingsService::BUSINESS_KEYS as $key) {
+        foreach (SettingsService::businessKeys() as $key) {
             if (! array_key_exists($key, $body)) {
                 continue;
             }
@@ -77,6 +77,9 @@ class SettingsController extends Controller
             }
             if (! $def || ($def['bootOnly'] ?? false)) {
                 continue; // unknown or read-only keys are silently skipped
+            }
+            if (($def['scope'] ?? SettingsService::SCOPE_SYSTEM) !== SettingsService::SCOPE_SYSTEM) {
+                continue; // business keys are not writable through the system endpoint
             }
             if ($def['type'] === 'boolean') {
                 $value = ($value === true || $value === '1' || $value === 1) ? '1' : '0';

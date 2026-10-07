@@ -218,6 +218,12 @@ flowchart TD
 - `runtime`: همان پنج مقدار فقط‌بوت که فقط به‌صورت **فقط‌خواندنی** در پنل نمایش داده می‌شوند.
 - `test`: `smsTestMode`, `paymentTestMode`, `otpTestMode`.
 
+### تفکیک scope: کسب‌وکار در برابر سیستمی
+هر تعریف در `DEFS` یک `scope` دارد (`business` یا `system`) و هر کلید **فقط** در یک پنل ویرایش می‌شود:
+- `business`: `siteTitle, coffeenetAddress, coffeenetPhone, workingHours, fileRetentionDays, urgentPriceMultiplier, immediatePriceMultiplier, courierCost, enableWalletPayment, enableCoupons, walletTopUpPresets` — از طریق `GET/PUT /api/settings` و شیت «تنظیمات کسب‌وکار».
+- `system`: بقیهٔ کلیدها (اعتبارنامه‌های پیامک/درگاه، `appUrl`, `adminPhones` و حالت‌های آزمایشی) — از طریق `GET/PUT /api/settings/system` و شیت «تنظیمات سیستمی».
+- `systemSettingsView()` و `updateSystem()` کلیدهای `business` را نادیده می‌گیرند تا یک مقدار در دو پنل تکرار (و دو جا ویرایش) نشود. فهرست `businessKeys()` از روی همین `scope` ساخته می‌شود.
+
 ---
 
 ## 6. لایه دیتابیس
@@ -840,7 +846,7 @@ Sheet انتقال به درگاه: پس از ۱۲۰۰ میلی‌ثانیه ب�
 - `DiscountCoupon`
 - `SmsMessage`: `type: otp | order_status | system`
 - `SliderSlide`
-- `SystemSettings` (تنظیمات کسب‌وکار: `siteTitle, coffeenetAddress, coffeenetPhone, workingHours, fileRetentionDays, urgentPriceMultiplier, immediatePriceMultiplier, courierCost, enableWalletPayment, enableCoupons, otpTestMode, walletTopUpPresets`)
+- `SystemSettings` (تنظیمات کسب‌وکار، `scope=business`: `siteTitle, coffeenetAddress, coffeenetPhone, workingHours, fileRetentionDays, urgentPriceMultiplier, immediatePriceMultiplier, courierCost, enableWalletPayment, enableCoupons, walletTopUpPresets`)
 - `SystemSettingCategory`, `SystemSettingType`, `SystemSettingSource`, `SystemSettingView`
 
 ---
@@ -931,7 +937,8 @@ Sheet انتقال به درگاه: پس از ۱۲۰۰ میلی‌ثانیه ب�
 
 ### افزودن تنظیم جدید
 - اگر «فقط‌بوت» است → به `config.ts` و `SYSTEM_SETTING_DEFS` با `bootOnly: true` اضافه کنید.
-- اگر قابل مدیریت از پنل است → به `SYSTEM_SETTING_DEFS` اضافه کنید؛ سیـدر `001_settings_seeder` (repeatable) در بوت بعدی ردیف آن را می‌سازد.
+- اگر قابل مدیریت از پنل است → به `DEFS` در `SettingsService` اضافه کنید؛ سیـدر `001_settings_seeder` (repeatable) در بوت بعدی ردیف آن را می‌سازد.
+- برای هر تنظیم جدید `scope` را مشخص کنید (`business` برای پنل کسب‌وکار، `system` برای پنل سیستمی) تا کلید در هر دو پنل تکرار نشود.
 
 ---
 

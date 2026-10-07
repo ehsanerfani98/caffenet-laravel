@@ -126,11 +126,12 @@
       '<label class="field-label">ضریب سفارش فوری</label><input class="input" id="s-urgent" value="' + (s.urgentPriceMultiplier || 1.3) + '">' +
       '<label class="field-label">ضریب سفارش آنی</label><input class="input" id="s-immediate" value="' + (s.immediatePriceMultiplier || 1.6) + '">' +
       '<label class="field-label">هزینه پیک (تومان)</label><input class="input" id="s-courier" inputmode="numeric" value="' + (s.courierCost || 35000) + '">' +
+      '<label class="field-label">مبالغ پیشنهادی شارژ کیف پول (با کاما جدا کنید)</label>' +
+      '<input class="input" id="s-presets" dir="ltr" value="' + PU.escapeHtml((s.walletTopUpPresets || [50000, 100000, 200000, 500000]).join(', ')) + '">' +
       '<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;font-weight:600;margin:12px 2px">' +
       '<input type="checkbox" id="s-wallet"' + (s.enableWalletPayment !== false ? ' checked' : '') + '> پرداخت با کیف پول فعال باشد</label>' +
       '<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;font-weight:600;margin:12px 2px">' +
-      '<input type="checkbox" id="s-coupons"' + (s.enableCoupons !== false ? ' checked' : '') + '> کدهای تخفیف فعال باشند</label>' +
-      '<label class="field-label">شماره‌های مدیران (با کاما)</label><input class="input" id="s-admins" dir="ltr" value=""><div class="help-text">در «تنظیمات سیستمی» یا با دستور artisan قابل ویرایش است.</div>'
+      '<input type="checkbox" id="s-coupons"' + (s.enableCoupons !== false ? ' checked' : '') + '> کدهای تخفیف فعال باشند</label>'
     );
     sheet.footer.html('<button class="btn block" id="s-save">ذخیره تنظیمات</button>');
     sheet.footer.find('#s-save').on('click', async function () {
@@ -144,6 +145,8 @@
           urgentPriceMultiplier: Number(sheet.body.find('#s-urgent').val()),
           immediatePriceMultiplier: Number(sheet.body.find('#s-immediate').val()),
           courierCost: Number(sheet.body.find('#s-courier').val()),
+          walletTopUpPresets: String(sheet.body.find('#s-presets').val() || '')
+            .split(',').map((v) => Number(PU.toLatinDigits(v.trim()))).filter((n) => n > 0),
           enableWalletPayment: sheet.body.find('#s-wallet').is(':checked'),
           enableCoupons: sheet.body.find('#s-coupons').is(':checked'),
         });
