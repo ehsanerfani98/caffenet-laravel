@@ -42,7 +42,6 @@
           '<span><button type="button" id="auth-terms-link" class="terms-link">شرایط استفاده از خدمات و حریم خصوصی</button> را می‌پذیرم</span>' +
         '</label>' +
         '<button class="btn block" id="auth-send" style="margin-top:14px">' + icon('send') + 'دریافت کد تایید</button>' +
-        '<div class="info-box" style="margin-top:14px">با ورود، سامانه یک کد پنج‌رقمی برای شما پیامک می‌کند. حساب کاربری ندارید؟ با اولین ورود ساخته می‌شود.</div>' +
       '</div>' +
       '<div class="step-otp hidden">' +
         '<div class="info-box" style="margin-bottom:12px">کد تایید به شماره <b id="auth-shown-phone"></b> ارسال شد.</div>' +
