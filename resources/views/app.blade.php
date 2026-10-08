@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#0284c7">
+    <meta name="theme-color" content="#1357dc">
     <meta name="description" content="سامانه آنلاین خدمات کافی‌نت: پرینت، خدمات دانشجویی، اداری و مالیاتی">
     <title>{{ \App\Services\SettingsService::get('siteTitle', 'کافی‌نت احسان') }}</title>
 
     <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">

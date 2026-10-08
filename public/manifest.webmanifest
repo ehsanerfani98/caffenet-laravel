@@ -5,13 +5,25 @@
   "description": "اپلیکیشن پیشرو وب (PWA) ارائه آنلاین خدمات کافی‌نت، پرینت و ثبت‌نام با پیگیری سفارشات.",
   "lang": "fa",
   "dir": "rtl",
-  "theme_color": "#0284c7",
-  "background_color": "#ffffff",
+  "theme_color": "#1357dc",
+  "background_color": "#1357dc",
   "display": "standalone",
   "orientation": "portrait",
   "start_url": "/",
   "scope": "/",
   "icons": [
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/pwa-192x192.png",
       "sizes": "192x192",
