@@ -1,10 +1,11 @@
 /* Caffenet Lite — service worker (hand-written, autoUpdate semantics).
  * cache-first for static assets; network-only for /api, /uploads, /media
  * (they are never served the SPA fallback). */
-const CACHE = 'caffenet-v8';
+const CACHE = 'caffenet-v9';
 const SHELL = ['/', '/manifest.webmanifest', '/pwa-192x192.png', '/pwa-512x512.png',
-  '/apple-touch-icon.png', '/favicon.ico', '/favicon-32x32.png', '/css/app.css',
-  '/js/jquery.min.js', '/js/persian-utils.js',
+  '/maskable-192x192.png', '/maskable-512x512.png', '/apple-touch-icon.png',
+  '/favicon.ico', '/favicon-16x16.png', '/favicon-32x32.png', '/favicon-48x48.png',
+  '/css/app.css', '/js/jquery.min.js', '/js/persian-utils.js',
   '/js/icons.js', '/js/permissions.js', '/js/pricing.js', '/js/api.js', '/js/ui.js',
   '/js/pwa.js', '/js/app.js'];
 
