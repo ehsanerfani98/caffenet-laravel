@@ -168,7 +168,7 @@
           '<div class="hero-slider"><div class="caption" style="position:absolute;inset:0;padding:14px;background:linear-gradient(135deg,#1559de,#1147b2);color:#fff;display:flex;flex-direction:column;justify-content:center">' +
           '<div class="s1" style="font-size:16px;font-weight:700">به کافی‌نت احسان خوش آمدید</div>' +
           '<div class="s2" style="font-size:12px;opacity:.9;margin-top:4px">پرینت، خدمات دانشجویی، اداری و مالیاتی — همه آنلاین</div>' +
-          '</div><div style="height:120px"></div></div>'
+          '</div><div style="height:170px"></div></div>'
         );
         return;
       }
