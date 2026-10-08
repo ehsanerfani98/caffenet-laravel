@@ -162,7 +162,10 @@
       '<button type="button" class="btn ghost block sm" id="s-add-preset" style="margin-top:8px">' + icon('plus') + 'افزودن مبلغ</button>' +
       '<div class="info-box" style="margin:12px 2px">پرداخت خدمات همیشه از طریق <b>کیف پول</b> انجام می‌شود و فعال است.</div>' +
       '<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;font-weight:600;margin:12px 2px">' +
-      '<input type="checkbox" id="s-coupons"' + (s.enableCoupons !== false ? ' checked' : '') + '> کدهای تخفیف فعال باشند</label>'
+      '<input type="checkbox" id="s-coupons"' + (s.enableCoupons !== false ? ' checked' : '') + '> کدهای تخفیف فعال باشند</label>' +
+      '<div class="section-title">' + icon('shield') + 'قوانین و حریم خصوصی</div>' +
+      '<div class="help-text" style="margin:0 2px 8px">این متن پیش از دریافت شماره همراه و در صفحه «قوانین و حریم خصوصی» به کاربر نمایش داده می‌شود. متن به‌صورت ساده ذخیره می‌شود و نیازی به HTML نیست؛ خط‌های جدید به پاراگراف تبدیل می‌شوند.</div>' +
+      '<textarea class="input textarea" id="s-terms" rows="12" style="min-height:200px;line-height:1.9">' + PU.escapeHtml(s.termsText || '') + '</textarea>'
     );
     // Preset editor: append/remove amount+SKU rows (keep at least one).
     sheet.body.on('click', '#s-add-preset', function () {
@@ -189,6 +192,7 @@
           courierCost: Number(sheet.body.find('#s-courier').val()),
           walletTopUpPresets: collectPresets(sheet.body),
           enableCoupons: sheet.body.find('#s-coupons').is(':checked'),
+          termsText: sheet.body.find('#s-terms').val(),
         });
         UI.toast('تنظیمات ذخیره شد.', 'success');
         sheet.close();

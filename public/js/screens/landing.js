@@ -292,6 +292,7 @@
     }
     $host.find('#profile-wallet').on('click', () => App.navigate('wallet'));
     $host.find('#profile-queue').on('click', () => App.navigate('operator'));
+    $host.find('#profile-privacy').on('click', () => { if (Screens.openTerms) Screens.openTerms(); });
     $host.find('#profile-logout').on('click', async () => {
       await api.logout();
       UI.toast('از حساب خارج شدید.', 'info');

@@ -37,6 +37,10 @@
         '<div class="warn-box hidden" id="auth-sms-off" style="margin-bottom:12px">سامانه پیامک غیرفعال است؛ در حال حاضر امکان دریافت کد تایید وجود ندارد. با مدیر سامانه تماس بگیرید.</div>' +
         '<label class="field-label">شماره موبایل <span class="req">*</span></label>' +
         '<input class="input" id="auth-phone" inputmode="tel" placeholder="۰۹xxxxxxxxx" dir="ltr" style="text-align:center;font-size:16px">' +
+        '<label class="terms-consent">' +
+          '<input type="checkbox" id="auth-terms">' +
+          '<span><button type="button" id="auth-terms-link" class="terms-link">شرایط استفاده از خدمات و حریم خصوصی</button> را می‌پذیرم</span>' +
+        '</label>' +
         '<button class="btn block" id="auth-send" style="margin-top:14px">' + icon('send') + 'دریافت کد تایید</button>' +
         '<div class="info-box" style="margin-top:14px">با ورود، سامانه یک کد پنج‌رقمی برای شما پیامک می‌کند. حساب کاربری ندارید؟ با اولین ورود ساخته می‌شود.</div>' +
       '</div>' +
@@ -61,11 +65,36 @@
       UI.toast('سامانه پیامک غیرفعال است.', 'warning');
     }
 
+    // Explicit consent: an intentional tap is the ONLY thing treated as
+    // acceptance (never an implicit action, auto message or expiry). The flag
+    // is a technical marker only — no personal data is stored locally.
+    const TERMS_KEY = window.TERMS_ACCEPT_KEY || 'caffenet_terms_accepted';
+    const termsAccepted = (function () {
+      try { return localStorage.getItem(TERMS_KEY) === '1'; } catch (e) { return false; }
+    })();
+    sheet.body.find('#auth-terms').prop('checked', termsAccepted).on('change', function () {
+      try {
+        if (this.checked) localStorage.setItem(TERMS_KEY, '1');
+        else localStorage.removeItem(TERMS_KEY);
+      } catch (e) { /* storage unavailable — acceptance still holds for this attempt */ }
+    });
+    sheet.body.find('#auth-terms-link').on('click', function (e) {
+      // Keep the link inside the sheet: open the policy without toggling the
+      // checkbox or closing the login sheet.
+      e.preventDefault();
+      e.stopPropagation();
+      if (window.Screens && Screens.openTerms) Screens.openTerms();
+    });
+
     $('#auth-phone').on('input', function () {
       this.value = PU.sanitizePhoneInput(this.value);
     });
 
     $('#auth-send').on('click', async function () {
+      if (!$('#auth-terms').is(':checked')) {
+        UI.toast('برای ادامه، پذیرش شرایط استفاده از خدمات و حریم خصوصی الزامی است.', 'warning');
+        return;
+      }
       const p = PU.normalizeIranianMobile($('#auth-phone').val());
       if (!PU.isValidIranianMobile(p)) {
         UI.toast('شماره موبایل معتبر نیست.', 'error');

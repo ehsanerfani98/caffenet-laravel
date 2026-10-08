@@ -199,6 +199,7 @@
         'admin/services': { t1: 'مدیریت خدمات', t2: 'کاتالوگ و فرم‌ساز پویا' },
         'admin/users': { t1: 'مدیریت کاربران', t2: 'نقش‌ها و مجوزها' },
         'admin/more': { t1: 'ابزارهای مدیریتی', t2: 'کد تخفیف، تنظیمات، اسلایدر' },
+        terms: { t1: 'قوانین و حریم خصوصی', t2: 'شرایط استفاده و حفظ اطلاعات' },
       };
       return map[this.screen] || null;
     },
@@ -236,6 +237,7 @@
       else if (scr === 'admin/services') html = window.Screens.adminServices(ctx);
       else if (scr === 'admin/users') html = window.Screens.adminUsers(ctx);
       else if (scr === 'admin/more') html = window.Screens.adminMore(ctx);
+      else if (scr === 'terms') html = window.Screens.termsPage(ctx);
       else html = UI.emptyState('صفحه یافت نشد', 'این مسیر در دسترس نیست', 'alert');
 
       $host.html('<div class="screen">' + html + '</div>');
