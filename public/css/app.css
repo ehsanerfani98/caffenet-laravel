@@ -272,10 +272,10 @@ svg.i.i-lg { width: 30px; height: 30px; }
 
 /* ---------- slider ---------- */
 #hero-slider { margin-top: 8px; margin-bottom: 16px; }
-.hero-slider { position: relative; border-radius: 18px; overflow: hidden; margin-bottom: 14px; }
+.hero-slider { position: relative; border-radius: 18px; overflow: hidden; margin-bottom: 14px; background: #eef2f7; }
 .hero-slider .slides { display: flex; transition: transform .45s ease; }
 .hero-slide { flex: 0 0 100%; position: relative; }
-.hero-slide img { width: 100%; height: 170px; object-fit: cover; display: block; }
+.hero-slide img { width: 100%; height: 170px; object-fit: contain; display: block; }
 .hero-slide .caption {
     position: absolute; inset: auto 0 0 0; padding: 40px 14px 12px;
     background: linear-gradient(0deg, rgba(2,8,23,.85), transparent);
