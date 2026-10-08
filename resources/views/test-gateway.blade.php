@@ -7,10 +7,10 @@
     <style>
         body { font-family: system-ui, sans-serif; direction: rtl; background: #f1f5f9; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
         .gw { background: #fff; border-radius: 22px; padding: 34px 28px; max-width: 380px; width: 92%; box-shadow: 0 20px 60px rgba(2,8,23,.15); text-align: center; }
-        .gw .logo { width: 64px; height: 64px; border-radius: 18px; background: #e0f2fe; color: #0369a1; display: flex; align-items: center; justify-content: center; font-size: 30px; margin: 0 auto 14px; }
+        .gw .logo { width: 64px; height: 64px; border-radius: 18px; background: #e3eafc; color: #1147b2; display: flex; align-items: center; justify-content: center; font-size: 30px; margin: 0 auto 14px; }
         .gw h1 { font-size: 17px; margin: 0 0 6px; }
         .gw .sub { font-size: 12px; color: #64748b; margin-bottom: 18px; }
-        .gw .amount { font-size: 26px; font-weight: 800; color: #0369a1; margin-bottom: 20px; }
+        .gw .amount { font-size: 26px; font-weight: 800; color: #1147b2; margin-bottom: 20px; }
         .gw .btns { display: flex; gap: 10px; }
         .gw button { flex: 1; padding: 13px; border: none; border-radius: 13px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
         .gw .ok { background: #059669; color: #fff; }

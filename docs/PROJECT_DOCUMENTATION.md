@@ -907,7 +907,7 @@ Sheet انتقال به درگاه: پس از ۱۲۰۰ میلی‌ثانیه ب�
 
 پیکربندی در [`vite.config.ts`](vite.config.ts:12):
 - `registerType: 'autoUpdate'` و `injectRegister: 'script-defer'`.
-- **Manifest**: نام فارسی، `lang: fa`, `dir: rtl`, `display: standalone`, `orientation: portrait`, رنگ تم `#0284c7`.
+- **Manifest**: نام فارسی، `lang: fa`, `dir: rtl`, `display: standalone`, `orientation: portrait`, رنگ تم `#1559de`.
 - **Workbox**:
   - `globPatterns` برای js/css/html/ico/png/svg/woff/woff2
   - `navigateFallback: '/index.html'` با `navigateFallbackDenylist` برای `/api`, `/uploads`, `/media` (این مسیرها هرگز به پوستهٔ SPA fallback نمی‌شوند)

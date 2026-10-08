@@ -14,7 +14,7 @@
 :root {
     --font-sans: 'PeydaFa', 'Vazir', system-ui, sans-serif;
 
-    --sky: #0284c7; --sky-soft: #e0f2fe; --sky-deep: #0369a1;
+    --sky: #1559de; --sky-soft: #e3eafc; --sky-deep: #1147b2;
     --emerald: #059669; --emerald-soft: #d1fae5;
     --amber: #d97706; --amber-soft: #fef3c7;
     --indigo: #4f46e5; --indigo-soft: #e0e7ff;
@@ -94,6 +94,11 @@ svg.i.i-lg { width: 30px; height: 30px; }
 }
 .app-bar .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; }
 .app-bar .brand svg { width: 26px; height: 26px; }
+.app-bar .brand .brand-logo {
+    display: block; width: 30px; height: 30px;
+    border-radius: 9px; background: #fff; padding: 2px;
+    object-fit: contain; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+}
 .app-bar .titles { flex: 1; min-width: 0; }
 .app-bar .titles .t1 { font-size: 16px; font-weight: 700; }
 .app-bar .titles .t2 { font-size: 11.5px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -480,6 +485,11 @@ svg.i.i-lg { width: 30px; height: 30px; }
 
 .splash { position: absolute; inset: 0; z-index: 200; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
 .splash svg { width: 64px; height: 64px; color: var(--sky); animation: floatUp 2s ease-in-out infinite; }
+.splash .splash-logo {
+    display: block; width: 96px; height: 96px; border-radius: 26px;
+    animation: floatUp 2s ease-in-out infinite;
+    box-shadow: 0 12px 30px rgba(21, 89, 222, .35);
+}
 
 /* ---------- animations ---------- */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

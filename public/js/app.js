@@ -59,7 +59,8 @@
 
     renderSplash() {
       $('body').append(
-        '<div class="splash" id="splash">' + icon('coffee') +
+        '<div class="splash" id="splash">' +
+        '<img class="splash-logo" src="/pwa-192x192.png" alt="' + PU.escapeHtml(window.__APP_BOOT.siteTitle || 'کافی‌نت احسان') + '">' +
         '<div style="font-weight:800;font-size:15px;color:var(--ink)">' +
         PU.escapeHtml(window.__APP_BOOT.siteTitle || 'کافی‌نت احسان') + '</div>' +
         '<div class="spinner"></div></div>'

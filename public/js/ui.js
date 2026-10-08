@@ -128,7 +128,7 @@
 
       $('#app-bar').html(
         '<div class="app-bar">' +
-          '<div class="brand">' + icon('coffee') + '</div>' +
+          '<div class="brand"><img class="brand-logo" src="/pwa-96x96.png" alt="' + PU.escapeHtml(titles.t1) + '"></div>' +
           '<div class="titles"><div class="t1">' + PU.escapeHtml(titles.t1) + '</div>' +
           (titles.t2 ? '<div class="t2">' + PU.escapeHtml(titles.t2) + '</div>' : '') + '</div>' +
           actions +
@@ -165,7 +165,7 @@
       const list = slides || [];
       if (!list.length) {
         $container.html(
-          '<div class="hero-slider"><div class="caption" style="position:absolute;inset:0;padding:14px;background:linear-gradient(135deg,#0284c7,#0369a1);color:#fff;display:flex;flex-direction:column;justify-content:center">' +
+          '<div class="hero-slider"><div class="caption" style="position:absolute;inset:0;padding:14px;background:linear-gradient(135deg,#1559de,#1147b2);color:#fff;display:flex;flex-direction:column;justify-content:center">' +
           '<div class="s1" style="font-size:16px;font-weight:700">به کافی‌نت احسان خوش آمدید</div>' +
           '<div class="s2" style="font-size:12px;opacity:.9;margin-top:4px">پرینت، خدمات دانشجویی، اداری و مالیاتی — همه آنلاین</div>' +
           '</div><div style="height:120px"></div></div>'
