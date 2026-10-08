@@ -61,7 +61,7 @@
       $('body').append(
         '<div class="splash" id="splash">' + icon('coffee') +
         '<div style="font-weight:800;font-size:15px;color:var(--ink)">' +
-        PU.escapeHtml(window.__APP_BOOT.siteTitle || 'کافی‌نت آنلاین') + '</div>' +
+        PU.escapeHtml(window.__APP_BOOT.siteTitle || 'کافی‌نت احسان') + '</div>' +
         '<div class="spinner"></div></div>'
       );
     },
@@ -189,7 +189,7 @@
 
     screenTitles() {
       const map = {
-        home: { t1: 'کافی‌نت آنلاین', t2: 'خدمات آنلاین، سریع و مطمئن' },
+        home: { t1: 'کافی‌نت احسان', t2: 'خدمات آنلاین، سریع و مطمئن' },
         catalog: { t1: 'دسته‌بندی خدمات', t2: 'انتخاب خدمت مورد نظر' },
         orders: { t1: 'سفارش‌های من', t2: 'پیگیری وضعیت سفارش‌ها' },
         wallet: { t1: 'کیف پول', t2: 'موجودی و شارژ' },

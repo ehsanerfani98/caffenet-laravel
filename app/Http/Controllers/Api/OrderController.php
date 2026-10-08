@@ -283,7 +283,7 @@ class OrderController extends Controller
 
         SmsService::sendNotification(
             $order->customer_phone,
-            "کافی‌نت آنلاین: پرداخت سفارش {$order->order_number} از کیف پول انجام شد.",
+            "کافی‌نت احسان: پرداخت سفارش {$order->order_number} از کیف پول انجام شد.",
             'order_status'
         );
 
@@ -321,7 +321,7 @@ class OrderController extends Controller
 
         SmsService::sendNotification(
             $order->customer_phone,
-            "کافی‌نت آنلاین: وضعیت سفارش {$order->order_number} به «{$title}» تغییر یافت.",
+            "کافی‌نت احسان: وضعیت سفارش {$order->order_number} به «{$title}» تغییر یافت.",
             'order_status'
         );
 

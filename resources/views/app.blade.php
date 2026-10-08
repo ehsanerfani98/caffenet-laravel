@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0284c7">
     <meta name="description" content="سامانه آنلاین خدمات کافی‌نت: پرینت، خدمات دانشجویی، اداری و مالیاتی">
-    <title>{{ \App\Services\SettingsService::get('siteTitle', 'کافی‌نت آنلاین') }}</title>
+    <title>{{ \App\Services\SettingsService::get('siteTitle', 'کافی‌نت احسان') }}</title>
 
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="{{ \App\Services\SettingsService::get('siteTitle', 'کافی‌نت آنلاین') }}">
+    <meta name="apple-mobile-web-app-title" content="{{ \App\Services\SettingsService::get('siteTitle', 'کافی‌نت احسان') }}">
 
     <link rel="stylesheet" href="/css/app.css?v={{ filemtime(public_path('css/app.css')) }}">
     {{-- Self-hosted Jalali (shamsi) date picker — powers every input[data-jdp]. --}}
@@ -43,7 +43,7 @@
         <script type="application/json" id="payment-return">{ "status": "{{ request()->query("payment") }}", "authority": "{{ request()->query("authority") }}" }</script>
     @endif
 
-    <script type="application/json" id="boot-data">@json(["csrf" => csrf_token(), "siteTitle" => \App\Services\SettingsService::get("siteTitle", "کافی‌نت آنلاین")])</script>
+    <script type="application/json" id="boot-data">@json(["csrf" => csrf_token(), "siteTitle" => \App\Services\SettingsService::get("siteTitle", "کافی‌نت احسان")])</script>
     {{-- Versioned by filemtime so edits can never be served from the browser
          HTTP cache (the old poll-every-second api.js previously stuck here). --}}
     <script defer src="/js/persian-utils.js?v={{ filemtime(public_path('js/persian-utils.js')) }}"></script>

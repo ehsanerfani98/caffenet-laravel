@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>درگاه پرداخت آزمایشی — کافی‌نت آنلاین</title>
+    <title>درگاه پرداخت آزمایشی — کافی‌نت احسان</title>
     <style>
         body { font-family: system-ui, sans-serif; direction: rtl; background: #f1f5f9; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
         .gw { background: #fff; border-radius: 22px; padding: 34px 28px; max-width: 380px; width: 92%; box-shadow: 0 20px 60px rgba(2,8,23,.15); text-align: center; }

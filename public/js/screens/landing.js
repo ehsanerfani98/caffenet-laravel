@@ -248,7 +248,7 @@
           '<button class="btn block" id="profile-login">' + icon('lock') + 'ورود / ثبت‌نام</button>' +
         '</div>' +
         '<div class="info-box" style="margin-top:14px">' +
-          '<b>' + PU.escapeHtml(settings.siteTitle || 'کافی‌نت آنلاین') + '</b><br>' +
+          '<b>' + PU.escapeHtml(settings.siteTitle || 'کافی‌نت احسان') + '</b><br>' +
           (settings.coffeenetAddress ? 'آدرس: ' + PU.escapeHtml(settings.coffeenetAddress) + '<br>' : '') +
           (settings.coffeenetPhone ? 'تلفن: ' + PU.toPersianDigits(settings.coffeenetPhone) + '<br>' : '') +
           (settings.workingHours ? 'ساعت کاری: ' + PU.escapeHtml(settings.workingHours) : '') +

@@ -44,7 +44,7 @@
       '<div class="card">' +
         '<div class="section-title">' + icon('shield') + 'قوانین و حریم خصوصی</div>' +
         '<div style="font-size:12px;color:var(--ink-soft);margin:0 2px 12px">' +
-          PU.escapeHtml(s.siteTitle || 'کافی‌نت آنلاین') +
+          PU.escapeHtml(s.siteTitle || 'کافی‌نت احسان') +
         '</div>' +
         Screens.termsContent() +
       '</div>'
