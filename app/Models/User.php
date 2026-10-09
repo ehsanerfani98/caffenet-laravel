@@ -7,6 +7,10 @@ use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Foundation\Auth\Access\Authorizable;
+use Illuminate\Support\Facades\Log;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends CaffenetModel implements AuthenticatableContract, AuthorizableContract
@@ -61,17 +65,75 @@ class User extends CaffenetModel implements AuthenticatableContract, Authorizabl
         $this->role = $role;
 
         if ($role === 'admin') {
-            $this->syncRoles(['admin']);
+            $this->syncRoles([$this->ensureRoleExists('admin')]);
             $this->syncPermissions([]);
         } elseif ($overrideKeys !== null && count($overrideKeys) > 0) {
-            $this->syncRoles(['customer']);
-            $this->syncPermissions(PermissionService::expand($overrideKeys));
+            $this->syncRoles([$this->ensureRoleExists('customer')]);
+            $keys = PermissionService::expand($overrideKeys);
+            $this->ensurePermissionsExist($keys);
+            $this->syncPermissions($keys);
         } else {
-            $this->syncRoles([$role]);
+            $this->syncRoles([$this->ensureRoleExists($role)]);
             $this->syncPermissions([]);
         }
 
         $this->save();
+    }
+
+    /**
+     * Guarantees a role exists for this model's guard before it is synced, so
+     * an unmigrated deployment can never throw RoleDoesNotExist. Idempotent.
+     */
+    private function ensureRoleExists(string $name): string
+    {
+        $guard = $this->getDefaultGuardName();
+        if (! Role::query()->where('name', $name)->where('guard_name', $guard)->exists()) {
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+            Role::findOrCreate($name, $guard);
+        }
+
+        return $name;
+    }
+
+    /**
+     * Persists any catalog permission missing for this model's guard so
+     * syncPermissions() can never throw the opaque PermissionDoesNotExist on a
+     * deployment whose permission migrations have not run yet.
+     *
+     * Missing keys are logged (with the `php artisan migrate` remedy) and then
+     * created on the fly — idempotent and self-healing, and it also repairs the
+     * root cause behind the admin's empty "User Transactions" list (the role
+     * simply had no wallet.* keys).
+     */
+    private function ensurePermissionsExist(array $keys): void
+    {
+        if (count($keys) === 0) {
+            return;
+        }
+
+        $guard = $this->getDefaultGuardName();
+        $existing = Permission::query()
+            ->whereIn('name', $keys)
+            ->where('guard_name', $guard)
+            ->pluck('name')
+            ->all();
+        $missing = array_values(array_diff($keys, $existing));
+
+        if (count($missing) === 0) {
+            return;
+        }
+
+        Log::warning('syncAccess: catalog permissions missing from the database — created on the fly; run `php artisan migrate` on the server.', [
+            'guard' => $guard,
+            'role' => $this->role,
+            'user_id' => $this->id,
+            'missing' => $missing,
+        ]);
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        foreach ($missing as $key) {
+            Permission::findOrCreate($key, $guard);
+        }
     }
 
     public function isAdminPhone(array $adminPhones): bool
