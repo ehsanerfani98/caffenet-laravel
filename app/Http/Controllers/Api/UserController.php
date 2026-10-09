@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Services\AuthService;
 use App\Services\PermissionService;
+use App\Services\UserPurgeService;
 use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -142,11 +143,12 @@ class UserController extends Controller
             return response()->json(['error' => 'حذف حساب خودتان ممکن نیست.'], 400);
         }
 
-        // Detach spatie pivots before dropping the account.
-        $user->syncRoles([]);
-        $user->syncPermissions([]);
-        $user->delete();
+        // Hard-delete the account together with every row that belongs to it
+        // (orders + their logs/tickets/payments, wallet payments, wallet ledger,
+        // and the phone-bound OTP/SMS artefacts). Orders the user handled as an
+        // operator are kept but unassigned.
+        UserPurgeService::purge($user);
 
-        return response()->json(['message' => 'کاربر حذف شد.']);
+        return response()->json(['message' => 'کاربر و همه داده‌های مرتبط حذف شد.']);
     }
 }

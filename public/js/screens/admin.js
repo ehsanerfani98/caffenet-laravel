@@ -305,11 +305,14 @@
       const newButton = api.hasPermission('users.create')
         ? '<button class="btn block sm" id="new-user" style="margin-bottom:10px">' + icon('plus') + 'کاربر جدید</button>'
         : '';
+      // Deleting a user is gated by users.delete (admin/manage implies it).
+      const canDelete = api.hasPermission('users.delete');
       const rows = users.map((u) =>
         '<div class="list-row"><div class="lr-icon ' +
           ({ admin: 'tone-rose', operator: 'tone-indigo', customer: 'tone-sky' }[u.role] || 'tone-slate') + '">' + icon('user') + '</div>' +
         '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(u.name) + (u.isBlocked ? ' ⛔' : '') + '</div>' +
         '<div class="lr-sub">' + PU.toPersianDigits(u.phone) + ' • ' + PU.escapeHtml(PERM.ROLE_LABELS[u.role] || u.role) + ' • ' + PU.formatToman(u.walletBalance) + '</div></div>' +
+        (canDelete ? '<button class="icon-btn" style="background:var(--rose-soft);color:var(--rose)" data-del-user="' + u.id + '">' + icon('trash') + '</button>' : '') +
         '<button class="icon-btn" style="background:var(--slate-soft);color:var(--ink)" data-edit-user="' + u.id + '">' + icon('edit') + '</button></div>'
       ).join('');
 
@@ -319,6 +322,19 @@
       $v.find('[data-edit-user]').on('click', function () {
         const user = users.find((u) => u.id === $(this).data('edit-user'));
         openUserForm(user);
+      });
+      $v.find('[data-del-user]').on('click', async function () {
+        const id = $(this).data('del-user');
+        const user = users.find((u) => u.id === id);
+        if (!window.confirm('کاربر «' + (user ? user.name : '') + '» و همهٔ داده‌های مرتبط با او (سفارش‌ها، پرداخت‌ها، تراکنش‌های کیف پول و پیامک‌ها) حذف شود؟ این عملیات قابل بازگشت نیست.')) return;
+        UI.busy(true);
+        try {
+          await api.deleteUser(id);
+          UI.toast('کاربر و داده‌های مرتبط حذف شد.', 'success');
+          renderUsersList($host);
+          api.syncWithBackend();
+        } catch (e) { UI.toast(e.message, 'error'); }
+        finally { UI.busy(false); }
       });
     } catch (e) {
       $v.html(UI.emptyState('خطا در بارگذاری کاربران', e.message, 'alert'));
@@ -408,7 +424,24 @@
       });
     }
 
-    sheet.footer.html('<button class="btn emerald block" id="u-save">' + (isNew ? 'ایجاد کاربر' : 'ذخیره کاربر') + '</button>');
+    const canDeleteUser = ! isNew && api.hasPermission('users.delete');
+    sheet.footer.html(
+      (canDeleteUser ? '<button class="btn rose block" id="u-delete" style="margin-bottom:8px">' + icon('trash') + 'حذف کاربر و داده‌های مرتبط</button>' : '') +
+      '<button class="btn emerald block" id="u-save">' + (isNew ? 'ایجاد کاربر' : 'ذخیره کاربر') + '</button>'
+    );
+
+    if (canDeleteUser) sheet.footer.find('#u-delete').on('click', async function () {
+      if (!window.confirm('کاربر «' + user.name + '» و همهٔ داده‌های مرتبط با او (سفارش‌ها، پرداخت‌ها، تراکنش‌های کیف پول و پیامک‌ها) حذف شود؟ این عملیات قابل بازگشت نیست.')) return;
+      UI.busy(true);
+      try {
+        await api.deleteUser(user.id);
+        UI.toast('کاربر و داده‌های مرتبط حذف شد.', 'success');
+        sheet.close();
+        api.syncWithBackend();
+      } catch (e) { UI.toast(e.message, 'error'); }
+      finally { UI.busy(false); }
+    });
+
     sheet.footer.find('#u-save').on('click', async function () {
       try {
         if (isNew) {

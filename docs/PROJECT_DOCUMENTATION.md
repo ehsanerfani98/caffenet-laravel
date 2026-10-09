@@ -527,7 +527,7 @@ erDiagram
 | `GET /api/users` | `users.view` | فهرست کاربران |
 | `POST /api/users` | `users.create` | ایجاد کاربر |
 | `PATCH /api/users/:id` | `users.edit/permissions` | نقش، بلوک، کیف پول، مجوزها |
-| `DELETE /api/users/:id` | `users.delete` | حذف کاربر |
+| `DELETE /api/users/:id` | `users.delete` | حذف کاربر و همهٔ داده‌های مرتبط (آبشاری) |
 | `GET /api/dashboard/stats` | ورود لازم | آمار مشتری یا کارکنان |
 | `GET /api/permissions` | ورود لازم | کاتالوگ مجوزها و نقش‌ها |
 | `GET /api/coupons` | ورود لازم | فهرست کدهای تخفیف |
