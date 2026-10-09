@@ -23,6 +23,7 @@
     users: { title: 'کاربران و مجوزها', actions: ['view', 'create', 'edit', 'permissions', 'delete', 'manage'] },
     settings: { title: 'تنظیمات سیستم', actions: ['view', 'edit'] },
     sms: { title: 'لاگ پیامک‌ها', actions: ['view'] },
+    wallet: { title: 'کیف پول و تراکنش‌ها', actions: ['view', 'users', 'refund', 'adjust', 'manage'] },
   };
 
   function allKeys() {
@@ -35,7 +36,7 @@
 
   function roleDefaults(role) {
     if (role === 'admin') return ALL.slice();
-    if (role === 'operator') return ['dashboard.view', 'orders.manage', 'sms.view'];
+    if (role === 'operator') return ['dashboard.view', 'orders.manage', 'sms.view', 'wallet.view', 'wallet.users'];
     return [];
   }
 

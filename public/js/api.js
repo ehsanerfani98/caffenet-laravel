@@ -357,9 +357,20 @@
 
     /* ---------------- wallet ledger / refunds ---------------- */
 
-    async getWalletTransactions(userId) {
-      const qs = userId ? '?userId=' + encodeURIComponent(userId) : '';
-      return this.request('GET', '/api/wallet/transactions' + qs);
+    async getWalletTransactions(params) {
+      // Accepts a plain userId string (legacy) or a filter object:
+      // {userId, type, direction, from, to, search, limit}.
+      const opts = typeof params === 'string' ? { userId: params } : (params || {});
+      const qs = Object.keys(opts)
+        .filter((k) => opts[k] !== undefined && opts[k] !== null && opts[k] !== '')
+        .map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(opts[k]))
+        .join('&');
+      return this.request('GET', '/api/wallet/transactions' + (qs ? '?' + qs : ''));
+    }
+
+    async getWalletUsers(search) {
+      const qs = search ? '?search=' + encodeURIComponent(search) : '';
+      return this.request('GET', '/api/wallet/users' + qs);
     }
 
     async refundWallet(payload) {

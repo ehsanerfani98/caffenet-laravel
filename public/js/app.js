@@ -203,6 +203,9 @@
         'admin/more': { t1: 'ابزارهای مدیریتی', t2: 'کد تخفیف، تنظیمات، اسلایدر' },
         terms: { t1: 'قوانین و حریم خصوصی', t2: 'شرایط استفاده و حفظ اطلاعات' },
       };
+      if (this.screen.indexOf('admin/user-transactions') === 0) {
+        return { t1: 'تراکنش‌های کاربر', t2: 'تاریخچه کامل و فیلترها' };
+      }
       return map[this.screen] || null;
     },
 
@@ -217,7 +220,9 @@
       if (window.UI && UI.stopImageSlider) UI.stopImageSlider();
 
       UI.renderAppBar({ titles: this.screenTitles() });
-      UI.renderBottomNav(this.navItems(), this.screen);
+      // Highlight the Orders tab while inside the per-user transactions screen.
+      const navActive = this.screen.indexOf('admin/user-transactions') === 0 ? 'admin/orders' : this.screen;
+      UI.renderBottomNav(this.navItems(), navActive);
 
       const ctx = {
         user,
@@ -240,14 +245,24 @@
       else if (scr === 'admin/services') html = window.Screens.adminServices(ctx);
       else if (scr === 'admin/users') html = window.Screens.adminUsers(ctx);
       else if (scr === 'admin/more') html = window.Screens.adminMore(ctx);
+      else if (scr.indexOf('admin/user-transactions') === 0) {
+        ctx.userId = scr.split('/')[2] || '';
+        html = window.Screens.adminUserTransactions(ctx);
+      }
       else if (scr === 'terms') html = window.Screens.termsPage(ctx);
       else html = UI.emptyState('صفحه یافت نشد', 'این مسیر در دسترس نیست', 'alert');
 
       $host.html('<div class="screen">' + html + '</div>');
 
-      // Post-render bindings for the active screen.
-      const name = this.screenKey(scr);
-      if (window.Screens['bind_' + name]) window.Screens['bind_' + name]($host, ctx);
+      // Post-render bindings for the active screen. The per-user transactions
+      // screen is a dynamic route (admin/user-transactions/{id}), so it binds
+      // through its fixed hook instead of the screenKey lookup.
+      if (scr.indexOf('admin/user-transactions') === 0) {
+        if (window.Screens.bind_admin_user_transactions) window.Screens.bind_admin_user_transactions($host, ctx);
+      } else {
+        const name = this.screenKey(scr);
+        if (window.Screens['bind_' + name]) window.Screens['bind_' + name]($host, ctx);
+      }
     },
 
     handleAppBarAction(action) {

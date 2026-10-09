@@ -11,6 +11,7 @@ use App\Services\SmsService;
 use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Wallet ledger + refunds.
@@ -28,7 +29,13 @@ class WalletController extends Controller
     public function transactions(Request $request): JsonResponse
     {
         $user = $request->attributes->get('authUser');
-        $canViewAll = $user->hasAnyPermission(['wallet.view', 'wallet.manage']);
+        // Admins are never lockable out of the ledger, and staff holding
+        // wallet.view|wallet.manage may inspect any (or all) users' ledgers.
+        // The role check keeps an admin whose spatie role is momentarily
+        // missing the wallet.* keys from being pinned to their own (empty)
+        // ledger — which is what produced a false "no transactions found".
+        $canViewAll = $user->role === 'admin'
+            || $user->hasAnyPermission(['wallet.view', 'wallet.manage']);
 
         $query = WalletTransaction::query();
 
@@ -41,12 +48,101 @@ class WalletController extends Controller
             $query->where('user_id', $user->id);
         }
 
+        // Optional filters — meaningful for staff; a customer's view is always
+        // pinned to their own ledger by the branch above.
+        $type = (string) ($request->query('type') ?? '');
+        if ($type !== '' && array_key_exists($type, WalletTransaction::TYPE_TITLES)) {
+            $query->where('type', $type);
+        }
+
+        $direction = (string) ($request->query('direction') ?? '');
+        if (in_array($direction, [WalletTransaction::DIRECTION_CREDIT, WalletTransaction::DIRECTION_DEBIT], true)) {
+            $query->where('direction', $direction);
+        }
+
+        // `created_at` is an ISO-8601 string, so lexicographic comparison is a
+        // valid chronological comparison.
+        $from = trim((string) ($request->query('from') ?? ''));
+        if ($from !== '') {
+            $query->where('created_at', '>=', $from);
+        }
+
+        $to = trim((string) ($request->query('to') ?? ''));
+        if ($to !== '') {
+            $query->where('created_at', '<=', $to);
+        }
+
+        $search = trim((string) ($request->query('search') ?? ''));
+        if ($search !== '') {
+            $like = '%'.$search.'%';
+            $query->where(function ($q) use ($like) {
+                $q->where('reference', 'like', $like)
+                    ->orWhere('note', 'like', $like)
+                    ->orWhere('user_id', 'like', $like)
+                    ->orWhere('performed_by_name', 'like', $like);
+            });
+        }
+
         $limit = (int) ($request->query('limit') ?? 200);
         $limit = max(1, min(500, $limit));
 
         $rows = $query->orderByDesc('created_at')->limit($limit)->get();
 
         return response()->json($rows->map([Formatter::class, 'walletTransaction'])->values()->all());
+    }
+
+    /**
+     * Staff roster for the "User Transactions" tab: every user that has at
+     * least one wallet-ledger entry, with a compact financial summary so the
+     * admin can pick a customer and open the full, filterable history.
+     * Guarded by wallet.users|wallet.manage at the route level.
+     */
+    public function users(Request $request): JsonResponse
+    {
+        $search = trim((string) ($request->query('search') ?? ''));
+
+        $agg = DB::table('wallet_transactions')
+            ->selectRaw('user_id, COUNT(*) as txn_count, MAX(created_at) as last_txn_at')
+            ->selectRaw(
+                'SUM(CASE WHEN direction = ? THEN amount ELSE 0 END) as total_credit',
+                [WalletTransaction::DIRECTION_CREDIT]
+            )
+            ->selectRaw(
+                'SUM(CASE WHEN direction = ? THEN amount ELSE 0 END) as total_debit',
+                [WalletTransaction::DIRECTION_DEBIT]
+            )
+            ->groupBy('user_id');
+
+        $query = User::query()
+            ->joinSub($agg, 'wtx', function ($join) {
+                $join->on('wtx.user_id', '=', 'users.id');
+            })
+            ->select([
+                'users.id', 'users.name', 'users.phone', 'users.role', 'users.wallet_balance',
+                'wtx.txn_count', 'wtx.total_credit', 'wtx.total_debit', 'wtx.last_txn_at',
+            ]);
+
+        if ($search !== '') {
+            $like = '%'.$search.'%';
+            $query->where(function ($q) use ($like) {
+                $q->where('users.name', 'like', $like)
+                    ->orWhere('users.phone', 'like', $like);
+            });
+        }
+
+        $rows = $query->orderByDesc('wtx.last_txn_at')->limit(500)->get();
+
+        return response()->json($rows->map(fn ($r) => [
+            'id' => $r->id,
+            'name' => $r->name,
+            'phone' => $r->phone,
+            'role' => $r->role,
+            'walletBalance' => (int) $r->wallet_balance,
+            'txnCount' => (int) $r->txn_count,
+            'totalCredit' => (int) $r->total_credit,
+            'totalDebit' => (int) $r->total_debit,
+            'lastTransactionAt' => $r->last_txn_at,
+        ])->values()->all());
     }
 
     public function refund(Request $request): JsonResponse

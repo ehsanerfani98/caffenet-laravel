@@ -1,7 +1,9 @@
 /* Caffenet Lite — screens/admin-orders.js
  * Admin monitoring hub: every customer's orders (with the assigned operator and
- * full operation timeline) plus the wallet ledger across all users, with
- * order-based refunds and free-form wallet adjustments. */
+ * full operation timeline) plus the per-user wallet ledger. The «User
+ * Transactions» tab lists the users that have a wallet history; selecting one
+ * opens a dedicated screen with that user's full, filterable transaction log.
+ * Order-based refunds and free-form wallet adjustments stay available. */
 (function () {
   'use strict';
 
@@ -16,14 +18,40 @@
     manual_debit: 'کسر دستی توسط مدیریت',
   };
 
+  /* One ledger row. `showUser` (default true) appends the wallet owner id —
+   * useful in a cross-user list, hidden on a single-user page. */
+  function walletTxnRow(t, showUser) {
+    const credit = t.direction === 'credit';
+    return '<div class="list-row">' +
+      '<div class="lr-icon ' + (credit ? 'tone-emerald' : 'tone-rose') + '">' + icon(credit ? 'plus' : 'arrowleft') + '</div>' +
+      '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(t.typeTitle || TYPE_TITLES[t.type] || t.type) +
+        (showUser !== false ? ' — <span style="font-size:11px;color:var(--ink-soft)">' + PU.escapeHtml(t.userId) + '</span>' : '') +
+      '</div>' +
+      '<div class="lr-sub">' + PU.toJalaliDate(t.createdAt) + ' • موجودی پس از تراکنش: ' + PU.formatToman(t.balanceAfter) +
+        (t.performedByName ? ' • توسط: ' + PU.escapeHtml(t.performedByName) : '') +
+        (t.note ? ' • ' + PU.escapeHtml(t.note) : '') + '</div></div>' +
+      '<span style="font-weight:800;font-size:12.5px;color:' + (credit ? 'var(--emerald)' : 'var(--rose)') + '">' +
+        (credit ? '+' : '−') + PU.formatToman(t.amount) + '</span>' +
+      '</div>';
+  }
+
+  const TYPE_CHIPS =
+    '<span class="chip active" data-type="all">همه</span>' +
+    '<span class="chip" data-type="topup">شارژ درگاه</span>' +
+    '<span class="chip" data-type="purchase">خرید خدمت</span>' +
+    '<span class="chip" data-type="refund">عودت وجه</span>' +
+    '<span class="chip" data-type="manual_credit">شارژ دستی</span>' +
+    '<span class="chip" data-type="manual_debit">کسر دستی</span>';
+
   Screens.adminOrders = function (ctx) {
     if (!ctx.user || ctx.user.role !== 'admin') {
       return UI.emptyState('دسترسی محدود', 'این بخش برای مدیران است', 'lock');
     }
+    const canViewUsers = api.hasPermission('wallet.users') || api.hasPermission('wallet.manage');
     return (
       '<div class="segmented" id="adm-view">' +
         '<button class="seg on" data-view="orders">سفارش‌ها</button>' +
-        '<button class="seg" data-view="wallet">تراکنش‌های کیف پول</button>' +
+        (canViewUsers ? '<button class="seg" data-view="users">تراکنش‌های کاربران</button>' : '') +
       '</div>' +
       '<div id="adm-body" style="margin-top:12px"></div>'
     );
@@ -31,7 +59,7 @@
 
   Screens.bind_admin_orders = function ($host, ctx) {
     let view = 'orders';
-    let walletTxns = [];
+    let walletUsers = [];
     const canRefund = api.hasPermission('wallet.refund') || api.hasPermission('wallet.manage');
     const canAdjust = api.hasPermission('wallet.adjust') || api.hasPermission('wallet.manage');
 
@@ -194,70 +222,49 @@
       });
     }
 
-    /* ================= wallet ledger ================= */
+    /* ================= user transactions (roster) ================= */
 
-    function walletTxnRow(t) {
-      const credit = t.direction === 'credit';
-      return '<div class="list-row">' +
-        '<div class="lr-icon ' + (credit ? 'tone-emerald' : 'tone-rose') + '">' + icon(credit ? 'plus' : 'arrowleft') + '</div>' +
-        '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(t.typeTitle || TYPE_TITLES[t.type] || t.type) +
-          ' — <span style="font-size:11px;color:var(--ink-soft)">' + PU.escapeHtml(t.userId) + '</span></div>' +
-        '<div class="lr-sub">' + PU.toJalaliDate(t.createdAt) + ' • موجودی پس از تراکنش: ' + PU.formatToman(t.balanceAfter) +
-          (t.performedByName ? ' • توسط: ' + PU.escapeHtml(t.performedByName) : '') +
-          (t.note ? ' • ' + PU.escapeHtml(t.note) : '') + '</div></div>' +
-        '<span style="font-weight:800;font-size:12.5px;color:' + (credit ? 'var(--emerald)' : 'var(--rose)') + '">' +
-          (credit ? '+' : '−') + PU.formatToman(t.amount) + '</span>' +
-        '</div>';
+    function usersRow(u) {
+      return '<div class="list-row" data-user="' + u.id + '" style="cursor:pointer">' +
+        '<div class="lr-icon tone-sky">' + icon('user') + '</div>' +
+        '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(u.name || '—') + '</div>' +
+        '<div class="lr-sub">' + PU.toPersianDigits(u.phone) +
+          ' • موجودی: ' + PU.formatToman(u.walletBalance) +
+          ' • ' + PU.toPersianDigits(u.txnCount) + ' تراکنش' +
+          ' • آخرین: ' + PU.toJalaliDateShort(u.lastTransactionAt) + '</div></div>' +
+        icon('arrowleft') + '</div>';
     }
 
-    function renderWallet() {
+    function renderUsers() {
       const $b = $host.find('#adm-body');
       $b.html(
         ((canAdjust || canRefund) ? '<button class="btn block sm" id="adm-adjust" style="margin-bottom:10px">' + icon('wallet') + 'عودت / شارژ / کسر دستی کیف پول</button>' : '') +
         '<div class="search-box">' + icon('search') +
-          '<input class="input" id="adm-wsearch" placeholder="جستجو: شناسه کاربر، مرجع یا توضیح…"></div>' +
-        '<div class="chip-row" id="adm-wtype">' +
-          '<span class="chip active" data-type="all">همه</span>' +
-          '<span class="chip" data-type="topup">شارژ درگاه</span>' +
-          '<span class="chip" data-type="purchase">خرید خدمت</span>' +
-          '<span class="chip" data-type="refund">عودت وجه</span>' +
-          '<span class="chip" data-type="manual_credit">شارژ دستی</span>' +
-          '<span class="chip" data-type="manual_debit">کسر دستی</span>' +
-        '</div>' +
-        '<div id="adm-wlist" style="margin-top:12px"><div class="spinner" style="margin:20px auto"></div></div>'
+          '<input class="input" id="adm-usearch" placeholder="جستجو: نام یا شماره کاربر…"></div>' +
+        '<div id="adm-ulist" style="margin-top:12px"><div class="spinner" style="margin:20px auto"></div></div>'
       );
-      loadWallet();
       $b.find('#adm-adjust').on('click', openWalletAdjustSheet);
-      $b.find('#adm-wsearch').on('input', PU.debounce(paintWallet, 200));
-      $b.find('#adm-wtype .chip').on('click', function () {
-        $b.find('#adm-wtype .chip').removeClass('active');
-        $(this).addClass('active');
-        paintWallet();
-      });
+      $b.find('#adm-usearch').on('input', PU.debounce(function () {
+        loadUsers(($b.find('#adm-usearch').val() || '').trim());
+      }, 250));
+      loadUsers('');
     }
 
-    function loadWallet() {
-      const $list = $host.find('#adm-wlist');
+    function loadUsers(search) {
+      const $list = $host.find('#adm-ulist');
       if ($list.length) $list.html('<div class="spinner" style="margin:20px auto"></div>');
-      api.getWalletTransactions()
-        .then((txns) => { walletTxns = txns || []; paintWallet(); })
-        .catch((e) => { if ($list.length) $list.html(UI.emptyState('خطا در بارگذاری تراکنش‌ها', e.message, 'alert')); });
+      api.getWalletUsers(search)
+        .then((users) => { walletUsers = users || []; paintUsers(); })
+        .catch((e) => { if ($list.length) $list.html(UI.emptyState('خطا در بارگذاری کاربران', e.message, 'alert')); });
     }
 
-    function paintWallet() {
-      const type = $host.find('#adm-wtype .chip.active').data('type') || 'all';
-      const q = (($host.find('#adm-wsearch').val()) || '').trim().toLowerCase();
-      const items = walletTxns.filter((t) => {
-        if (type !== 'all' && t.type !== type) return false;
-        if (q) {
-          const hay = (t.userId + ' ' + (t.reference || '') + ' ' + (t.note || '') + ' ' + (t.typeTitle || '')).toLowerCase();
-          if (!hay.includes(q)) return false;
-        }
-        return true;
+    function paintUsers() {
+      const $list = $host.find('#adm-ulist');
+      if (!walletUsers.length) { $list.html(UI.emptyState('کاربری با تراکنش یافت نشد', '', 'users')); return; }
+      $list.html('<div class="card">' + walletUsers.map(usersRow).join('') + '</div>');
+      $list.find('[data-user]').on('click', function () {
+        if (window.App) App.navigate('admin/user-transactions/' + $(this).data('user'));
       });
-      const $list = $host.find('#adm-wlist');
-      if (!items.length) { $list.html(UI.emptyState('تراکنشی یافت نشد', '', 'wallet')); return; }
-      $list.html('<div class="card">' + items.map(walletTxnRow).join('') + '</div>');
     }
 
     function openWalletAdjustSheet() {
@@ -305,8 +312,8 @@
             }
             UI.toast('عملیات با موفقیت ثبت شد.', 'success');
             sheet.close();
-            view = 'wallet';
-            loadWallet();
+            view = 'users';
+            renderUsers();
             api.syncWithBackend();
           } catch (e) { UI.toast(e.message, 'error'); }
           finally { UI.busy(false); }
@@ -319,15 +326,160 @@
     function switchView(v) {
       view = v;
       $host.find('#adm-view .seg').removeClass('on').filter('[data-view="' + v + '"]').addClass('on');
-      if (v === 'orders') renderOrders(); else renderWallet();
+      if (v === 'orders') renderOrders();
+      else renderUsers();
     }
 
     $host.find('#adm-view .seg').on('click', function () { switchView($(this).data('view')); });
+    // The roster tab is only offered when the operator holds wallet.users; the
+    // default view is always the orders list.
     switchView('orders');
 
     // In-place refresh on background sync (keeps filters/search intact).
     $host.data('caffenetRefresh', function () {
-      if (view === 'orders') paintOrders(); else paintWallet();
+      if (view === 'orders') paintOrders();
+      else paintUsers();
     });
+  };
+
+  /* ================= per-user transaction history ================= */
+
+  Screens.adminUserTransactions = function (ctx) {
+    if (!ctx.user || ctx.user.role !== 'admin') {
+      return UI.emptyState('دسترسی محدود', 'این بخش برای مدیران است', 'lock');
+    }
+    return (
+      '<button class="btn ghost block sm" id="ut-back" style="margin-bottom:10px">' + icon('arrowright') + 'بازگشت به فهرست کاربران</button>' +
+      '<div id="ut-head"><div class="spinner" style="margin:16px auto"></div></div>' +
+      '<div class="search-box" style="margin-top:10px">' + icon('search') +
+        '<input class="input" id="ut-search" placeholder="جستجو: مرجع، توضیح، شناسه سفارش…"></div>' +
+      '<div class="section-title">' + icon('search') + 'فیلترها</div>' +
+      '<div class="chip-row" id="ut-type">' + TYPE_CHIPS + '</div>' +
+      '<div class="chip-row" id="ut-dir">' +
+        '<span class="chip active" data-dir="all">هر دو جهت</span>' +
+        '<span class="chip" data-dir="credit">واریز</span>' +
+        '<span class="chip" data-dir="debit">برداشت</span>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:10px">' +
+        '<div style="flex:1"><label class="field-label">از تاریخ</label>' +
+          '<input class="input" id="ut-from-view" data-jdp data-jdp-target-value-input="#ut-from" data-jdp-target-value-type="gregorian" readonly placeholder="انتخاب تاریخ…">' +
+          '<input type="hidden" id="ut-from"></div>' +
+        '<div style="flex:1"><label class="field-label">تا تاریخ</label>' +
+          '<input class="input" id="ut-to-view" data-jdp data-jdp-target-value-input="#ut-to" data-jdp-target-value-type="gregorian" readonly placeholder="انتخاب تاریخ…">' +
+          '<input type="hidden" id="ut-to"></div>' +
+      '</div>' +
+      '<button class="btn ghost block sm" id="ut-apply" style="margin-top:8px">' + icon('search') + 'اعمال فیلترها</button>' +
+      '<div id="ut-list" style="margin-top:12px"><div class="spinner" style="margin:20px auto"></div></div>'
+    );
+  };
+
+  Screens.bind_admin_user_transactions = function ($host, ctx) {
+    const userId = ctx.userId || '';
+    const canRefund = api.hasPermission('wallet.refund') || api.hasPermission('wallet.manage');
+    let user = null;
+
+    $host.find('#ut-back').on('click', function () {
+      if (window.App) App.navigate('admin/orders');
+    });
+
+    function collectFilters() {
+      const type = $host.find('#ut-type .chip.active').data('type') || 'all';
+      const dir = $host.find('#ut-dir .chip.active').data('dir') || 'all';
+      const from = ($host.find('#ut-from').val() || '').trim();
+      const to = ($host.find('#ut-to').val() || '').trim();
+      const search = (($host.find('#ut-search').val()) || '').trim();
+      const params = { userId: userId };
+      if (type !== 'all') params.type = type;
+      if (dir !== 'all') params.direction = dir;
+      // `created_at` is a full ISO-8601 timestamp; widen the picked day to its
+      // boundaries so the range is inclusive of both ends.
+      if (from) params.from = from + 'T00:00:00';
+      if (to) params.to = to + 'T23:59:59';
+      if (search) params.search = search;
+      return params;
+    }
+
+    function renderHead() {
+      if (!user) { $host.find('#ut-head').html(UI.emptyState('کاربر یافت نشد', '', 'user')); return; }
+      $host.find('#ut-head').html(
+        '<div class="card">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center">' +
+            '<b>' + PU.escapeHtml(user.name || '—') + '</b>' +
+            '<span style="font-weight:800;color:var(--sky-deep)">' + PU.formatToman(user.walletBalance) + '</span></div>' +
+          '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">' + PU.toPersianDigits(user.phone) +
+            (user.txnCount != null ? ' • ' + PU.toPersianDigits(user.txnCount) + ' تراکنش' : '') + '</div>' +
+          (canRefund ? '<button class="btn rose block sm" id="ut-refund" style="margin-top:10px">' + icon('wallet') + 'عودت وجه به کیف پول کاربر</button>' : '') +
+        '</div>'
+      );
+      if (canRefund) $host.find('#ut-refund').on('click', openRefund);
+    }
+
+    function loadHead() {
+      // Uses the wallet roster (wallet.users) rather than /api/users so an
+      // operator without users.view can still see the header.
+      api.getWalletUsers('').then((rows) => {
+        user = (rows || []).find((u) => u.id === userId) || null;
+        renderHead();
+      }).catch((e) => { $host.find('#ut-head').html(UI.emptyState('خطا در بارگذاری کاربر', e.message, 'alert')); });
+    }
+
+    function loadList() {
+      const $list = $host.find('#ut-list');
+      $list.html('<div class="spinner" style="margin:20px auto"></div>');
+      api.getWalletTransactions(collectFilters())
+        .then((rows) => {
+          const items = rows || [];
+          $list.html(items.length
+            ? '<div class="card">' + items.map((t) => walletTxnRow(t, false)).join('') + '</div>'
+            : UI.emptyState('تراکنشی مطابق فیلتر نیست', '', 'wallet'));
+        })
+        .catch((e) => { $list.html(UI.emptyState('خطا در بارگذاری تراکنش‌ها', e.message, 'alert')); });
+    }
+
+    function openRefund() {
+      if (!user) return;
+      const sheet = UI.sheet({ title: 'عودت وجه', subtitle: user.name || '', icon: 'wallet', tone: 'amber' });
+      sheet.body.html(
+        '<div class="info-box">مبلغ به کیف پول «' + PU.escapeHtml(user.name || '') + '» واریز می‌شود.</div>' +
+        '<label class="field-label">مبلغ (تومان) <span class="req">*</span></label>' +
+        '<input class="input" id="utr-amount" inputmode="numeric">' +
+        '<label class="field-label">دلیل (اختیاری)</label>' +
+        '<input class="input" id="utr-reason">'
+      );
+      sheet.footer.html('<button class="btn rose block" id="utr-save">ثبت عودت</button>');
+      sheet.footer.find('#utr-save').on('click', async function () {
+        const amt = Number(PU.toLatinDigits(sheet.body.find('#utr-amount').val()).replace(/[^\d]/g, ''));
+        if (!amt) { UI.toast('مبلغ معتبر وارد کنید.', 'warning'); return; }
+        UI.busy(true);
+        try {
+          await api.refundWallet({ userId: user.id, amount: amt, reason: sheet.body.find('#utr-reason').val() });
+          UI.toast('عودت وجه ثبت شد.', 'success');
+          sheet.close();
+          loadHead();
+          loadList();
+        } catch (e) { UI.toast(e.message, 'error'); }
+        finally { UI.busy(false); }
+      });
+    }
+
+    $host.find('#ut-type .chip').on('click', function () {
+      $host.find('#ut-type .chip').removeClass('active');
+      $(this).addClass('active');
+      loadList();
+    });
+    $host.find('#ut-dir .chip').on('click', function () {
+      $host.find('#ut-dir .chip').removeClass('active');
+      $(this).addClass('active');
+      loadList();
+    });
+    $host.find('#ut-apply').on('click', loadList);
+    $host.find('#ut-search').on('input', PU.debounce(loadList, 250));
+    $host.find('#ut-from-view, #ut-to-view').on('change', loadList);
+
+    loadHead();
+    loadList();
+
+    // In-place refresh on background sync.
+    $host.data('caffenetRefresh', loadList);
   };
 })();

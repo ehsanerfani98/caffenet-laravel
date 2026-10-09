@@ -83,8 +83,11 @@ Route::get('/payments/verify', [PaymentController::class, 'verify']); // gateway
 
 // ---------------- Wallet ledger / refunds ----------------
 // The customer's own ledger; staff with wallet.view|wallet.manage may inspect
-// any (or all) users'. Refund and manual adjust are admin/manager only.
+// any (or all) users'. The user roster that backs the "User Transactions" tab
+// requires wallet.users (or the wallet.manage umbrella). Refund and manual
+// adjust are admin/manager only.
 Route::middleware('auth.session')->get('/wallet/transactions', [WalletController::class, 'transactions']);
+Route::middleware(['auth.session', 'permission:wallet.users|wallet.manage'])->get('/wallet/users', [WalletController::class, 'users']);
 Route::middleware(['auth.session', 'permission:wallet.refund|wallet.manage'])->post('/wallet/refund', [WalletController::class, 'refund']);
 Route::middleware(['auth.session', 'permission:wallet.adjust|wallet.manage'])->post('/wallet/adjust', [WalletController::class, 'adjust']);
 

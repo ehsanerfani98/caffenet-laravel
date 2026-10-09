@@ -118,6 +118,7 @@ class PermissionService
             'description' => 'گردش کیف پول، عودت وجه و تنظیم دستی موجودی',
             'actions' => [
                 ['view', 'مشاهده تراکنش‌ها', 'مشاهده گردش کیف پول همه کاربران'],
+                ['users', 'مشاهده کاربران تراکنش', 'مشاهده فهرست کاربران دارای تراکنش کیف پول'],
                 ['refund', 'عودت وجه', 'واریز عودت وجه به کیف پول کاربر'],
                 ['adjust', 'شارژ/کسر دستی کیف پول', 'افزودن یا کسر موجودی کیف پول توسط مدیریت'],
                 ['manage', 'مدیریت کامل کیف پول', 'دسترسی کامل به تراکنش‌ها، عودت وجه و تنظیم موجودی'],
@@ -175,7 +176,7 @@ class PermissionService
     {
         return match ($role) {
             'admin' => self::allKeys(),
-            'operator' => ['dashboard.view', 'orders.manage', 'sms.view'],
+            'operator' => ['dashboard.view', 'orders.manage', 'sms.view', 'wallet.view', 'wallet.users'],
             default => [],
         };
     }
