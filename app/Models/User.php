@@ -69,9 +69,7 @@ class User extends CaffenetModel implements AuthenticatableContract, Authorizabl
             $this->syncPermissions([]);
         } elseif ($overrideKeys !== null && count($overrideKeys) > 0) {
             $this->syncRoles([$this->ensureRoleExists('customer')]);
-            $keys = PermissionService::expand($overrideKeys);
-            $this->ensurePermissionsExist($keys);
-            $this->syncPermissions($keys);
+            $this->syncPermissions($this->resolvePermissions(PermissionService::expand($overrideKeys)));
         } else {
             $this->syncRoles([$this->ensureRoleExists($role)]);
             $this->syncPermissions([]);
@@ -96,44 +94,59 @@ class User extends CaffenetModel implements AuthenticatableContract, Authorizabl
     }
 
     /**
-     * Persists any catalog permission missing for this model's guard so
-     * syncPermissions() can never throw the opaque PermissionDoesNotExist on a
-     * deployment whose permission migrations have not run yet.
+     * Resolves catalog keys to Permission MODELS for this model's guard,
+     * creating any that are missing.
+     *
+     * Passing models straight to syncPermissions() skips spatie's internal
+     * findByName() lookup entirely — that lookup is what throws the opaque
+     * PermissionDoesNotExist when a deployment has not run the permission
+     * migrations yet (and it can also trip on a stale permission cache).
      *
      * Missing keys are logged (with the `php artisan migrate` remedy) and then
      * created on the fly — idempotent and self-healing, and it also repairs the
      * root cause behind the admin's empty "User Transactions" list (the role
      * simply had no wallet.* keys).
+     *
+     * @return array<int, \Spatie\Permission\Contracts\Permission>
      */
-    private function ensurePermissionsExist(array $keys): void
+    private function resolvePermissions(array $keys): array
     {
         if (count($keys) === 0) {
-            return;
+            return [];
         }
 
         $guard = $this->getDefaultGuardName();
         $existing = Permission::query()
             ->whereIn('name', $keys)
             ->where('guard_name', $guard)
-            ->pluck('name')
-            ->all();
-        $missing = array_values(array_diff($keys, $existing));
+            ->get()
+            ->keyBy('name');
 
-        if (count($missing) === 0) {
-            return;
+        $resolved = [];
+        $missing = [];
+        foreach ($keys as $key) {
+            if ($existing->has($key)) {
+                $resolved[$key] = $existing->get($key);
+            } else {
+                $missing[] = $key;
+            }
         }
 
-        Log::warning('syncAccess: catalog permissions missing from the database — created on the fly; run `php artisan migrate` on the server.', [
-            'guard' => $guard,
-            'role' => $this->role,
-            'user_id' => $this->id,
-            'missing' => $missing,
-        ]);
+        if (count($missing) > 0) {
+            Log::warning('syncAccess: catalog permissions missing from the database — created on the fly; run `php artisan migrate` on the server.', [
+                'guard' => $guard,
+                'role' => $this->role,
+                'user_id' => $this->id,
+                'missing' => $missing,
+            ]);
 
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
-        foreach ($missing as $key) {
-            Permission::findOrCreate($key, $guard);
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+            foreach ($missing as $key) {
+                $resolved[$key] = Permission::findOrCreate($key, $guard);
+            }
         }
+
+        return array_values($resolved);
     }
 
     public function isAdminPhone(array $adminPhones): bool
