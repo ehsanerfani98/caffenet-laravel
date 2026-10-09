@@ -70,7 +70,11 @@
     html += '<div class="search-box">' + icon('search') +
       '<input class="input" id="home-search" placeholder="جستجوی خدمات…" autocomplete="off"></div>';
 
-    if (ctx.user) {
+    // Customer-only: staff accounts (operator/admin) receive EVERY order from
+    // GET /api/orders (see OrderController::index) and can never own one, so
+    // showing this block to them would label an arbitrary customer's order as
+    // their own "current order".
+    if (ctx.user && ctx.user.role === 'customer') {
       html += '<div id="home-order-live">' + activeOrderBlock(state) + '</div>';
     }
 
@@ -118,6 +122,8 @@
   // Live refresh on background sync: update only the active-order region, so the
   // hero slider and its autoplay timer are left untouched (no flicker, no leak).
   Screens.refresh_home = function ($host) {
+    const user = api.state.currentUser;
+    if (!user || user.role !== 'customer') return;
     $host.find('#home-order-live').html(activeOrderBlock(api.state));
   };
 
