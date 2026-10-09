@@ -227,7 +227,7 @@
           '<div class="ps-row total"><span>مبلغ قابل پرداخت</span><span class="val">' + PU.formatToman(p.payable) + '</span></div>' +
         '</div>' +
         (shortfall > 0
-          ? '<div class="warn-box" style="margin-top:10px">موجودی کیف پول کافی نیست؛ <b>' + PU.formatToman(shortfall) + '</b> کمبود دارید. ابتدا کیف پول را شارژ کنید.</div>'
+          ? '<div class="warn-box" style="margin-top:10px">موجودی کیف پول کافی نیست؛ <b>' + PU.formatToman(shortfall) + '</b> کسری دارید. ابتدا کیف پول را شارژ کنید.</div>'
           : '')
       );
     }

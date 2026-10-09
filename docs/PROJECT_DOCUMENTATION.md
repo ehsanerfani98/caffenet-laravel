@@ -347,13 +347,14 @@ flowchart TD
 | `users` | `id, phone UNIQUE, name, role, wallet_balance, is_blocked, permissions_json, created_at` | کاربران سه نقش |
 | `categories` | `id, title, icon_name, description` | دسته‌بندی خدمات |
 | `services` | `id, category_id, title, base_price, is_active, fields_json, pricing_formula` | خدمات با فرم‌ساز پویا |
-| `orders` | `id, order_number UNIQUE, service_id, customer_id, status, urgency, delivery_method, form_data_json, total_price, discount_amount, paid_amount, payment_method, coupon_id, assigned_operator_*, rating, ...` | سفارش‌ها |
+| `orders` | `id, order_number UNIQUE, service_id, customer_id, status, urgency, delivery_method, form_data_json, total_price, discount_amount, paid_amount, refund_amount, refunded_at, payment_method, coupon_id, assigned_operator_*, rating, ...` | سفارش‌ها |
 | `order_logs` | `id, order_id, action, performed_by, note, timestamp` | ممیزی هر تغییر سفارش |
 | `ticket_messages` | `id, order_id, sender_role, sender_name, message, is_operator_response, timestamp` | گفتگوی سفارش |
 | `coupons` | `id, code UNIQUE, percent, max_amount, min_order_amount, expire_date, usage_count, max_usage, is_active` | کد تخفیف |
 | `sms_logs` | `id, phone, text, type, status, provider_message_id, error, timestamp` | لاگ ممیزی پیامک |
 | `otp_codes` | `id, phone, code_hash, attempts, consumed, request_ip, expires_at, created_at` | کد یکبارمصرف هش‌شده |
-| `payments` | `id, order_id, user_id, purpose, amount, authority UNIQUE, ref_id, card_pan, gateway, status, verified_at` | تراکنش‌ها |
+| `payments` | `id, order_id, user_id, purpose, amount, authority UNIQUE, ref_id, card_pan, gateway, status, verified_at` | تراکنش‌های درگاه |
+| `wallet_transactions` | `id, user_id, order_id, payment_id, type, direction, amount, balance_after, reference, note, performed_by_id, performed_by_name, metadata_json, created_at` | دفتر کل گردش کیف پول |
 | `settings` | `key PRIMARY KEY, value` | همهٔ تنظیمات |
 | `slider_images` | `id, image_url, title, subtitle, cta_label, cta_target, is_active, sort_order, created_at` | اسلایدر صفحه اصلی |
 
@@ -366,11 +367,13 @@ flowchart TD
 erDiagram
   users ||--o{ orders : ثبت‌می‌کند
   users ||--o{ payments : پرداخت‌می‌کند
+  users ||--o{ wallet_transactions : گردش‌کیف‌پول
   categories ||--o{ services : دارد
   services ||--o{ orders : برای
   orders ||--o{ order_logs : دارد
   orders ||--o{ ticket_messages : دارد
   orders ||--o{ payments : دارد
+  orders ||--o{ wallet_transactions : دارد
   coupons ||--o{ orders : اعمال‌شده
 ```
 
@@ -515,6 +518,9 @@ erDiagram
 | `POST /api/payments/request` | مالک | ایجاد تراکنش **شارژ کیف پول** (`purpose` فقط `wallet`; پارامتر `gateway`: online/bazaar) |
 | `GET /api/payments/verify` | عمومی (callback) | بازگشت از درگاه و تایید (زرین‌پال) |
 | `GET /api/payments/status` | مالک | وضعیت تراکنش |
+| `GET /api/wallet/transactions` | ورود لازم | گردش کیف پول (مشتری: خودش؛ کارکنان با `wallet.view`: همه/فیلتر `userId`) |
+| `POST /api/wallet/refund` | `wallet.refund` | عودت وجه به کیف پول کاربر (فقط مدیر/مدیر سیستم) |
+| `POST /api/wallet/adjust` | `wallet.adjust` | شارژ/کسر دستی کیف پول (فقط مدیر/مدیر سیستم) |
 | `GET /bazaar-iap/callback` | عمومی (callback) | بازگشت از کافه‌بازار + مصرف سرور‌محور |
 | `GET /bazaar-iap/status` | عمومی | وضعیت تراکنش کافه‌بازار |
 | `POST /bazaar-iap/start` | عمومی | ایجاد بازدید و دریافت دیپ‌لینک |
@@ -577,6 +583,14 @@ erDiagram
   پاسخ ساختاریافتهٔ `INSUFFICIENT_WALLET` (شامل `required`, `balance`, `shortfall`) بازمی‌گردد تا
   UI کاربر را به «شارژ کیف پول» هدایت کند. همین بررسی به‌صورت اتمیک در `pay-wallet` هم تکرار می‌شود.
 
+### دفتر کل کیف پول (Ledger) و عودت وجه
+- هر تغییر موجودی در جدول `wallet_transactions` ثبت می‌شود: `type` ∈ {`topup`, `purchase`, `refund`, `manual_credit`, `manual_debit`}، `direction` ∈ {`credit`, `debit`}، `amount` (همیشه مثبت) و `balance_after` (عکس فوری موجودی پس از عملیات) — برای رهگیری و تطبیق کامل.
+- همهٔ مسیرهای تغییر موجودی از [`app/Services/WalletService.php`](../app/Services/WalletService.php:1) عبور می‌کنند تا تغییر موجودی و ثبت دفتر کل اتمیک و همیشه هماهنگ بمانند: شارژ درگاه (زرین‌پال/کافه‌بازار)، پرداخت خدمت از کیف پول، و شارژ/کسر دستی مدیریت.
+- **عودت وجه فقط توسط مدیر/مدیر سیستم** (`wallet.refund|wallet.manage`) و از `POST /api/wallet/refund` انجام می‌شود؛ مبلغ به کیف پول کاربر واریز می‌شود. اگر `orderId` بیاید، سفارش به وضعیت `refunded` («عودت شده») می‌رود، `refund_amount`/`refunded_at` ثبت و یک ردیف در `order_logs` (روند سفارش) اضافه می‌شود.
+- شارژ/کسر دستی توسط مدیریت (`POST /api/wallet/adjust`) و تغییر موجودی در فرم کاربر (`walletChange`) همگی در دفتر کل ثبت می‌شوند.
+- **رفع اشکال «کم نشدن موجودی»:** پیش‌تر `api.syncWithBackend()` کاربر جاری را دوباره نمی‌خواند و پس از پرداخت، موجودی قدیمی در هدر/کیف پول/فرم سفارش می‌ماند. اکنون این تابع `/api/auth/me` را هم به‌روزرسانی می‌کند (به [`public/js/api.js`](../public/js/api.js:158) نگاه کنید) و موجودی بلافاصله بازتاب می‌یابد. مبلغ واقعی از ابتدا درست کسر می‌شد (کسر اتمیک در `pay-wallet`).
+- **پنل مدیریت:** بخش «سفارش‌ها» (مسیر `admin/orders`) سفارش همهٔ مشتری‌ها، اپراتور انجام‌دهنده، روند کامل عملیات و گردش کیف پول همهٔ کاربران را نشان می‌دهد و امکان عودت وجه و شارژ/کسر دستی را می‌دهد. مشتری نیز در صفحهٔ کیف پول بخش «تاریخچه تراکنش‌ها» را می‌بیند.
+
 ### چرخه عمر سفارش (پرداخت‌محور)
 ```mermaid
 stateDiagram-v2
@@ -588,11 +602,15 @@ stateDiagram-v2
   submitted --> processing
   processing --> ready
   ready --> delivered
+  submitted --> refunded : عودت وجه توسط مدیریت
+  processing --> refunded : عودت وجه توسط مدیریت
+  ready --> refunded : عودت وجه توسط مدیریت
+  delivered --> refunded : عودت وجه توسط مدیریت
   submitted --> cancelled
   failed --> cancelled
 ```
 
-- سفارش‌های `pending_payment` و `failed` **هرگز** در صف اپراتور نمایش داده نمی‌شوند (ثابت `NON_QUEUE_STATUSES` در [`OperatorDashboard`](src/components/operator/OperatorDashboard.tsx:48)).
+- سفارش‌های `pending_payment`، `failed` و `refunded` **هرگز** در صف اپراتور نمایش داده نمی‌شوند (ثابت `NON_QUEUE_STATUSES` در [`Order`](../app/Models/Order.php:47)).
 - استفاده از کد تخفیف فقط **رزرو** می‌شود و `usage_count` پس از تایید پرداخت یک‌بار افزایش می‌یابد.
 - تایید تراکنش **idempotent** است.
 

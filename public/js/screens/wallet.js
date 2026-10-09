@@ -18,6 +18,32 @@
     return amounts.length ? amounts : WALLET_DEFAULT_PRESETS.slice();
   }
 
+  /* One ledger row: type, signed amount, running balance and date. */
+  function walletTxnRow(t) {
+    const credit = t.direction === 'credit';
+    return '<div class="list-row">' +
+      '<div class="lr-icon ' + (credit ? 'tone-emerald' : 'tone-rose') + '">' + icon(credit ? 'plus' : 'arrowleft') + '</div>' +
+      '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(t.typeTitle || t.type) + '</div>' +
+      '<div class="lr-sub">' + PU.toJalaliDate(t.createdAt) + ' • موجودی پس از تراکنش: ' + PU.formatToman(t.balanceAfter) +
+      (t.note ? ' • ' + PU.escapeHtml(t.note) : '') + '</div></div>' +
+      '<span style="font-weight:800;font-size:12.5px;color:' + (credit ? 'var(--emerald)' : 'var(--rose)') + '">' +
+      (credit ? '+' : '−') + PU.formatToman(t.amount) + '</span>' +
+      '</div>';
+  }
+
+  /* Loads and paints the customer's ledger into #wallet-txns (no-op if absent). */
+  function loadWalletTransactions($host) {
+    const $box = $host.find('#wallet-txns');
+    if (! $box.length) return;
+    api.getWalletTransactions()
+      .then((txns) => {
+        $box.html(txns.length
+          ? '<div class="card">' + txns.map(walletTxnRow).join('') + '</div>'
+          : UI.emptyState('هنوز تراکنشی ثبت نشده', '', 'wallet'));
+      })
+      .catch((e) => { $box.html(UI.emptyState('خطا در بارگذاری تراکنش‌ها', e.message, 'alert')); });
+  }
+
   Screens.walletPage = function (ctx) {
     const user = ctx.user;
     if (!user) return UI.emptyState('برای مشاهده کیف پول وارد شوید', '', 'lock');
@@ -53,7 +79,7 @@
     return (
       '<div class="card" style="background:linear-gradient(135deg,var(--sky),var(--sky-deep));color:#fff;border:none">' +
         '<div style="font-size:12px;opacity:.9">موجودی کیف پول</div>' +
-        '<div style="font-size:26px;font-weight:900;margin-top:6px" class="persian-nums">' + PU.formatToman(user.walletBalance) + '</div>' +
+        '<div id="wallet-balance-value" style="font-size:26px;font-weight:900;margin-top:6px" class="persian-nums">' + PU.formatToman(user.walletBalance) + '</div>' +
         '<div style="font-size:11px;opacity:.8;margin-top:8px">' + icon('shield', 'i-sm') + ' موجودی فقط با پرداخت آنلاین شارژ می‌شود</div>' +
       '</div>' +
 
@@ -61,7 +87,10 @@
       presetsGrid +
       customBlock +
 
-      '<div class="info-box" style="margin-top:16px"> افزایش موجودی پس از تایید درگاه به‌صورت خودکار اعمال می‌شود.<br>پس از شارژ، می‌توانید سفارش خود را ثبت و از کیف پول پرداخت کنید.</div>'
+      '<div class="info-box" style="margin-top:16px"> افزایش موجودی پس از تایید درگاه به‌صورت خودکار اعمال می‌شود.<br>پس از شارژ، می‌توانید سفارش خود را ثبت و از کیف پول پرداخت کنید.</div>' +
+
+      '<div class="section-title">' + icon('receipt') + 'تاریخچه تراکنش‌ها</div>' +
+      '<div id="wallet-txns"><div class="spinner" style="margin:16px auto"></div></div>'
     );
   };
 
@@ -125,6 +154,16 @@
         $btn.prop('disabled', false);
       }
     });
+
+    loadWalletTransactions($host);
+  };
+
+  /* In-place refresh on background sync: repaint the balance + ledger without
+   * rebuilding the screen (called by App.refreshCurrentScreen). */
+  Screens.refresh_wallet = function ($host, ctx) {
+    const user = ctx && ctx.user;
+    if (user) $host.find('#wallet-balance-value').text(PU.formatToman(user.walletBalance));
+    loadWalletTransactions($host);
   };
 
   /* Shared wallet-shortage prompt. Used by the order form and the order tracker
@@ -147,7 +186,7 @@
       '<div class="price-summary">' +
         '<div class="ps-row"><span>مبلغ قابل پرداخت</span><span>' + PU.formatToman(need) + '</span></div>' +
         '<div class="ps-row"><span>موجودی فعلی کیف پول</span><span>' + PU.formatToman(have) + '</span></div>' +
-        '<div class="ps-row total"><span>مبلغ کمبود</span><span class="val">' + PU.formatToman(shortfall) + '</span></div>' +
+        '<div class="ps-row total"><span>مبلغ کسری</span><span class="val">' + PU.formatToman(shortfall) + '</span></div>' +
       '</div>'
     );
 

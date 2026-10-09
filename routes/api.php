@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\SmsController;
 use App\Http\Controllers\Api\SliderController;
 use App\Http\Controllers\Api\UploadController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -79,6 +80,13 @@ Route::middleware('auth.session')->group(function () {
     Route::get('/payments/status', [PaymentController::class, 'status']);
 });
 Route::get('/payments/verify', [PaymentController::class, 'verify']); // gateway callback
+
+// ---------------- Wallet ledger / refunds ----------------
+// The customer's own ledger; staff with wallet.view|wallet.manage may inspect
+// any (or all) users'. Refund and manual adjust are admin/manager only.
+Route::middleware('auth.session')->get('/wallet/transactions', [WalletController::class, 'transactions']);
+Route::middleware(['auth.session', 'permission:wallet.refund|wallet.manage'])->post('/wallet/refund', [WalletController::class, 'refund']);
+Route::middleware(['auth.session', 'permission:wallet.adjust|wallet.manage'])->post('/wallet/adjust', [WalletController::class, 'adjust']);
 
 // ---------------- Users / permissions / dashboard ----------------
 Route::middleware(['auth.session', 'permission:users.view|users.manage'])->get('/users', [UserController::class, 'index']);

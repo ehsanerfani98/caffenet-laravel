@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\OrderLog;
 use App\Models\Payment;
+use App\Models\User;
+use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -65,7 +67,16 @@ class PaymentFulfillmentService
                     }
                 }
             } else { // wallet top-up
-                DB::table('users')->where('id', $payment->user_id)->increment('wallet_balance', (int) $payment->amount);
+                $owner = User::find($payment->user_id);
+                if ($owner) {
+                    WalletService::credit($owner, (int) $payment->amount, WalletTransaction::TYPE_TOPUP, [
+                        'paymentId' => $payment->id,
+                        'reference' => $refId,
+                        'note' => 'شارژ کیف پول از درگاه',
+                        'performedByName' => 'درگاه پرداخت',
+                        'metadata' => ['gateway' => $payment->gateway],
+                    ]);
+                }
             }
         });
 

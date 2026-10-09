@@ -58,6 +58,8 @@ class WalletOnlyPaymentsTest extends TestCase
             'formData' => [],
             'urgency' => 'normal',
             'deliveryMethod' => 'download',
+            // A contact channel is required at creation time.
+            'contactMethods' => ['app_chat'],
         ];
     }
 

@@ -70,6 +70,7 @@
     <script defer src="/js/screens/payment.js?v={{ filemtime(public_path('js/screens/payment.js')) }}"></script>
     <script defer src="/js/screens/operator.js?v={{ filemtime(public_path('js/screens/operator.js')) }}"></script>
     <script defer src="/js/screens/admin.js?v={{ filemtime(public_path('js/screens/admin.js')) }}"></script>
+    <script defer src="/js/screens/admin-orders.js?v={{ filemtime(public_path('js/screens/admin-orders.js')) }}"></script>
     <script defer src="/js/screens/admin-manage.js?v={{ filemtime(public_path('js/screens/admin-manage.js')) }}"></script>
 </body>
 </html>

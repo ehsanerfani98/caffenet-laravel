@@ -5,7 +5,7 @@
 (function () {
   'use strict';
 
-  const NON_QUEUE_STATUSES = ['pending_payment', 'failed'];
+  const NON_QUEUE_STATUSES = ['pending_payment', 'failed', 'refunded'];
 
   window.Screens = window.Screens || {};
 

@@ -11,8 +11,10 @@ use App\Models\Payment;
 use App\Models\Service;
 use App\Models\TicketMessage;
 use App\Models\User;
+use App\Models\WalletTransaction;
 use App\Services\PricingService;
 use App\Services\SmsService;
+use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -234,7 +236,13 @@ class OrderController extends Controller
                     throw new \RuntimeException('ORDER_ALREADY_PAID');
                 }
 
-                DB::table('users')->where('id', $user->id)->decrement('wallet_balance', $payable);
+                WalletService::debit($user, $payable, WalletTransaction::TYPE_PURCHASE, [
+                    'orderId' => $order->id,
+                    'reference' => $trackingCode,
+                    'note' => "پرداخت سفارش {$order->order_number}",
+                    'performedById' => $user->id,
+                    'performedByName' => $user->name,
+                ]);
 
                 $affected = DB::table('orders')
                     ->where('id', $order->id)
@@ -275,6 +283,19 @@ class OrderController extends Controller
                 }
             });
         } catch (\RuntimeException $e) {
+            if ($e->getMessage() === 'INSUFFICIENT_WALLET_BALANCE') {
+                // Rare race: the balance changed between the pre-check and the
+                // debit. No order state was touched (the transaction rolled back).
+                $balance = (int) DB::table('users')->where('id', $user->id)->value('wallet_balance');
+
+                return response()->json([
+                    'error' => 'موجودی کیف پول کافی نیست؛ لطفاً ابتدا کیف پول خود را شارژ کنید.',
+                    'code' => 'INSUFFICIENT_WALLET',
+                    'required' => $payable,
+                    'balance' => $balance,
+                    'shortfall' => max(0, $payable - $balance),
+                ], 400);
+            }
             if (in_array($e->getMessage(), ['ORDER_ALREADY_PAID', 'WALLET_DEBIT_LOST_RACE'], true)) {
                 return response()->json(['error' => 'این سفارش قبلاً پرداخت شده است.'], 400);
             }

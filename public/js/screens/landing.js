@@ -185,6 +185,7 @@
       { key: 'ready', label: 'آماده تحویل' },
       { key: 'delivered', label: 'تحویل شده' },
       { key: 'cancelled', label: 'لغو شده' },
+      { key: 'refunded', label: 'عودت شده' },
     ];
 
     let html =

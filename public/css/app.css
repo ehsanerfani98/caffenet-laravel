@@ -256,6 +256,7 @@ svg.i.i-lg { width: 30px; height: 30px; }
 .pill.delivered { background: var(--slate-soft); color: var(--slate); }
 .pill.failed { background: var(--rose-soft); color: #9f1239; }
 .pill.cancelled { background: #f3f4f6; color: #6b7280; }
+.pill.refunded { background: var(--rose-soft); color: #9f1239; }
 
 /* ---------- order cards ---------- */
 .order-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 13px; cursor: pointer; }

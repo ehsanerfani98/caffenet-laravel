@@ -180,7 +180,7 @@
       return [
         { key: 'home', label: 'خانه', icon: 'home' },
         { key: 'admin/dashboard', label: 'داشبورد', icon: 'chart' },
-        { key: 'admin/services', label: 'خدمات', icon: 'cog' },
+        { key: 'admin/orders', label: 'سفارش‌ها', icon: 'folder' },
         { key: 'admin/users', label: 'کاربران', icon: 'users' },
         { key: 'admin/more', label: 'بیشتر', icon: 'more' },
       ];
@@ -197,6 +197,7 @@
         profile: { t1: 'پروفایل', t2: 'حساب کاربری' },
         operator: { t1: 'صف کار اپراتور', t2: 'سفارش‌های پرداخت‌شده' },
         'admin/dashboard': { t1: 'داشبورد مدیریت', t2: 'آمار و گزارش‌ها' },
+        'admin/orders': { t1: 'سفارش‌ها و تراکنش‌ها', t2: 'رهگیری سفارش‌ها، اپراتورها و گردش کیف پول' },
         'admin/services': { t1: 'مدیریت خدمات', t2: 'کاتالوگ و فرم‌ساز پویا' },
         'admin/users': { t1: 'مدیریت کاربران', t2: 'نقش‌ها و مجوزها' },
         'admin/more': { t1: 'ابزارهای مدیریتی', t2: 'کد تخفیف، تنظیمات، اسلایدر' },
@@ -235,6 +236,7 @@
       else if (scr === 'profile') html = window.Screens.profile(ctx);
       else if (scr === 'operator') html = window.Screens.operator(ctx);
       else if (scr === 'admin/dashboard') html = window.Screens.adminDashboard(ctx);
+      else if (scr === 'admin/orders') html = window.Screens.adminOrders(ctx);
       else if (scr === 'admin/services') html = window.Screens.adminServices(ctx);
       else if (scr === 'admin/users') html = window.Screens.adminUsers(ctx);
       else if (scr === 'admin/more') html = window.Screens.adminMore(ctx);

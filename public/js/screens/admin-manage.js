@@ -12,6 +12,7 @@
 
   S.adminMore = function (ctx) {
     const rows = [
+      ['services', 'cog', 'tone-rose', 'مدیریت خدمات', 'کاتالوگ، دسته‌بندی و فرم‌ساز پویا'],
       ['coupons', 'tag', 'tone-amber', 'کدهای تخفیف', 'ساخت و مدیریت کدهای تخفیف'],
       ['settings', 'cog', 'tone-sky', 'تنظیمات کسب‌وکار', 'عنوان سایت، ضرایب قیمت و سرویس‌ها'],
       ['system', 'settings', 'tone-indigo', 'تنظیمات سیستمی', 'اعتبارنامه پیامک و درگاه، حالت‌های آزمایشی'],
@@ -29,7 +30,8 @@
   S.bind_admin_more = function ($host, ctx) {
     $host.find('[data-open]').on('click', function () {
       const key = $(this).data('open');
-      if (key === 'coupons') openCoupons();
+      if (key === 'services') { if (window.App) App.navigate('admin/services'); }
+      else if (key === 'coupons') openCoupons();
       else if (key === 'settings') openBusinessSettings();
       else if (key === 'system') openSystemSettings();
       else if (key === 'slider') openSliderManager();

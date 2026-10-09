@@ -118,6 +118,28 @@ class Formatter
         ];
     }
 
+    public static function walletTransaction($row): array
+    {
+        return [
+            'id' => $row->id,
+            'userId' => $row->user_id,
+            'orderId' => $row->order_id,
+            'paymentId' => $row->payment_id,
+            'type' => $row->type,
+            'typeTitle' => method_exists($row, 'typeTitle')
+                ? $row->typeTitle()
+                : (\App\Models\WalletTransaction::TYPE_TITLES[$row->type] ?? $row->type),
+            'direction' => $row->direction,
+            'amount' => (int) $row->amount,
+            'balanceAfter' => (int) $row->balance_after,
+            'reference' => $row->reference,
+            'note' => $row->note,
+            'performedById' => $row->performed_by_id,
+            'performedByName' => $row->performed_by_name,
+            'createdAt' => $row->created_at,
+        ];
+    }
+
     public static function uploadedFile(?array $f): ?array
     {
         if (! $f || ! is_array($f)) {
@@ -163,6 +185,8 @@ class Formatter
             'totalPrice' => (int) $o->total_price,
             'discountAmount' => (int) $o->discount_amount,
             'paidAmount' => (int) $o->paid_amount,
+            'refundAmount' => (int) ($o->refund_amount ?? 0),
+            'refundedAt' => $o->refunded_at,
             'paymentMethod' => $o->payment_method,
             'paymentTrackingCode' => $o->payment_tracking_code,
             'assignedOperatorId' => $o->assigned_operator_id,

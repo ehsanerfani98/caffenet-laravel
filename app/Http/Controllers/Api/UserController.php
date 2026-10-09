@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Support\Formatter;
 use App\Models\User;
+use App\Models\WalletTransaction;
 use App\Services\AuthService;
 use App\Services\PermissionService;
+use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -68,7 +70,7 @@ class UserController extends Controller
             return response()->json(['error' => 'شما دسترسی لازم برای این عملیات را ندارید.'], 403);
         }
 
-        DB::transaction(function () use ($user, $body, $hasEdit, $hasPerm) {
+        DB::transaction(function () use ($user, $body, $hasEdit, $hasPerm, $actor) {
             $role = $user->role;
             if ($hasEdit) {
                 if (isset($body['role']) && in_array($body['role'], ['customer', 'operator', 'admin'], true)) {
@@ -81,10 +83,28 @@ class UserController extends Controller
                     $user->name = trim((string) $body['name']);
                 }
                 // walletChange: signed delta — the ONLY admin path for balance edits.
+                // Each change is written to the wallet ledger with the acting admin
+                // so every manual credit/debit is traceable.
                 if (isset($body['walletChange']) && is_numeric($body['walletChange'])) {
                     $delta = (int) $body['walletChange'];
-                    $newBalance = max(0, (int) $user->wallet_balance + $delta);
-                    $user->wallet_balance = $newBalance;
+                    if ($delta > 0) {
+                        WalletService::credit($user, $delta, WalletTransaction::TYPE_MANUAL_CREDIT, [
+                            'note' => 'تنظیم موجودی توسط مدیریت',
+                            'performedById' => $actor->id,
+                            'performedByName' => $actor->name,
+                        ]);
+                    } elseif ($delta < 0) {
+                        // A manual deduction never pushes the wallet below zero.
+                        $available = (int) DB::table('users')->where('id', $user->id)->value('wallet_balance');
+                        $amount = min(abs($delta), $available);
+                        if ($amount > 0) {
+                            WalletService::debit($user, $amount, WalletTransaction::TYPE_MANUAL_DEBIT, [
+                                'note' => 'کسر موجودی توسط مدیریت',
+                                'performedById' => $actor->id,
+                                'performedByName' => $actor->name,
+                            ]);
+                        }
+                    }
                 }
             }
 
@@ -102,6 +122,10 @@ class UserController extends Controller
 
             $user->syncAccess($role, $role === 'admin' ? null : $override);
         });
+
+        // Reflect the ledger-driven balance in the response (the model instance
+        // may still hold the pre-change value).
+        $user->refresh();
 
         return response()->json(Formatter::user($user));
     }

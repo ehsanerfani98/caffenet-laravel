@@ -168,6 +168,11 @@
         this.request('GET', '/api/slider').then((v) => { this.state.slides = v; }),
       ];
       if (this.state.currentUser) {
+        // Re-read the session user too. This is the single fix for the
+        // "wallet balance never changes after a purchase/refund" bug: this
+        // method previously never re-read /api/auth/me, so the header, the
+        // wallet page and the order form kept showing the pre-payment balance.
+        jobs.push(this.request('GET', '/api/auth/me').then((u) => { this.state.currentUser = u; }));
         jobs.push(this.request('GET', '/api/orders').then((v) => { this.state.orders = v; }));
       }
       try {
@@ -348,6 +353,21 @@
 
     async getPaymentStatus(authority) {
       return this.request('GET', '/api/payments/status?authority=' + encodeURIComponent(authority));
+    }
+
+    /* ---------------- wallet ledger / refunds ---------------- */
+
+    async getWalletTransactions(userId) {
+      const qs = userId ? '?userId=' + encodeURIComponent(userId) : '';
+      return this.request('GET', '/api/wallet/transactions' + qs);
+    }
+
+    async refundWallet(payload) {
+      return this.request('POST', '/api/wallet/refund', payload);
+    }
+
+    async adjustWallet(payload) {
+      return this.request('POST', '/api/wallet/adjust', payload);
     }
   }
 

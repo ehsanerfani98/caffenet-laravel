@@ -28,9 +28,13 @@ class Order extends CaffenetModel
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    /** Set when management refunds the order amount to the customer's wallet. */
+    public const STATUS_REFUNDED = 'refunded';
+
     public const STATUSES = [
         self::STATUS_PENDING_PAYMENT, self::STATUS_SUBMITTED, self::STATUS_PROCESSING,
         self::STATUS_READY, self::STATUS_DELIVERED, self::STATUS_FAILED, self::STATUS_CANCELLED,
+        self::STATUS_REFUNDED,
     ];
 
     public const STATUS_TITLES = [
@@ -41,10 +45,11 @@ class Order extends CaffenetModel
         'delivered' => 'تحویل داده شده',
         'failed' => 'ناموفق',
         'cancelled' => 'لغو شده',
+        'refunded' => 'عودت شده',
     ];
 
     /** Never shown in the operator queue. */
-    public const NON_QUEUE_STATUSES = [self::STATUS_PENDING_PAYMENT, self::STATUS_FAILED];
+    public const NON_QUEUE_STATUSES = [self::STATUS_PENDING_PAYMENT, self::STATUS_FAILED, self::STATUS_REFUNDED];
 
     /**
      * Contact channels the customer can prefer (multi-select). Keys are stored
@@ -70,6 +75,7 @@ class Order extends CaffenetModel
         'customer_name', 'status', 'urgency', 'delivery_method', 'delivery_address',
         'delivery_postal_code', 'form_data_json', 'customer_files_json', 'result_files_json',
         'total_price', 'discount_amount', 'paid_amount', 'payment_method', 'payment_tracking_code',
+        'refund_amount', 'refunded_at',
         'assigned_operator_id', 'assigned_operator_name', 'internal_note', 'customer_note',
         'contact_methods_json', 'coupon_id', 'rating', 'review_comment', 'created_at', 'updated_at',
     ];
@@ -78,6 +84,7 @@ class Order extends CaffenetModel
         'total_price' => 'integer',
         'discount_amount' => 'integer',
         'paid_amount' => 'integer',
+        'refund_amount' => 'integer',
         'rating' => 'integer',
     ];
 

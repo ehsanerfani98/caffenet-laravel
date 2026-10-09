@@ -12,6 +12,7 @@
     delivered: { label: 'تحویل داده شده', tone: 'delivered' },
     failed: { label: 'ناموفق', tone: 'failed' },
     cancelled: { label: 'لغو شده', tone: 'cancelled' },
+    refunded: { label: 'عودت شده', tone: 'refunded' },
   };
 
   const TONE_CLASS = {
