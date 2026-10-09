@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Database-first settings service — a faithful port of settingsService.ts.
@@ -161,6 +162,12 @@ TEXT;
             'label' => 'آدرس پایه زرین‌پال', 'default' => 'https://payment.zarinpal.com'],
         ['key' => 'paymentCallbackUrl', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'نشانی بازگشت درگاه', 'default' => ''],
+        ['key' => 'paymentCurrency', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'واحد پولی زرین‌پال (IRT تومان / IRR ریال)', 'default' => 'IRT'],
+        ['key' => 'paymentAutoVerify', 'category' => 'payment', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'اعتبارسنجی خودکار تراکنش (auto_verify)', 'default' => '1'],
+        ['key' => 'paymentSandboxMerchantId', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'کد پذیرندهٔ موقت سندباکس (خودکار)', 'default' => ''],
 
         // ---- payment (Cafe Bazaar in-app gateway) — system ----
         ['key' => 'bazaarEnabled', 'category' => 'payment', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
@@ -370,26 +377,66 @@ TEXT;
 
     public static function paymentSettings(): array
     {
+        $sandbox = self::bool('paymentSandbox');
         $baseUrl = rtrim((string) self::raw('paymentBaseUrl'), '/');
-        if (self::bool('paymentSandbox')) {
+        if ($sandbox) {
+            // The official test service only swaps the domain (see docs §7).
             $baseUrl = 'https://sandbox.zarinpal.com';
         }
-        $callback = (string) self::raw('paymentCallbackUrl');
-        if (trim($callback) === '') {
+        if ($baseUrl === '') {
+            $baseUrl = 'https://payment.zarinpal.com';
+        }
+
+        $callback = trim((string) self::raw('paymentCallbackUrl'));
+        if ($callback === '') {
             $appUrl = self::appUrl();
             // Absolute when appUrl is configured; otherwise a relative path the
             // browser resolves against the current origin (test-mode friendly).
+            // Real/sandbox calls are rejected later when this is not absolute.
             $callback = $appUrl !== '' ? $appUrl.'/api/payments/verify' : '/api/payments/verify';
+        }
+
+        // IRR (Rial) or IRT (Toman); anything else falls back to Toman because
+        // every wallet amount in this application is stored in Toman.
+        $currency = strtoupper(trim((string) self::raw('paymentCurrency')));
+        if (! in_array($currency, ['IRR', 'IRT'], true)) {
+            $currency = 'IRT';
         }
 
         return [
             'enabled' => self::bool('paymentEnabled'),
             'testMode' => self::bool('paymentTestMode'),
-            'merchantId' => (string) self::raw('paymentMerchantId'),
-            'sandbox' => self::bool('paymentSandbox'),
+            'merchantId' => trim((string) self::raw('paymentMerchantId')),
+            'sandbox' => $sandbox,
             'baseUrl' => $baseUrl,
             'callbackUrl' => $callback,
+            'currency' => $currency,
+            'autoVerify' => self::bool('paymentAutoVerify'),
         ];
+    }
+
+    /**
+     * A stable Zarinpal merchant id for the sandbox. The docs allow any
+     * arbitrary UUID in sandbox, but the SAME value must be sent to both
+     * request.json and verify.json, so we generate it once and persist it
+     * under `paymentSandboxMerchantId` for reuse across requests.
+     */
+    public static function sandboxMerchantId(): string
+    {
+        $existing = trim((string) self::raw('paymentSandboxMerchantId'));
+        if ($existing !== '') {
+            return $existing;
+        }
+
+        $uuid = (string) Str::uuid();
+        try {
+            self::set('paymentSandboxMerchantId', $uuid);
+        } catch (\Throwable) {
+            // Settings table may be unavailable during very early boot; the
+            // request/verify pair still shares this value within the process.
+        }
+
+        return $uuid;
     }
 
     /**

@@ -221,12 +221,13 @@
       const on = (k) => { const v = val(k).toLowerCase(); return v === '1' || v === 'true'; };
       const rendered = {};
       /* Derived from the visible selectors — never rendered as raw controls. */
-      ['paymentEnabled', 'paymentSandbox', 'paymentTestMode', 'bazaarEnabled', 'bazaarTestMode', 'smsTestMode', 'bazaarSku']
+      ['paymentEnabled', 'paymentSandbox', 'paymentTestMode', 'bazaarEnabled', 'bazaarTestMode', 'smsTestMode', 'bazaarSku', 'paymentCurrency', 'paymentSandboxMerchantId']
         .forEach((k) => { rendered[k] = true; });
 
       const state = {
         paymentMode: (on('paymentTestMode') || on('bazaarTestMode')) ? 'test' : (on('paymentSandbox') ? 'sandbox' : 'real'),
         smsSim: on('smsTestMode'),
+        currency: val('paymentCurrency').toUpperCase() === 'IRR' ? 'IRR' : 'IRT',
       };
 
       function textField(key, label, opts) {
@@ -285,7 +286,11 @@
           textField('paymentMerchantId', 'کد پذیرنده زرین‌پال', { req: true, placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', help: 'از پنل زرین‌پال دریافت می‌شود.' }) +
           advBox('تنظیمات پیشرفته زرین‌پال',
             textField('paymentBaseUrl', 'آدرس پایه زرین‌پال', { placeholder: 'https://payment.zarinpal.com' }) +
-            textField('paymentCallbackUrl', 'نشانی بازگشت درگاه', { placeholder: 'خالی = ساخت خودکار از نشانی سایت' })
+            textField('paymentCallbackUrl', 'نشانی بازگشت درگاه', { placeholder: 'خالی = ساخت خودکار از نشانی سایت' }) +
+            segment('currency', state.currency, 'واحد پولی',
+              [['IRT', 'تومان'], ['IRR', 'ریال']],
+              'مبالغ سامانه به تومان است؛ «تومان» باید انتخاب بماند تا مبلغ واقعی پرداخت شود.') +
+            switchRow('paymentAutoVerify', 'اعتبارسنجی خودکار تراکنش (auto_verify)', 'زرین‌پال پس از پرداخت موفق تراکنش را خودکار تایید می‌کند و این سامانه با کد ۱۰۱ آن را نهایی می‌کند.')
           ) +
         '</div>';
 
@@ -413,6 +418,8 @@
         } else if (group === 'sms') {
           state.smsSim = ($(this).data('mode-val') === 'sim');
           refreshSmsFields();
+        } else if (group === 'currency') {
+          state.currency = $(this).data('mode-val');
         }
         refreshStatus();
       });
@@ -434,12 +441,18 @@
         /* Derive the raw flags from the two visible selectors. */
         payload.paymentSandbox = (payload.paymentEnabled === '1' && state.paymentMode !== 'real') ? '1' : '0';
         payload.paymentTestMode = '0';
+        payload.paymentCurrency = state.currency;
         payload.bazaarTestMode = (payload.bazaarEnabled === '1' && state.paymentMode === 'test') ? '1' : '0';
         payload.smsTestMode = state.smsSim ? '1' : '0';
 
         const warnings = [];
-        if (payload.paymentEnabled === '1' && !(byKey.paymentMerchantId && byKey.paymentMerchantId.hasValue)) {
-          warnings.push('زرین‌پال فعال است اما کد پذیرنده ثبت نشده است.');
+        if (payload.paymentEnabled === '1' && state.paymentMode === 'real'
+            && !(byKey.paymentMerchantId && byKey.paymentMerchantId.hasValue)) {
+          warnings.push('زرین‌پال در حالت واقعی است اما کد پذیرنده ثبت نشده است.');
+        }
+        if (payload.paymentEnabled === '1' && state.paymentMode === 'real'
+            && !((payload.paymentCallbackUrl || '').trim() || (payload.appUrl || '').trim())) {
+          warnings.push('برای درگاه واقعی، «نشانی پایه سایت» یا «نشانی بازگشت درگاه» الزامی است.');
         }
         if (payload.bazaarEnabled === '1') {
           if (!(byKey.bazaarPackageName && byKey.bazaarPackageName.value)) warnings.push('کافه‌بازار فعال است اما نام پکیج ثبت نشده است.');

@@ -56,11 +56,17 @@ class PaymentController extends Controller
             return $this->requestBazaar($user, $amount, $now);
         }
 
+        // Pre-generate the payment id so it can travel as metadata.order_id for
+        // traceability in the Zarinpal panel. The row itself is only persisted
+        // once the gateway has accepted the request (no stray pending rows).
+        $paymentId = 'pay-'.Str::uuid();
+
         $gatewayResult = PaymentService::requestPayment(
             $amount,
             $description,
             SettingsService::paymentSettings()['callbackUrl'],
-            $user->phone
+            $user->phone,
+            $paymentId
         );
 
         if (! $gatewayResult['ok']) {
@@ -68,6 +74,7 @@ class PaymentController extends Controller
         }
 
         $payment = Payment::create([
+            'id' => $paymentId,
             'order_id' => null,
             'user_id' => $user->id,
             'purpose' => 'wallet',
