@@ -40,6 +40,44 @@
 
   /* ---------------- Home ---------------- */
 
+  // The colorful category icon grid directly below the search field.
+  // Mirrors the mobile_services_home.html reference: 4-column grid of
+  // large rounded tiles, each tile shows a colorful SVG icon and the
+  // category title. Tapping a tile opens the catalog filtered by that
+  // category.
+  function categoryIconGridHtml(state) {
+    const cats = (state.categories || []).slice();
+    if (!cats.length) {
+      return '<div class="cat-icon-empty">هنوز دسته‌بندی ثبت نشده است.</div>';
+    }
+    const tiles = cats.map(function (cat) {
+      // Resolve the SVG: prefer the colorful version when the admin picked a
+      // known icon key; fall back to the legacy renderServiceIcon (which maps
+      // PascalCase names like "Printer"). If iconColor is set, tint the SVG.
+      const key = (cat.iconName || '').toLowerCase();
+      let svg;
+      if (window.CATEGORY_ICON_KEYS && window.CATEGORY_ICON_KEYS.indexOf(key) !== -1) {
+        // Modern colorful category icon (with optional tint override).
+        svg = cat.iconColor
+          ? window.renderCategoryIconTinted(key, cat.iconColor)
+          : window.renderCategoryIcon(key);
+      } else {
+        // Legacy icon path (PascalCase → 24×24 stroke SVG). Wrap so the size
+        // matches the 58% tile fill used by the colorful icons.
+        svg = '<span style="color:' + (cat.iconColor || 'var(--sky-deep)') +
+          ';display:inline-flex;width:58%;height:58%;align-items:center;justify-content:center;">' +
+          renderServiceIcon(cat.iconName) + '</span>';
+      }
+      return (
+        '<button type="button" class="cat-icon-tile" data-cat-tile="' + cat.id + '" aria-label="' + PU.escapeHtml(cat.title) + '">' +
+          '<span class="cat-icon-box">' + svg + '</span>' +
+          '<span class="cat-icon-label">' + PU.escapeHtml(cat.title) + '</span>' +
+        '</button>'
+      );
+    }).join('');
+    return '<section class="cat-icon-grid" aria-label="دسته‌بندی خدمات">' + tiles + '</section>';
+  }
+
   // Default home service listing (popular + per-category). Kept as a helper so
   // the search box can restore it verbatim when the query is cleared.
   function homeServicesHtml(state, settings) {
@@ -69,6 +107,12 @@
     // Search field directly below the slider.
     html += '<div class="search-box">' + icon('search') +
       '<input class="input" id="home-search" placeholder="جستجوی خدمات…" autocomplete="off"></div>';
+
+    // Colorful category icon grid — directly below the search field, before
+    // the live order block and the services list. Mirrors the reference design
+    // (mobile_services_home.html). Tapping a tile opens the catalog screen
+    // pre-filtered to that category.
+    html += '<div id="home-category-grid">' + categoryIconGridHtml(state) + '</div>';
 
     // Customer-only: staff accounts (operator/admin) receive EVERY order from
     // GET /api/orders (see OrderController::index) and can never own one, so
@@ -107,6 +151,27 @@
 
     $host.on('input', '#home-search', PU.debounce(renderHomeServices, 200));
 
+    // Category icon tile → open catalog and select that category.
+    $host.on('click', '[data-cat-tile]', function () {
+      const catId = $(this).data('cat-tile');
+      const cat = api.state.categories.find((c) => c.id === catId);
+      if (!cat) return;
+      // Prefer opening the catalog screen with the chip pre-selected, if such
+      // a helper exists; otherwise fall back to a simple toast.
+      if (typeof Screens.openCatalog === 'function') {
+        Screens.openCatalog(catId);
+      } else if (typeof App !== 'undefined' && App.navigate) {
+        App.navigate('catalog');
+        // The catalog screen renders asynchronously; select the chip after.
+        setTimeout(function () {
+          const $chip = $('#catalog-chips .chip[data-cat="' + catId + '"]');
+          if ($chip.length) { $chip.trigger('click'); }
+        }, 80);
+      } else {
+        UI.toast('دسته‌بندی: ' + cat.title, 'info');
+      }
+    });
+
     // Delegated so the handlers survive the #home-order-live / #home-services
     // innerHTML refreshes.
     $host.on('click', '[data-service]', function () {
@@ -119,10 +184,15 @@
     });
   };
 
-  // Live refresh on background sync: update only the active-order region, so the
+  // Live refresh on background sync: update only the active-order region and
+  // the category icon grid (in case the admin added/edited categories), so the
   // hero slider and its autoplay timer are left untouched (no flicker, no leak).
   Screens.refresh_home = function ($host) {
     const user = api.state.currentUser;
+    // The category grid is always refreshed (cheap, and admin edits need to
+    // propagate to staff/customer views alike).
+    const $grid = $host.find('#home-category-grid');
+    if ($grid.length) $grid.html(categoryIconGridHtml(api.state));
     if (!user || user.role !== 'customer') return;
     $host.find('#home-order-live').html(activeOrderBlock(api.state));
   };

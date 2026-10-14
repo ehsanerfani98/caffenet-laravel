@@ -47,7 +47,10 @@ class Formatter
             'id' => $row->id,
             'title' => $row->title,
             'iconName' => $row->icon_name,
+            'iconColor' => (string) ($row->icon_color ?? ''),
+            'sortOrder' => (int) ($row->sort_order ?? 0),
             'description' => (string) ($row->description ?? ''),
+            'createdAt' => $row->created_at ?? null,
         ];
     }
 

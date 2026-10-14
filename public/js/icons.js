@@ -78,4 +78,101 @@
   window.renderServiceIcon = function (name) {
     return icon(SERVICE_ICONS[name] || 'grid');
   };
+
+  /* ────────────────────────────────────────────────────────────────────
+   * Colorful category icons — each icon key maps to a self-contained SVG
+   * (its own fills + strokes) so the admin can pick from a rich palette
+   * without importing external icon fonts. Used by the home page icon grid.
+   *
+   * Each icon is 64×64 viewBox to match the reference design; the host
+   * element resizes via CSS.
+   * ──────────────────────────────────────────────────────────────────── */
+  const CATEGORY_SVGS = {
+    // Printer — existing brand default
+    printer: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M14 18h36a4 4 0 0 1 4 4v18H10V22a4 4 0 0 1 4-4Z" fill="#5b8def"/><path d="M16 30h32v22H16z" fill="#cdd9f7"/><path d="M10 40H6a3 3 0 0 1-3-3v-7a3 3 0 0 1 3-3h4z" fill="#3b6dd9"/><rect x="20" y="36" width="24" height="3" rx="1.5" fill="#7a9ef0"/><rect x="20" y="42" width="18" height="3" rx="1.5" fill="#7a9ef0"/><circle cx="48" cy="25" r="2" fill="#fff"/></svg>',
+    gradcap: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M32 8 4 22l28 14 28-14Z" fill="#475d93"/><path d="M14 28v14c0 4 8 7 18 7s18-3 18-7V28" stroke="#475d93" stroke-width="4" fill="none"/><path d="M58 26v14" stroke="#475d93" stroke-width="3" stroke-linecap="round"/><rect x="28" y="36" width="8" height="10" fill="#a9baf0"/></svg>',
+    building: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><rect x="14" y="8" width="36" height="48" rx="3" fill="#9bb1ed"/><path d="M22 18h6M22 26h6M22 34h6M22 42h6M36 18h6M36 26h6M36 34h6M36 42h6" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M28 56h8v-6h-8z" fill="#7d96dc"/></svg>',
+    landmark: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><polygon points="32 6 58 20 6 20" fill="#a82cc7"/><rect x="10" y="22" width="44" height="34" fill="#7e1ca5"/><path d="M18 24v32M26 24v32M34 24v32M42 24v32" stroke="#fff" stroke-width="3"/><path d="M4 56h56" stroke="#5a1172" stroke-width="4" stroke-linecap="round"/></svg>',
+    car: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="m14 28 5-12c1-3 4-5 8-5h16c4 0 7 2 8 5l5 12 4 3v17H4V31l10-3Z" fill="#d91543"/><path d="m21 17-4 11h30l-4-11c-1-2-3-3-5-3H26c-2 0-4 1-5 3Z" fill="#fff"/><path d="M7 29h50" stroke="#d91543" stroke-width="4"/><circle cx="16" cy="45" r="5" fill="#fff"/><circle cx="48" cy="45" r="5" fill="#fff"/><path d="M4 33h56" stroke="#d91543" stroke-width="5" stroke-linecap="round"/></svg>',
+    grid: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><rect x="6" y="6" width="22" height="22" rx="4" fill="#10aec8"/><rect x="36" y="6" width="22" height="22" rx="4" fill="#40a83b"/><rect x="6" y="36" width="22" height="22" rx="4" fill="#f4d33b"/><rect x="36" y="36" width="22" height="22" rx="4" fill="#e40012"/></svg>',
+    folder: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M6 14a3 3 0 0 1 3-3h14l5 6h23a3 3 0 0 1 3 3v30a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3Z" fill="#e58be8"/><path d="M6 22a3 3 0 0 1 3-3h46a3 3 0 0 1 3 3v28a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3Z" fill="#a82cc7"/></svg>',
+    wallet: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><rect x="6" y="14" width="52" height="36" rx="6" fill="#0ca67d"/><path d="M6 20a6 6 0 0 1 6-6h36v10H6Z" fill="#71d8b0"/><rect x="42" y="28" width="16" height="12" rx="3" fill="#fff"/><circle cx="50" cy="34" r="3" fill="#0ca67d"/></svg>',
+    receipt: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M14 6h36a4 4 0 0 1 4 4v48l-6-4-6 4-6-4-6 4-6-4-6 4-6-4-6 4V10a4 4 0 0 1 4-4Z" fill="#50ddb0"/><path d="M22 20h20M22 30h20M22 40h14" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
+    bank: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M5 27 32 9l27 18H5Z" fill="#9bb1ed"/><path d="M12 31h40v22H12z" fill="#a9baf0"/><path d="M18 33v15M28 33v15M38 33v15M48 33v15M8 56h48" stroke="#fff" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="19" r="13" fill="#475d93" stroke="#fff" stroke-width="2"/><path d="M35 13c-4-3-8 1-4 4l4 2c4 2 1 6-4 5M32 10v17" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>',
+    shield: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M32 5 8 16v16c0 14 10 22 24 27 14-5 24-13 24-27V16Z" fill="#159db5"/><path d="M22 33l8 8 14-14" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    ticket: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M8 14h48a5 5 0 0 1 5 5v8a7 7 0 0 0 0 14v8a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5v-8a7 7 0 0 0 0-14v-8a5 5 0 0 1 5-5Z" fill="#f4d33b"/><path d="M34 16v5m0 6v5m0 6v5m0 6v4" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
+    pencil: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="m12 47 5-16L42 6a5 5 0 0 1 7 0l9 9a5 5 0 0 1 0 7L33 47l-16 5-5-5Z" fill="#f08d37"/><path d="m38 11 15 15M21 38l5 5M29 30l5 5M37 22l5 5" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
+    heart: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M32 57 8 34C-5 18 15 2 29 14l3 3 3-3C49 2 69 18 56 34Z" fill="#ef6c7b"/><path d="M28 20h8v10h10v8H36v10h-8V38H18v-8h10V20Z" fill="#fff"/></svg>',
+    passport: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M13 24h38a4 4 0 0 1 4 4v28H9V28a4 4 0 0 1 4-4Z" fill="#8138d4"/><path d="M20 9h27a3 3 0 0 1 3 3v12H17V12a3 3 0 0 1 3-3Z" stroke="#b997ec" stroke-width="4"/><path d="M22 16h21M22 21h15" stroke="#b997ec" stroke-width="3" stroke-linecap="round"/></svg>',
+    chart: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M8 49h8V37H8v12Zm15 0h8V27h-8v22Zm15 0h8V15h-8v34Z" fill="#124be0"/></svg>',
+    bolt: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><polygon points="38 4 8 36 28 36 24 60 56 26 36 26 38 4" fill="#f4d33b" stroke="#e0b820" stroke-width="2"/></svg>',
+    users: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="22" cy="20" r="10" fill="#40a83b"/><circle cx="46" cy="24" r="8" fill="#71d8b0"/><path d="M4 56c0-10 8-16 18-16s18 6 18 16" fill="#40a83b"/><path d="M40 56c0-8 6-13 13-13s13 5 13 13" fill="#71d8b0"/></svg>',
+    globe: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="#10aec8"/><path d="M7 23h50M5 33h54M9 44h46M32 6c-8 8-12 17-12 26s4 18 12 26M32 6c8 8 12 17 12 26s-4 18-12 26" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
+    stamp: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M20 8c6-4 18-4 24 0M23 16c5-3 13-3 18 0" stroke="#71d8b0" stroke-width="5" stroke-linecap="round"/><path d="M32 19c-5 0-8 4-10 8L11 46c-4 8 2 14 10 14h22c8 0 14-6 10-14L42 27c-2-4-5-8-10-8Z" fill="#0ca67d"/><path d="M36 31c-1-4-9-4-9 1 0 5 10 3 10 8 0 5-8 6-11 1M32 27v18" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
+    more: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M32 7a23 23 0 0 0-23 23v4" stroke="#e75b2e" stroke-width="5" stroke-linecap="round"/><path d="M20 34v-4a12 12 0 0 1 24 0v4" stroke="#e75b2e" stroke-width="5" stroke-linecap="round"/><path d="M24 35c0-5 7-5 7 0v7h5c6 0 8 6 4 10l-6 6H20l-7-7V40c0-4 6-4 6 0v-5c0-4 5-4 5 0Z" fill="#f06438"/></svg>',
+  };
+
+  // Friendly names (English key → Persian label) for the admin dropdown.
+  const CATEGORY_LABELS = {
+    printer: 'پرینت و کپی',
+    gradcap: 'خدمات دانشجویی',
+    building: 'خدمات اداری',
+    landmark: 'خدمات دولتی',
+    car: 'خودرویی',
+    grid: 'عمومی',
+    folder: 'آرشیو و فایل',
+    wallet: 'مالی و وام',
+    receipt: 'قبض و صورتحساب',
+    bank: 'بانکی',
+    shield: 'بیمه',
+    ticket: 'بلیط و سفر',
+    pencil: 'طراحی و نگارش',
+    heart: 'درمانی',
+    passport: ' passport و اتباع',
+    chart: 'مالیاتی',
+    bolt: 'فوری و ویژه',
+    users: 'ارتباطات و شبکه',
+    globe: 'ثبت‌نام اینترنتی',
+    stamp: 'قضایی',
+    more: 'سایر خدمات',
+  };
+
+  // Whitelist of icon keys the admin can pick from. Order = display order
+  // in the admin dropdown (most common first).
+  window.CATEGORY_ICON_KEYS = [
+    'printer','gradcap','building','landmark','car','grid','folder','wallet',
+    'receipt','bank','shield','ticket','pencil','heart','passport','chart',
+    'bolt','users','globe','stamp','more',
+  ];
+
+  window.CATEGORY_ICON_LABELS = CATEGORY_LABELS;
+
+  /**
+   * Render a colorful category SVG by key. Falls back to a tinted version
+   * of the default grid icon when the key is unknown.
+   */
+  window.renderCategoryIcon = function (key) {
+    const svg = CATEGORY_SVGS[key] || CATEGORY_SVGS.grid;
+    return svg;
+  };
+
+  /**
+   * Render a category icon TINTED with a custom hex color. Used when the
+   * admin sets an iconColor that should override the icon's natural palette.
+   * Implementation: wrap the SVG in a span with CSS `color` set; the inner
+   * paths use `currentColor` (we strip the original fill).
+   *
+   * Note: the colorful SVGs above keep their original colors by default —
+   * this tinting is only applied when the admin explicitly sets iconColor.
+   */
+  window.renderCategoryIconTinted = function (key, color) {
+    const svg = CATEGORY_SVGS[key] || CATEGORY_SVGS.grid;
+    if (!color) return svg;
+    // Replace all fills/strokes inside the svg with currentColor so the
+    // outer span's color wins.
+    const tinted = svg
+      .replace(/fill="[^"]*"/g, 'fill="currentColor"')
+      .replace(/stroke="[^"]*"/g, 'stroke="currentColor"');
+    return '<span style="color:' + color + ';display:inline-flex;width:58%;height:58%;align-items:center;justify-content:center;">' + tinted + '</span>';
+  };
 })();

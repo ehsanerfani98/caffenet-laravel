@@ -18,10 +18,10 @@ class CatalogSeeder extends Seeder
         }
 
         $categories = [
-            ['id' => 'cat-print', 'title' => 'پرینت و چاپ', 'icon_name' => 'Printer', 'description' => 'چاپ اسناد، جزوه و پروژه'],
-            ['id' => 'cat-student', 'title' => 'خدمات دانشجویی', 'icon_name' => 'GraduationCap', 'description' => 'ثبت‌نام، پروژه و امور دانشگاه'],
-            ['id' => 'cat-gov', 'title' => 'خدمات دولتی و اداری', 'icon_name' => 'Building2', 'description' => 'پیگیری امور اداری و دولتی'],
-            ['id' => 'cat-tax', 'title' => 'امور مالیاتی و وام', 'icon_name' => 'Landmark', 'description' => 'مالیات، وام و امور بانکی'],
+            ['id' => 'cat-print', 'title' => 'پرینت و چاپ', 'icon_name' => 'printer', 'icon_color' => '#1559de', 'sort_order' => 1, 'description' => 'چاپ اسناد، جزوه و پروژه'],
+            ['id' => 'cat-student', 'title' => 'خدمات دانشجویی', 'icon_name' => 'gradcap', 'icon_color' => '#475d93', 'sort_order' => 2, 'description' => 'ثبت‌نام، پروژه و امور دانشگاه'],
+            ['id' => 'cat-gov', 'title' => 'خدمات دولتی و اداری', 'icon_name' => 'landmark', 'icon_color' => '#a82cc7', 'sort_order' => 3, 'description' => 'پیگیری امور اداری و دولتی'],
+            ['id' => 'cat-tax', 'title' => 'امور مالیاتی و وام', 'icon_name' => 'chart', 'icon_color' => '#124be0', 'sort_order' => 4, 'description' => 'مالیات، وام و امور بانکی'],
         ];
         foreach ($categories as $c) {
             DB::table('categories')->insert($c);

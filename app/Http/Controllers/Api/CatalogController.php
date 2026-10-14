@@ -17,7 +17,12 @@ class CatalogController extends Controller
 {
     public function categories(Request $request): JsonResponse
     {
-        return response()->json(Category::orderBy('created_at')->get()->map([Formatter::class, 'category'])->values()->all());
+        // Sort by explicit sort_order first, then by created_at for ties so the
+        // home page icon grid shows the admin's intended order.
+        return response()->json(
+            Category::orderBy('sort_order')->orderBy('created_at')->get()
+                ->map([Formatter::class, 'category'])->values()->all()
+        );
     }
 
     public function saveCategory(Request $request): JsonResponse
@@ -28,17 +33,34 @@ class CatalogController extends Controller
             return response()->json(['error' => 'عنوان دسته‌بندی الزامی است.'], 400);
         }
 
+        // Sanitize the hex color (e.g. "#a82cc7" or "a82cc7") — only 6-digit
+        // hex is accepted. Anything else is stored as empty so the frontend
+        // falls back to its default color.
+        $iconColor = trim((string) ($body['iconColor'] ?? ''));
+        if ($iconColor !== '' && ! preg_match('/^#?[0-9a-fA-F]{6}$/', $iconColor)) {
+            return response()->json(['error' => 'رنگ آیکون باید کد هگز ۶ رقمی باشد (مثل #a82cc7).'], 400);
+        }
+        if ($iconColor !== '' && ! str_starts_with($iconColor, '#')) {
+            $iconColor = '#'.$iconColor;
+        }
+
+        $sortOrder = (int) ($body['sortOrder'] ?? 0);
+
         $category = $body['id'] ? Category::find($body['id']) : null;
         if ($category) {
             $category->update([
                 'title' => $title,
                 'icon_name' => (string) ($body['iconName'] ?? $category->icon_name),
+                'icon_color' => $iconColor,
+                'sort_order' => $sortOrder,
                 'description' => (string) ($body['description'] ?? ''),
             ]);
         } else {
             $category = Category::create([
                 'title' => $title,
                 'icon_name' => (string) ($body['iconName'] ?? 'Grid3x3'),
+                'icon_color' => $iconColor,
+                'sort_order' => $sortOrder,
                 'description' => (string) ($body['description'] ?? ''),
                 'created_at' => now()->toIso8601String(),
             ]);

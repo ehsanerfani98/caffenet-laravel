@@ -10,7 +10,7 @@ class Category extends CaffenetModel
 
     protected $table = 'categories';
 
-    protected $fillable = ['id', 'title', 'icon_name', 'description'];
+    protected $fillable = ['id', 'title', 'icon_name', 'icon_color', 'sort_order', 'description', 'created_at'];
 
     public function services(): HasMany
     {
