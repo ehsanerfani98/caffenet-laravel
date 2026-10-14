@@ -65,6 +65,18 @@ class PaymentFulfillmentService
                     if ($order->coupon_id) {
                         DB::table('coupons')->where('id', $order->coupon_id)->increment('usage_count');
                     }
+
+                    // ── Smart queue: enqueue the now-submitted order ──
+                    // Resolved out of the container to avoid a static circular ref.
+                    try {
+                        $order->refresh();
+                        app(\App\Services\Queue\OrderLifecycleService::class)->onSubmitted($order);
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::error('PaymentFulfillment: onSubmitted failed', [
+                            'order_id' => $order->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                 }
             } else { // wallet top-up
                 $owner = User::find($payment->user_id);

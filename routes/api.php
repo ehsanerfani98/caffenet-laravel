@@ -13,6 +13,12 @@ use App\Http\Controllers\Api\SliderController;
 use App\Http\Controllers\Api\UploadController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WalletController;
+// Smart queue / capacity:
+use App\Http\Controllers\Api\ArtisanRunnerController;
+use App\Http\Controllers\Api\CapacityController;
+use App\Http\Controllers\Api\QueueController;
+use App\Http\Controllers\Api\QueueOrderController;
+use App\Http\Controllers\Api\TrackController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -130,3 +136,40 @@ Route::middleware(['auth.session', 'permission:slider.delete|slider.manage'])->d
 // Order files are stored in public/uploads (no symlink needed) and served
 // directly from /uploads/*; the fallback route in web.php keeps the
 // ownership check for requests that still reach PHP.
+
+// =========================================================================
+// Smart Queue + Capacity Management (added 2026-10-15)
+// =========================================================================
+
+// ---------------- Public capacity (cached 30s) ----------------
+Route::get('/capacity/current', [CapacityController::class, 'current']);
+Route::middleware('auth.session')->get('/capacity/slots', [CapacityController::class, 'slots']);
+
+// ---------------- Public order tracking (token-auth) ----------------
+// No auth.session — the token IS the auth. Anyone with the link can view.
+Route::get('/orders/track/{token}', [TrackController::class, 'show']);
+
+// ---------------- Queue operations on orders ----------------
+Route::middleware('auth.session')->group(function () {
+    // Customer + staff: polling + reservation + notify-me + cancel
+    Route::get('/orders/{id}/updates', [QueueOrderController::class, 'updates']);
+    Route::post('/orders/{id}/reserve', [QueueOrderController::class, 'reserve']);
+    Route::post('/orders/{id}/notify-me', [QueueOrderController::class, 'notifyMe']);
+    Route::delete('/orders/{id}/cancel', [QueueOrderController::class, 'cancel']);
+
+    // Staff only: start / complete
+    Route::patch('/orders/{id}/start', [QueueOrderController::class, 'start'])
+        ->middleware('permission:orders.edit|orders.manage');
+    Route::patch('/orders/{id}/complete', [QueueOrderController::class, 'complete'])
+        ->middleware('permission:orders.edit|orders.manage');
+});
+
+// ---------------- Admin queue snapshot ----------------
+Route::middleware(['auth.session', 'permission:orders.view|orders.manage'])
+    ->get('/queue', [QueueController::class, 'index']);
+
+// ---------------- Artisan Runner (cPanel no-SSH deploy) ----------------
+// Token + optional IP whitelist are enforced inside the controller.
+// Disable by setting ARTISAN_RUNNER_TOKEN=disabled in production.
+Route::any('/_artisan/run/{command}', [ArtisanRunnerController::class, 'run'])
+    ->where('command', '[a-z0-9:_-]+');

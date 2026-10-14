@@ -16,6 +16,23 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+// Smart queue / capacity bindings:
+use App\Contracts\AutoRequeueServiceInterface;
+use App\Contracts\NotificationDispatcherServiceInterface;
+use App\Contracts\QueueLockServiceInterface;
+use App\Contracts\QueueManagerServiceInterface;
+use App\Contracts\SlotReservationServiceInterface;
+use App\Contracts\StatusResolverServiceInterface;
+use App\Contracts\WaitTimeEstimatorServiceInterface;
+use App\Services\Capacity\SlotReservationService;
+use App\Services\Capacity\StatusResolverService;
+use App\Services\Notification\NotificationDispatcherService;
+use App\Services\Queue\AutoRequeueService;
+use App\Services\Queue\OrderLifecycleService;
+use App\Services\Queue\OrderTypeClassifierService;
+use App\Services\Queue\QueueLockService;
+use App\Services\Queue\QueueManagerService;
+use App\Services\Queue\WaitTimeEstimatorService;
 use Laravel\Fortify\Actions\AttemptToAuthenticate;
 use Laravel\Fortify\Actions\EnsureLoginIsNotThrottled;
 use Laravel\Fortify\Actions\PrepareAuthenticatedSession;
@@ -44,6 +61,17 @@ class AppServiceProvider extends ServiceProvider
         // JSON-shaped responses for the SPA, replacing Fortify's redirects.
         $this->app->singleton(LoginResponse::class, FortifyLoginResponse::class);
         $this->app->singleton(LockoutResponse::class, FortifyLockoutResponse::class);
+
+        // ── Smart queue / capacity service bindings ──────────────────
+        $this->app->singleton(QueueLockServiceInterface::class, QueueLockService::class);
+        $this->app->singleton(QueueManagerServiceInterface::class, QueueManagerService::class);
+        $this->app->singleton(WaitTimeEstimatorServiceInterface::class, WaitTimeEstimatorService::class);
+        $this->app->singleton(StatusResolverServiceInterface::class, StatusResolverService::class);
+        $this->app->singleton(SlotReservationServiceInterface::class, SlotReservationService::class);
+        $this->app->singleton(AutoRequeueServiceInterface::class, AutoRequeueService::class);
+        $this->app->singleton(NotificationDispatcherServiceInterface::class, NotificationDispatcherService::class);
+        $this->app->singleton(OrderLifecycleService::class);
+        $this->app->singleton(OrderTypeClassifierService::class);
     }
 
     /**
@@ -114,6 +142,10 @@ class AppServiceProvider extends ServiceProvider
         // failure — reusing the same idempotent action as the Zarinpal flow.
         Event::listen(PurchaseConsumed::class, [FulfillBazaarPurchase::class, 'handleConsumed']);
         Event::listen(PurchaseFailed::class, [FulfillBazaarPurchase::class, 'handleFailed']);
+
+        // ── Smart queue / capacity event wiring ──────────────────────
+        Event::listen(\App\Events\OrderStarted::class, \App\Listeners\LogNotificationOnStart::class);
+        Event::listen(\App\Events\OrderNoResponse::class, \App\Listeners\RequeueOnNoResponse::class);
     }
 
     /** Counts the attempt against Fortify's login limiter, then fails. */

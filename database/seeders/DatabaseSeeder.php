@@ -18,6 +18,8 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             AdminUsersSeeder::class,
             CatalogSeeder::class,
+            // Smart queue / capacity:
+            OrderTypeSeeder::class,
         ]);
     }
 }

@@ -51,6 +51,32 @@ class Order extends CaffenetModel
     /** Never shown in the operator queue. */
     public const NON_QUEUE_STATUSES = [self::STATUS_PENDING_PAYMENT, self::STATUS_FAILED, self::STATUS_REFUNDED];
 
+    /** Orders that ARE in the active queue (waiting or being worked on). */
+    public const QUEUE_STATUSES = [self::STATUS_SUBMITTED, self::STATUS_PROCESSING];
+
+    /**
+     * Capacity status tiers shown as the global indicator.
+     *  green  — normal capacity, ETA < 15 min
+     *  yellow — queue filling up, ETA 15-30 min
+     *  orange — busy, ETA 30-60 min
+     *  red    — today's capacity exhausted, first slot tomorrow
+     */
+    public const CAPACITY_GREEN = 'green';
+    public const CAPACITY_YELLOW = 'yellow';
+    public const CAPACITY_ORANGE = 'orange';
+    public const CAPACITY_RED = 'red';
+
+    public const CAPACITY_TIERS = [
+        self::CAPACITY_GREEN, self::CAPACITY_YELLOW, self::CAPACITY_ORANGE, self::CAPACITY_RED,
+    ];
+
+    public const CAPACITY_TITLES = [
+        'green' => 'ظرفیت عادی',
+        'yellow' => 'صف در حال افزایش',
+        'orange' => 'صف شلوغ',
+        'red' => 'پذیرش امروز تکمیل شده',
+    ];
+
     /**
      * Contact channels the customer can prefer (multi-select). Keys are stored
      * in orders.contact_methods_json; titles are the operator-facing labels.
@@ -78,6 +104,12 @@ class Order extends CaffenetModel
         'refund_amount', 'refunded_at',
         'assigned_operator_id', 'assigned_operator_name', 'internal_note', 'customer_note',
         'contact_methods_json', 'coupon_id', 'rating', 'review_comment', 'created_at', 'updated_at',
+        // Smart queue / capacity fields:
+        'queue_type', 'priority_level',
+        'estimated_wait_minutes', 'estimated_duration_minutes',
+        'estimated_start_at', 'estimated_end_at',
+        'track_token', 'queue_position',
+        'no_response_deadline', 'reserved_slot_id',
     ];
 
     protected $casts = [
@@ -86,6 +118,10 @@ class Order extends CaffenetModel
         'paid_amount' => 'integer',
         'refund_amount' => 'integer',
         'rating' => 'integer',
+        'priority_level' => 'integer',
+        'estimated_wait_minutes' => 'integer',
+        'estimated_duration_minutes' => 'integer',
+        'queue_position' => 'integer',
     ];
 
     public function logs(): HasMany
@@ -106,6 +142,26 @@ class Order extends CaffenetModel
     public function coupon(): BelongsTo
     {
         return $this->belongsTo(Coupon::class, 'coupon_id');
+    }
+
+    public function queueEntry(): HasMany
+    {
+        return $this->hasMany(QueueEntry::class, 'order_id');
+    }
+
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(NotificationLog::class, 'order_id');
+    }
+
+    public function statusHistories(): HasMany
+    {
+        return $this->hasMany(OrderStatusHistory::class, 'order_id');
+    }
+
+    public function reservedSlot(): BelongsTo
+    {
+        return $this->belongsTo(CapacitySlot::class, 'reserved_slot_id');
     }
 
     public function formData(): array

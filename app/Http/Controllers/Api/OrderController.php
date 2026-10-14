@@ -146,6 +146,14 @@ class OrderController extends Controller
 
         $order = null;
         DB::transaction(function () use (&$order, $user, $service, $body, $formData, $contactMethods, $urgency, $deliveryMethod, $pricing, $discount, $appliedCoupon) {
+            // Smart queue: classify the order type from the service's
+            // estimated_time text (or honor an explicit client override).
+            $classifier = app(\App\Services\Queue\OrderTypeClassifierService::class);
+            $queueType = $classifier->classify(
+                $service->estimated_time ?? null,
+                \App\Models\OrderType::KEY_NORMAL,
+            );
+
             $order = Order::create([
                 'order_number' => self::generateOrderNumber(),
                 'service_id' => $service->id,
@@ -155,6 +163,11 @@ class OrderController extends Controller
                 'customer_name' => $user->name,
                 'status' => Order::STATUS_PENDING_PAYMENT,
                 'urgency' => $urgency,
+                // Smart queue fields (set at creation; consumed when the
+                // order transitions to `submitted` after payment):
+                'queue_type' => $queueType,
+                'priority_level' => $queueType === \App\Models\OrderType::KEY_QUICK ? 9
+                    : ($queueType === \App\Models\OrderType::KEY_LONG ? 3 : 5),
                 'delivery_method' => $deliveryMethod,
                 'delivery_address' => $deliveryMethod === 'courier' ? (string) $body['deliveryAddress'] : null,
                 'delivery_postal_code' => $deliveryMethod === 'courier' ? ((string) ($body['deliveryPostalCode'] ?? '') ?: null) : null,
@@ -307,6 +320,17 @@ class OrderController extends Controller
             "کافی‌نت احسان: پرداخت سفارش {$order->order_number} از کیف پول انجام شد.",
             'order_status'
         );
+
+        // ── Smart queue: enqueue the now-submitted order ──
+        try {
+            $order->refresh();
+            app(\App\Services\Queue\OrderLifecycleService::class)->onSubmitted($order);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('OrderController: onSubmitted failed', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json(Formatter::order($order->fresh()));
     }
@@ -634,6 +658,10 @@ class OrderController extends Controller
             DB::table('order_logs')->where('order_id', $order->id)->delete();
             DB::table('ticket_messages')->where('order_id', $order->id)->delete();
             DB::table('payments')->where('order_id', $order->id)->delete();
+            // Smart queue cleanup: drop queue_entry, history, notifications.
+            DB::table('queue_entries')->where('order_id', $order->id)->delete();
+            DB::table('order_status_histories')->where('order_id', $order->id)->delete();
+            DB::table('notification_logs')->where('order_id', $order->id)->delete();
             DB::table('orders')->where('id', $order->id)->delete();
         });
 
