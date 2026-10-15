@@ -203,7 +203,6 @@ Route::middleware('auth.session')->group(function () {
 // ---------------- SMS pattern variable mappings ----------------
 Route::middleware(['auth.session', 'permission:settings.edit|settings.manage'])->group(function () {
     Route::get('/sms/pattern-vars', [SmsPatternVarController::class, 'index']);
-    Route::get('/sms/pattern-vars/data-fields', [SmsPatternVarController::class, 'dataFields']);
     Route::post('/sms/pattern-vars', [SmsPatternVarController::class, 'store']);
     Route::put('/sms/pattern-vars/{id}', [SmsPatternVarController::class, 'update']);
     Route::delete('/sms/pattern-vars/{id}', [SmsPatternVarController::class, 'destroy']);

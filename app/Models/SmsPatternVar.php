@@ -9,7 +9,7 @@ class SmsPatternVar extends CaffenetModel
     protected $table = 'sms_pattern_vars';
 
     protected $fillable = [
-        'id', 'pattern_key', 'var_name', 'data_field', 'sort_order', 'created_at',
+        'id', 'pattern_key', 'var_name', 'sort_order', 'created_at',
     ];
 
     protected $casts = [

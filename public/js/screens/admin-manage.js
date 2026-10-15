@@ -290,9 +290,9 @@
           textField('smsSender', 'شماره فرستنده', { req: true, help: 'شماره اختصاصی شما در ippanel.' }) +
 
           '<div class="info-box" style="margin:12px 0;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:11px;line-height:1.8;color:#1e40af">' +
-            '<b>راهنما:</b> ابتدا در پنل ippanel پترن خود را بسازید. سپس کد پترن را در فیلد مربوطه وارد کنید. ' +
-            'برای هر متغیری که در پترن تعریف کرده‌اید، یک ردیف اضافه کنید: نام متغیر (مثلاً customer) + فیلد سیستمی که مقدار آن را پر می‌کند (مثلاً customer_name). ' +
-            'ippanel فقط متغیرهایی که تعریف کرده‌اید را استفاده می‌کند — بقیه نادیده گرفته می‌شود.' +
+            '<b>راهنما:</b> در پنل ippanel پترن خود را بسازید (مثلاً «سفارش {order_number} آماده شد»). ' +
+            'سپس کد پترن را در فیلد مربوطه وارد کنید. برای هر متغیری که در پترن تعریف کرده‌اید، یک ردیف اضافه کنید و نام متغیر را بنویسید. ' +
+            'سیستم خودکار مقدار هر متغیر را از داده‌های سفارش پر می‌کند.' +
           '</div>' +
 
           '<div id="sms-patterns-container" style="margin-top:12px">' +
@@ -515,35 +515,23 @@
         ];
 
         let varsByPattern = {};
-        let dataFields = [];
         try {
-          const [varsResp, fieldsResp] = await Promise.all([
-            api.request('GET', '/api/sms/pattern-vars'),
-            api.request('GET', '/api/sms/pattern-vars/data-fields'),
-          ]);
+          const varsResp = await api.request('GET', '/api/sms/pattern-vars');
           (varsResp || []).forEach((v) => {
             if (!varsByPattern[v.pattern_key]) varsByPattern[v.pattern_key] = [];
             varsByPattern[v.pattern_key].push(v);
           });
-          dataFields = fieldsResp || [];
         } catch (e) {
           $container.html('<div class="warn-box">خطا در بارگذاری متغیرهای پترن: ' + PU.escapeHtml(e.message) + '</div>');
           return;
         }
 
-        function buildOptions(selected) {
-          return '<option value="">— انتخاب —</option>' +
-            dataFields.map((f) => '<option value="' + f.key + '"' + (f.key === selected ? ' selected' : '') + '>' + PU.escapeHtml(f.label) + ' (' + f.key + ')</option>').join('');
-        }
-
         function renderVarRow(v, patternKey) {
           const id = v ? v.id : 'new-' + Math.random().toString(36).slice(2, 8);
           const varName = v ? v.var_name : '';
-          const dataField = v ? v.data_field : '';
           return (
             '<div class="sms-var-row" data-var-id="' + id + '" data-pattern-key="' + patternKey + '" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">' +
-              '<input class="input sms-var-name" dir="ltr" placeholder="نام متغیر (مثلاً customer)" value="' + PU.escapeHtml(varName) + '" style="flex:1">' +
-              '<select class="select sms-var-field" style="flex:1.2">' + buildOptions(dataField) + '</select>' +
+              '<input class="input sms-var-name" dir="ltr" placeholder="نام متغیر (مثلاً order_number)" value="' + PU.escapeHtml(varName) + '" style="flex:1">' +
               '<button type="button" class="icon-btn sms-var-save" style="background:var(--emerald-soft);color:var(--emerald-deep);flex:none">' + icon('check') + '</button>' +
               '<button type="button" class="icon-btn sms-var-del" style="background:var(--rose-soft);color:var(--rose);flex:none">' + icon('trash') + '</button>' +
             '</div>'
@@ -568,8 +556,6 @@
         }
 
         $container.html(PATTERNS.map(renderPattern).join(''));
-
-        // Mark the pattern code fields as "rendered" so the save handler picks them up.
         PATTERNS.forEach((p) => { rendered[p.setting] = true; });
 
         // Add variable row
@@ -584,20 +570,19 @@
           const id = $row.data('var-id');
           const pk = $row.data('pattern-key');
           const varName = $row.find('.sms-var-name').val().trim();
-          const dataField = $row.find('.sms-var-field').val();
-          if (!varName || !dataField) {
-            UI.toast('نام متغیر و فیلد داده الزامی است.', 'error');
+          if (!varName) {
+            UI.toast('نام متغیر الزامی است.', 'error');
             return;
           }
           const $btn = $(this).prop('disabled', true);
           try {
             if (String(id).startsWith('new-')) {
-              const r = await api.request('POST', '/api/sms/pattern-vars', { pattern_key: pk, var_name: varName, data_field: dataField });
+              const r = await api.request('POST', '/api/sms/pattern-vars', { pattern_key: pk, var_name: varName });
               $row.data('var-id', r.id);
               $row.attr('data-var-id', r.id);
               UI.toast('متغیر اضافه شد.', 'success');
             } else {
-              await api.request('PUT', '/api/sms/pattern-vars/' + id, { var_name: varName, data_field: dataField });
+              await api.request('PUT', '/api/sms/pattern-vars/' + id, { var_name: varName });
               UI.toast('متغیر ذخیره شد.', 'success');
             }
           } catch (e) { UI.toast(e.message, 'error'); }

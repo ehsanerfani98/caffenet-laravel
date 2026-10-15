@@ -8,16 +8,15 @@ use Illuminate\Support\Facades\Http;
 /**
  * ippanel SMS service — ALL messages are pattern-based via the Edge API.
  *
- * The admin creates patterns in ippanel with their OWN variable names
- * (e.g. %customer%, %order%). For each pattern event, the admin enters
- * in the settings panel:
- *   1. The pattern code (from ippanel)
- *   2. A list of variable mappings — each row maps the admin's custom
- *      variable name to a system data field:
- *        var_name="customer" → data_field="customer_name"
- *        var_name="order"    → data_field="order_number"
+ * The admin workflow:
+ *   1. Create a pattern in ippanel (e.g. "سفارش {order_number} آماده شد")
+ *   2. Get the pattern code
+ *   3. In the admin panel, enter: pattern code + variable names
+ *      (e.g. "order_number" — just the name, nothing else)
  *
- * These mappings are stored in the sms_pattern_vars table.
+ * The system internally knows what each variable name means and fills it
+ * with the correct value from the order data. The mapping is HARDCODED
+ * in the VALUE_MAP below — the admin never selects a "data field".
  */
 class SmsService
 {
@@ -39,29 +38,35 @@ class SmsService
     }
 
     /**
-     * All system data fields that can be mapped to pattern variables.
-     * The admin picks from this list when configuring each variable.
+     * HARDCODED internal mapping: variable name → how to extract its value.
+     *
+     * The admin just types the variable name (e.g. "order_number") in the
+     * settings panel. The system looks it up here to know what value to
+     * send. If a variable isn't in this map, it's sent as empty string.
+     *
+     * These are the ONLY variable names the system knows about. The admin
+     * must use these exact names when creating patterns in ippanel.
      */
-    public const DATA_FIELDS = [
-        'order_number'       => 'شماره سفارش (CN-1234)',
-        'customer_name'      => 'نام مشتری',
-        'customer_phone'     => 'شماره موبایل مشتری',
-        'service_title'      => 'عنوان خدمت',
-        'status'             => 'کد وضعیت سفارش',
-        'status_title'       => 'عنوان فارسی وضعیت',
-        'eta_minutes'        => 'زمان انتظار تقریبی (دقیقه)',
-        'duration_minutes'   => 'مدت انجام تقریبی (دقیقه)',
-        'start_time'         => 'زمان تقریبی شروع',
-        'end_time'           => 'زمان تقریبی تکمیل',
-        'queue_position'     => 'موقعیت در صف',
-        'tracking_url'       => 'لینک پیگیری عمومی',
-        'amount'             => 'مبلغ (تومان)',
-        'payment_method'     => 'روش پرداخت',
-        'minutes_before'     => 'دقیقه تا شروع (یادآوری)',
-        'code'               => 'کد تایید OTP',
-        'title'              => 'عنوان (همگانی)',
-        'body'               => 'متن (همگانی)',
-        'site_title'         => 'عنوان سایت',
+    private const VALUE_MAP = [
+        'order_number'       => 'order_number',
+        'customer_name'      => 'customer_name',
+        'customer_phone'     => 'customer_phone',
+        'service_title'      => 'service_title',
+        'status'             => 'status',
+        'status_title'       => 'status_title',
+        'eta_minutes'        => 'eta_minutes',
+        'duration_minutes'   => 'duration_minutes',
+        'start_time'         => 'start_time',
+        'end_time'           => 'end_time',
+        'queue_position'     => 'queue_position',
+        'tracking_url'       => 'tracking_url',
+        'amount'             => 'amount',
+        'payment_method'     => 'payment_method',
+        'minutes_before'     => 'minutes_before',
+        'code'               => 'code',
+        'title'              => 'title',
+        'body'               => 'body',
+        'site_title'         => 'site_title',
     ];
 
     /**
@@ -116,11 +121,10 @@ class SmsService
     ];
 
     /**
-     * Core: send a pattern SMS.
+     * Core: send a pattern SMS via the Edge API.
      *
-     * Reads the admin's variable mappings from sms_pattern_vars for this
-     * patternKey, resolves each variable from the $data pool, and POSTs
-     * to the Edge API.
+     * Reads the admin's variable names from sms_pattern_vars, looks up
+     * each one in the VALUE_MAP to get the value from $data, and POSTs.
      */
     public static function sendPattern(
         string $phone,
@@ -138,7 +142,7 @@ class SmsService
                 return;
             }
 
-            // Build params from the admin's variable mappings.
+            // Build params: read variable names from DB, get values from $data.
             $params = self::resolveParams($patternKey, $data);
 
             if ($s['testMode']) {
@@ -193,15 +197,17 @@ class SmsService
     }
 
     /**
-     * Read the admin's variable mappings from sms_pattern_vars and resolve
-     * each variable from the data pool.
+     * Read the admin's variable names from sms_pattern_vars and resolve
+     * each one to its value from the $data pool.
      *
-     * Example: patternKey = "order_started", rows in DB:
-     *   var_name="customer" → data_field="customer_name"
-     *   var_name="order"    → data_field="order_number"
+     * The DB only stores the variable NAME (e.g. "order_number").
+     * The system looks it up in $data to get the value (e.g. "CN-1234").
      *
-     * With data = {"customer_name": "احسان", "order_number": "CN-1234", ...}
-     * Result: {"customer": "احسان", "order": "CN-1234"}
+     * Example: DB rows for pattern_key="order_ready":
+     *   var_name = "order_number"
+     *
+     * With data = {"order_number": "CN-1234", "customer_name": "احسان", ...}
+     * Result: {"order_number": "CN-1234"}
      */
     private static function resolveParams(string $patternKey, array $data): array
     {
@@ -211,7 +217,9 @@ class SmsService
 
         $params = [];
         foreach ($rows as $row) {
-            $value = $data[$row->data_field] ?? '';
+            // The var_name the admin entered IS the key in $data.
+            // If it exists in $data, use its value. Otherwise empty string.
+            $value = $data[$row->var_name] ?? '';
             $params[$row->var_name] = is_scalar($value) ? (string) $value : '';
         }
         return $params;

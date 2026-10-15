@@ -24,8 +24,7 @@ return new class extends Migration
         Schema::create('sms_pattern_vars', function (Blueprint $table) {
             $table->string('id')->primary();
             $table->string('pattern_key');   // order_started | otp | broadcast | ...
-            $table->string('var_name');       // admin's custom variable name from ippanel
-            $table->string('data_field');     // system field name (customer_name, order_number, ...)
+            $table->string('var_name');       // the variable name the admin used in ippanel
             $table->unsignedInteger('sort_order')->default(0);
             $table->string('created_at', 32);
             $table->index('pattern_key', 'idx_smspv_pattern');
