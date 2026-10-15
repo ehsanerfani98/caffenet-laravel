@@ -21,6 +21,7 @@
     <meta name="apple-mobile-web-app-title" content="{{ \App\Services\SettingsService::get('siteTitle', 'کافی‌نت احسان') }}">
 
     <link rel="stylesheet" href="/css/app.css?v={{ filemtime(public_path('css/app.css')) }}">
+    <link rel="stylesheet" href="/css/fa.css?v={{ filemtime(public_path('css/fa.css')) }}">
     {{-- Self-hosted Jalali (shamsi) date picker — powers every input[data-jdp]. --}}
     <link rel="stylesheet" href="/JalaliDatePicker-main/dist/jalalidatepicker.min.css?v={{ filemtime(public_path('JalaliDatePicker-main/dist/jalalidatepicker.min.css')) }}">
     <script defer src="/js/jquery.min.js?v={{ filemtime(public_path('js/jquery.min.js')) }}"></script>

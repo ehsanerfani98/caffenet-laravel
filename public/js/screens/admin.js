@@ -86,9 +86,13 @@
         let html = '<button class="btn block sm" id="new-service" style="margin-bottom:10px">' + icon('plus') + 'خدمت جدید</button>';
         cats.forEach((c) => {
           const items = api.state.services.filter((s) => s.categoryId === c.id);
-          html += '<div class="cat-head" style="margin:10px 2px 7px">' + renderServiceIcon(c.iconName) + ' ' + PU.escapeHtml(c.title) + '</div>';
+          html += '<div class="cat-head" style="margin:10px 2px 7px">' +
+            window.renderCategoryIcon(c.iconName || 'general', { color: c.iconColor || null }) +
+            ' ' + PU.escapeHtml(c.title) + '</div>';
           html += items.map((s) =>
-            '<div class="list-row"><div class="lr-icon ' + (s.isActive ? 'tone-emerald' : 'tone-slate') + '">' + renderServiceIcon(s.icon) + '</div>' +
+            '<div class="list-row"><div class="lr-icon" style="background:transparent;padding:0;width:44px;height:44px;flex:none;overflow:hidden;font-size:20px;">' +
+              window.renderCategoryIcon(s.icon || 'printer', {}) +
+            '</div>' +
             '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(s.title) + '</div>' +
             '<div class="lr-sub">' + PU.toPersianDigits(s.fields.length) + ' فیلد • ' + (s.isActive ? 'فعال' : 'غیرفعال') + '</div></div>' +
             '<button class="icon-btn" style="background:var(--slate-soft);color:var(--ink)" data-edit-svc="' + s.id + '">' + icon('edit') + '</button></div>'
@@ -103,23 +107,14 @@
       } else {
         let html = '<button class="btn block sm" id="new-category" style="margin-bottom:10px">' + icon('plus') + 'دسته‌بندی جدید</button>';
         html += api.state.categories.map(function (c) {
-          // Use the colorful icon (matching home page) when available; tint
-          // with the saved color when set. Otherwise fall back to the legacy
-          // stroke icon to preserve backward compatibility.
-          const key = (c.iconName || '').toLowerCase();
-          let iconSvg;
-          if (window.CATEGORY_ICON_KEYS && window.CATEGORY_ICON_KEYS.indexOf(key) !== -1) {
-            iconSvg = c.iconColor
-              ? window.renderCategoryIconTinted(key, c.iconColor)
-              : window.renderCategoryIcon(key);
-          } else {
-            iconSvg = renderServiceIcon(c.iconName);
-          }
+          // Font Awesome icon (with optional tint), matching what the home
+          // page grid will render.
+          const iconHtml = window.renderCategoryIcon(c.iconName || 'general', { color: c.iconColor || null });
           const orderLabel = (typeof c.sortOrder === 'number' && c.sortOrder !== 0)
             ? ' · ترتیب: ' + PU.toPersianDigits(c.sortOrder)
             : '';
           return (
-            '<div class="list-row"><div class="lr-icon" style="background:transparent;padding:0;width:44px;height:44px;flex:none;overflow:hidden;">' + iconSvg + '</div>' +
+            '<div class="list-row"><div class="lr-icon" style="background:transparent;padding:0;width:44px;height:44px;flex:none;overflow:hidden;">' + iconHtml + '</div>' +
             '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(c.title) + '</div>' +
             '<div class="lr-sub">' + PU.escapeHtml(c.description || '') + orderLabel + '</div></div>' +
             '<button class="icon-btn" style="background:var(--slate-soft);color:var(--ink)" data-edit-cat="' + c.id + '">' + icon('edit') + '</button></div>'
@@ -140,30 +135,37 @@
         icon: 'grid', tone: 'sky',
       });
 
-      // Build the icon picker: a dropdown of friendly names + a live preview
-      // tile that mirrors exactly how the icon will appear on the home page.
-      const ICON_KEYS = window.CATEGORY_ICON_KEYS || ['printer','gradcap','building','landmark','car','grid','folder','wallet','receipt','bank','shield','ticket','pencil','heart','passport','chart','bolt','users','globe','stamp','more'];
-      const ICON_LABELS = window.CATEGORY_ICON_LABELS || {};
-      const currentIcon = (cat && cat.iconName ? cat.iconName : 'printer').toLowerCase();
-      const currentColor = cat && cat.iconColor ? cat.iconColor : '';
+      const LIB = window.CATEGORY_ICON_LIBRARY || [];
+      let currentIcon = (cat && cat.iconName ? cat.iconName : 'printer');
+      let currentColor = cat && cat.iconColor ? cat.iconColor : '';
       const currentOrder = cat && typeof cat.sortOrder === 'number' ? cat.sortOrder : 0;
 
-      // Preset palette shown as swatches — picks fill the hex input.
-      const PRESET_COLORS = [
-        '#1559de', '#10aec8', '#0ca67d', '#40a83b', '#f4d33b',
-        '#f08d37', '#e75b2e', '#d91543', '#ef6c7b', '#a82cc7',
-        '#8138d4', '#475d93', '#159db5', '#124be0', '#e40012',
-      ];
+      function lookupLabel(key) {
+        const it = LIB.find((x) => x.key === key);
+        return it ? it.label : key;
+      }
 
-      function previewHtml(iconKey, color) {
-        const key = (iconKey || 'printer').toLowerCase();
-        const svg = color
-          ? window.renderCategoryIconTinted(key, color)
-          : window.renderCategoryIcon(key);
-        // Use a tile that mirrors .cat-icon-box sizing (roughly 72px wide).
+      function previewBox() {
+        // Tile mirrors .cat-icon-box sizing — exactly what the home page shows.
         return '<div style="width:72px;height:72px;display:grid;place-items:center;' +
-          'background:#fff;border:1px solid var(--line);border-radius:18px;' +
-          'box-shadow:0 2px 10px rgba(24,34,48,.07);margin:0 auto;">' + svg + '</div>';
+          'background:' + (currentColor ? '#fff' : 'var(--sky-soft)') + ';' +
+          'border:1px solid var(--line);border-radius:18px;' +
+          'box-shadow:0 2px 10px rgba(24,34,48,.07);">' +
+          window.renderCategoryIcon(currentIcon, { color: currentColor || null, size: '2x' }) +
+          '</div>';
+      }
+
+      function iconFieldHtml() {
+        return (
+          '<div class="iconpick-field" id="cat-icon-trigger">' +
+            '<div class="iconpick-preview" id="cat-icon-preview">' + previewBox() + '</div>' +
+            '<div class="iconpick-meta">' +
+              '<div class="iconpick-meta-title" id="cat-icon-label">' + PU.escapeHtml(lookupLabel(currentIcon)) + '</div>' +
+              '<div class="iconpick-meta-sub">برای تغییر ضربه بزنید</div>' +
+            '</div>' +
+            '<span class="iconpick-cta">انتخاب</span>' +
+          '</div>'
+        );
       }
 
       sheet.body.html(
@@ -171,30 +173,21 @@
         '<input class="input" id="cat-title" value="' + PU.escapeHtml(cat ? cat.title : '') + '">' +
 
         '<label class="field-label">آیکون</label>' +
-        '<select class="select" id="cat-icon">' +
-          ICON_KEYS.map(function (k) {
-            const label = ICON_LABELS[k] || k;
-            const sel = (k === currentIcon) ? ' selected' : '';
-            return '<option value="' + k + '"' + sel + '>' + PU.escapeHtml(label) + '</option>';
-          }).join('') +
-        '</select>' +
+        '<div id="cat-icon-host">' + iconFieldHtml() + '</div>' +
 
-        '<div style="display:flex;gap:10px;align-items:center;margin:10px 0">' +
-          '<div id="cat-icon-preview">' + previewHtml(currentIcon, currentColor) + '</div>' +
-          '<div style="flex:1;min-width:0">' +
-            '<label class="field-label" style="margin:0 0 6px">رنگ آیکون (اختیاری)</label>' +
-            '<input class="input" id="cat-color" type="text" value="' + PU.escapeHtml(currentColor) + '" placeholder="#a82cc7 یا خالی برای رنگ پیش‌فرض" style="margin-bottom:8px">' +
-            '<div id="cat-color-swatches" style="display:flex;flex-wrap:wrap;gap:5px">' +
-              PRESET_COLORS.map(function (c) {
-                return '<button type="button" class="cat-color-swatch" data-color="' + c + '" ' +
-                  'style="width:22px;height:22px;border-radius:6px;background:' + c + ';' +
-                  'border:2px solid #fff;box-shadow:0 0 0 1px var(--line);cursor:pointer;padding:0"></button>';
-              }).join('') +
-            '</div>' +
-          '</div>' +
+        '<label class="field-label" style="margin-top:12px">رنگ آیکون (اختیاری)</label>' +
+        '<input class="input" id="cat-color" type="text" value="' + PU.escapeHtml(currentColor) + '" placeholder="#a82cc7 یا خالی برای رنگ پیش‌فرض">' +
+        '<div id="cat-color-swatches" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">' +
+          ['#1559de', '#10aec8', '#0ca67d', '#40a83b', '#f4d33b',
+           '#f08d37', '#e75b2e', '#d91543', '#ef6c7b', '#a82cc7',
+           '#8138d4', '#475d93', '#159db5', '#124be0', '#e40012'].map(function (c) {
+            return '<button type="button" class="cat-color-swatch" data-color="' + c + '" ' +
+              'style="width:22px;height:22px;border-radius:6px;background:' + c + ';' +
+              'border:2px solid #fff;box-shadow:0 0 0 1px var(--line);cursor:pointer;padding:0"></button>';
+          }).join('') +
         '</div>' +
 
-        '<label class="field-label">ترتیب نمایش (عدد کوچک‌تر = زودتر)</label>' +
+        '<label class="field-label" style="margin-top:12px">ترتیب نمایش (عدد کوچک‌تر = زودتر)</label>' +
         '<input class="input" id="cat-sort" type="number" inputmode="numeric" value="' + currentOrder + '" style="margin-bottom:6px">' +
         '<div style="font-size:11px;color:var(--ink-soft);margin-bottom:10px">دسته‌بندی‌ها با عدد مساوی، بر اساس زمان ایجاد مرتب می‌شوند.</div>' +
 
@@ -202,17 +195,28 @@
         '<input class="input" id="cat-desc" value="' + PU.escapeHtml(cat ? cat.description : '') + '">'
       );
 
-      // Live preview update on icon / color change.
-      function updatePreview() {
-        const iconKey = sheet.body.find('#cat-icon').val();
-        const color = sheet.body.find('#cat-color').val().trim();
-        sheet.body.find('#cat-icon-preview').html(previewHtml(iconKey, color));
+      // Open the IconPicker sheet on click.
+      sheet.body.find('#cat-icon-trigger').on('click', function () {
+        UI.iconPicker({
+          current: currentIcon,
+          title: 'انتخاب آیکن دسته‌بندی',
+          onPick: function (key, fa, label) {
+            currentIcon = key;
+            // Refresh the field
+            sheet.body.find('#cat-icon-host').html(iconFieldHtml());
+          },
+        });
+      });
+
+      // Live preview update on color change.
+      function updateColorPreview() {
+        currentColor = sheet.body.find('#cat-color').val().trim();
+        sheet.body.find('#cat-icon-preview').html(previewBox());
       }
-      sheet.body.find('#cat-icon').on('change', updatePreview);
-      sheet.body.find('#cat-color').on('input', PU.debounce(updatePreview, 200));
+      sheet.body.find('#cat-color').on('input', PU.debounce(updateColorPreview, 200));
       sheet.body.find('.cat-color-swatch').on('click', function () {
         sheet.body.find('#cat-color').val($(this).data('color'));
-        updatePreview();
+        updateColorPreview();
       });
 
       sheet.footer.html('<button class="btn block" id="cat-save">ذخیره</button>');
@@ -221,7 +225,7 @@
           await api.saveCategory({
             id: cat ? cat.id : null,
             title: sheet.body.find('#cat-title').val(),
-            iconName: sheet.body.find('#cat-icon').val(),
+            iconName: currentIcon,
             iconColor: sheet.body.find('#cat-color').val().trim(),
             sortOrder: parseInt(sheet.body.find('#cat-sort').val() || '0', 10),
             description: sheet.body.find('#cat-desc').val(),
@@ -241,6 +245,28 @@
         icon: 'cog', tone: 'emerald', size: 'tall',
       });
 
+      // Service icon — defaults to a sensible Font Awesome key.
+      let svcIconKey = (svc && svc.icon) || 'printer';
+      const LIB = window.CATEGORY_ICON_LIBRARY || [];
+      function lookupLabel(key) {
+        const it = LIB.find((x) => x.key === key);
+        return it ? it.label : key;
+      }
+      function svcIconFieldHtml() {
+        return (
+          '<div class="iconpick-field" id="svc-icon-trigger">' +
+            '<div class="iconpick-preview" id="svc-icon-preview">' +
+              window.renderCategoryIcon(svcIconKey, { size: '2x' }) +
+            '</div>' +
+            '<div class="iconpick-meta">' +
+              '<div class="iconpick-meta-title" id="svc-icon-label">' + PU.escapeHtml(lookupLabel(svcIconKey)) + '</div>' +
+              '<div class="iconpick-meta-sub">برای تغییر ضربه بزنید</div>' +
+            '</div>' +
+            '<span class="iconpick-cta">انتخاب</span>' +
+          '</div>'
+        );
+      }
+
       function renderBody() {
         sheet.body.html(
           '<label class="field-label">عنوان خدمت <span class="req">*</span></label>' +
@@ -256,10 +282,7 @@
           '<label class="field-label">زمان تقریبی</label>' +
           '<input class="input" id="svc-time" value="' + PU.escapeHtml(svc ? svc.estimatedTime : '') + '">' +
           '<label class="field-label">آیکون</label>' +
-          '<select class="select" id="svc-icon">' +
-            ['Printer', 'GraduationCap', 'Building2', 'Landmark', 'Car', 'FileSpreadsheet', 'FolderOpen'].map((i) =>
-              '<option value="' + i + '"' + (svc && svc.icon === i ? ' selected' : '') + '>' + i + '</option>').join('') +
-          '</select>' +
+          '<div id="svc-icon-host">' + svcIconFieldHtml() + '</div>' +
           '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;margin:14px 2px">' +
             '<input type="checkbox" id="svc-active"' + (!svc || svc.isActive ? ' checked' : '') + '> خدمت فعال باشد</label>' +
 
@@ -321,6 +344,18 @@
       }
 
       function bindFieldEvents() {
+        // Open the IconPicker when the service-icon field is tapped.
+        sheet.body.find('#svc-icon-trigger').off('click').on('click', function () {
+          UI.iconPicker({
+            current: svcIconKey,
+            title: 'انتخاب آیکن خدمت',
+            onPick: function (key, fa, label) {
+              svcIconKey = key;
+              sheet.body.find('#svc-icon-host').html(svcIconFieldHtml());
+            },
+          });
+        });
+
         sheet.body.find('#add-field').off('click').on('click', () => {
           collectFields();
           fields.push({ id: 'fld-' + Math.random().toString(36).slice(2, 8), label: '', type: 'text', required: false });
@@ -351,7 +386,7 @@
             description: sheet.body.find('#svc-desc').val(),
             basePrice: Number(sheet.body.find('#svc-price').val()) || 0,
             estimatedTime: sheet.body.find('#svc-time').val(),
-            icon: sheet.body.find('#svc-icon').val(),
+            icon: svcIconKey,
             isActive: sheet.body.find('#svc-active').is(':checked'),
             fields,
           });

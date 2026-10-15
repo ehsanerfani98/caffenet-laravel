@@ -240,5 +240,113 @@
         '<div class="e1">' + PU.escapeHtml(title) + '</div>' +
         (subtitle ? '<div class="e2">' + PU.escapeHtml(subtitle) + '</div>' : '') + '</div>';
     },
+
+    /* ─── IconPicker ─────────────────────────────────────────────
+     * Opens a bottom-sheet picker over the Font Awesome 6 free solid
+     * library declared in `window.CATEGORY_ICON_LIBRARY`. Returns the
+     * chosen icon key to the `onPick` callback.
+     *
+     * @param {object} opts
+     *   - current   : string  currently selected key (highlighted)
+     *   - onPick    : function(key, fa, label)  called when user picks
+     *   - title     : string  sheet title (default: "انتخاب آیکن")
+     *   - showColor : bool    also show a color swatch row (default false)
+     *   - currentColor : string  initial color when showColor = true
+     *   - onColor   : function(hex)  called when color changes
+     */
+    iconPicker(opts) {
+      opts = opts || {};
+      const LIB = window.CATEGORY_ICON_LIBRARY || [];
+      const onPick = typeof opts.onPick === 'function' ? opts.onPick : function () {};
+      const onColor = typeof opts.onColor === 'function' ? opts.onColor : function () {};
+      const currentKey = opts.current || '';
+      const showColor = !!opts.showColor;
+      let currentColor = opts.currentColor || '';
+
+      const sheet = UI.sheet({
+        title: opts.title || 'انتخاب آیکن',
+        icon: 'tag', tone: 'sky', size: 'tall',
+      });
+
+      // 15 preset color swatches — matches the previous category form.
+      const PRESET_COLORS = [
+        '#1559de', '#10aec8', '#0ca67d', '#40a83b', '#f4d33b',
+        '#f08d37', '#e75b2e', '#d91543', '#ef6c7b', '#a82cc7',
+        '#8138d4', '#475d93', '#159db5', '#124be0', '#e40012',
+      ];
+
+      function renderGrid(filter) {
+        const q = (filter || '').trim().toLowerCase();
+        const items = LIB.filter((it) => {
+          if (!q) return true;
+          return it.label.toLowerCase().indexOf(q) !== -1
+            || it.key.toLowerCase().indexOf(q) !== -1
+            || it.fa.toLowerCase().indexOf(q) !== -1;
+        });
+        if (!items.length) {
+          return '<div class="iconpicker-empty">موردی یافت نشد.</div>';
+        }
+        return items.map((it) => {
+          const sel = it.key === currentKey ? ' selected' : '';
+          return (
+            '<button type="button" class="iconpicker-cell' + sel + '" data-key="' + it.key + '" title="' + PU.escapeHtml(it.label) + '">' +
+              '<span class="iconpicker-cell-icon">' + window.faIcon(it.fa) + '</span>' +
+              '<span class="iconpicker-cell-label">' + PU.escapeHtml(it.label) + '</span>' +
+            '</button>'
+          );
+        }).join('');
+      }
+
+      function renderBody() {
+        const colorRow = showColor ? (
+          '<div class="iconpicker-color-row">' +
+            '<input class="input iconpicker-color-input" type="text" value="' + PU.escapeHtml(currentColor) + '" placeholder="رنگ هگز (مثل #a82cc7) یا خالی" style="margin-bottom:8px">' +
+            '<div class="iconpicker-swatches">' +
+              PRESET_COLORS.map((c) => (
+                '<button type="button" class="iconpicker-swatch" data-color="' + c + '" style="background:' + c + '" aria-label="' + c + '"></button>'
+              )).join('') +
+            '</div>' +
+          '</div>'
+        ) : '';
+
+        sheet.body.html(
+          '<div class="iconpicker-search">' + icon('search') +
+            '<input class="input" id="iconpicker-q" placeholder="جستجوی آیکن…" autocomplete="off">' +
+          '</div>' +
+          colorRow +
+          '<div class="iconpicker-grid" id="iconpicker-grid">' + renderGrid('') + '</div>'
+        );
+
+        // Live search
+        sheet.body.find('#iconpicker-q').on('input', PU.debounce(function () {
+          sheet.body.find('#iconpicker-grid').html(renderGrid($(this).val()));
+        }, 180));
+
+        // Cell click → call onPick + close
+        sheet.body.on('click', '.iconpicker-cell', function () {
+          const key = $(this).data('key');
+          const item = LIB.find((it) => it.key === key);
+          if (!item) return;
+          onPick(item.key, item.fa, item.label);
+          sheet.close();
+        });
+
+        // Color row handlers
+        if (showColor) {
+          sheet.body.find('.iconpicker-color-input').on('input', PU.debounce(function () {
+            currentColor = $(this).val().trim();
+            onColor(currentColor);
+          }, 200));
+          sheet.body.find('.iconpicker-swatch').on('click', function () {
+            currentColor = $(this).data('color');
+            sheet.body.find('.iconpicker-color-input').val(currentColor);
+            onColor(currentColor);
+          });
+        }
+      }
+
+      renderBody();
+      return sheet;
+    },
   };
 })();

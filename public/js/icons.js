@@ -1,8 +1,33 @@
 /* Caffenet Lite — icons.js
- * Inline SVG icon set (24×24, stroke) covering every lucide icon the UI needs. */
+ *
+ * Two icon systems coexist:
+ *
+ *  1. The legacy `icon(name)` helper renders inline 24×24 stroke SVGs (lucide
+ *     style). It is still used across most of the UI (bottom nav, buttons,
+ *     toasts, sheets). DO NOT remove it — too many call sites depend on it.
+ *
+ *  2. The new Font Awesome 6 system (`faIcon(cls, opts)`) renders
+ *     `<i class="fa-solid fa-<name>"></i>`. It is used by the admin
+ *     IconPicker and the home-page category grid (because the user wants
+ *     icons to be picked from the Font Awesome set, not hand-rolled SVGs).
+ *
+ * `renderCategoryIcon()` and `renderServiceIcon()` now BOTH go through the
+ * Font Awesome path, while keeping their old call signatures so the
+ * templates don't need to change.
+ *
+ * The Font Awesome CSS (`/public/css/fa.css`) declares the @font-face rules
+ * and the `.fa-<name>:before { content: "..." }` aliases. Only the icons
+ * listed in `ICON_LIBRARY` below are guaranteed to have a CSS alias — but
+ * any FA6 free solid class will render as long as its alias is declared in
+ * fa.css.
+ */
 (function () {
   'use strict';
 
+  /* ────────────────────────────────────────────────────────────────────
+   * 1) Legacy inline SVG icon set (lucide-style, 24×24 stroke)
+   *    Used by the existing UI: bottom nav, buttons, toasts, sheets.
+   * ──────────────────────────────────────────────────────────────────── */
   const PATHS = {
     coffee: '<path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/>',
     printer: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
@@ -65,6 +90,9 @@
     return '<svg class="i' + c + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
   };
 
+  // Legacy PascalCase → lucide name map (kept for backward compatibility).
+  // renderServiceIcon() now prefers the Font Awesome path (see below), but
+  // still falls back to this map when the icon key isn't a known FA class.
   window.SERVICE_ICONS = {
     Printer: 'printer',
     GraduationCap: 'gradcap',
@@ -75,104 +103,247 @@
     FolderOpen: 'folder',
   };
 
-  window.renderServiceIcon = function (name) {
-    return icon(SERVICE_ICONS[name] || 'grid');
-  };
-
   /* ────────────────────────────────────────────────────────────────────
-   * Colorful category icons — each icon key maps to a self-contained SVG
-   * (its own fills + strokes) so the admin can pick from a rich palette
-   * without importing external icon fonts. Used by the home page icon grid.
-   *
-   * Each icon is 64×64 viewBox to match the reference design; the host
-   * element resizes via CSS.
+   * 2) Font Awesome 6 icon system
    * ──────────────────────────────────────────────────────────────────── */
-  const CATEGORY_SVGS = {
-    // Printer — existing brand default
-    printer: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M14 18h36a4 4 0 0 1 4 4v18H10V22a4 4 0 0 1 4-4Z" fill="#5b8def"/><path d="M16 30h32v22H16z" fill="#cdd9f7"/><path d="M10 40H6a3 3 0 0 1-3-3v-7a3 3 0 0 1 3-3h4z" fill="#3b6dd9"/><rect x="20" y="36" width="24" height="3" rx="1.5" fill="#7a9ef0"/><rect x="20" y="42" width="18" height="3" rx="1.5" fill="#7a9ef0"/><circle cx="48" cy="25" r="2" fill="#fff"/></svg>',
-    gradcap: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M32 8 4 22l28 14 28-14Z" fill="#475d93"/><path d="M14 28v14c0 4 8 7 18 7s18-3 18-7V28" stroke="#475d93" stroke-width="4" fill="none"/><path d="M58 26v14" stroke="#475d93" stroke-width="3" stroke-linecap="round"/><rect x="28" y="36" width="8" height="10" fill="#a9baf0"/></svg>',
-    building: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><rect x="14" y="8" width="36" height="48" rx="3" fill="#9bb1ed"/><path d="M22 18h6M22 26h6M22 34h6M22 42h6M36 18h6M36 26h6M36 34h6M36 42h6" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M28 56h8v-6h-8z" fill="#7d96dc"/></svg>',
-    landmark: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><polygon points="32 6 58 20 6 20" fill="#a82cc7"/><rect x="10" y="22" width="44" height="34" fill="#7e1ca5"/><path d="M18 24v32M26 24v32M34 24v32M42 24v32" stroke="#fff" stroke-width="3"/><path d="M4 56h56" stroke="#5a1172" stroke-width="4" stroke-linecap="round"/></svg>',
-    car: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="m14 28 5-12c1-3 4-5 8-5h16c4 0 7 2 8 5l5 12 4 3v17H4V31l10-3Z" fill="#d91543"/><path d="m21 17-4 11h30l-4-11c-1-2-3-3-5-3H26c-2 0-4 1-5 3Z" fill="#fff"/><path d="M7 29h50" stroke="#d91543" stroke-width="4"/><circle cx="16" cy="45" r="5" fill="#fff"/><circle cx="48" cy="45" r="5" fill="#fff"/><path d="M4 33h56" stroke="#d91543" stroke-width="5" stroke-linecap="round"/></svg>',
-    grid: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><rect x="6" y="6" width="22" height="22" rx="4" fill="#10aec8"/><rect x="36" y="6" width="22" height="22" rx="4" fill="#40a83b"/><rect x="6" y="36" width="22" height="22" rx="4" fill="#f4d33b"/><rect x="36" y="36" width="22" height="22" rx="4" fill="#e40012"/></svg>',
-    folder: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M6 14a3 3 0 0 1 3-3h14l5 6h23a3 3 0 0 1 3 3v30a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3Z" fill="#e58be8"/><path d="M6 22a3 3 0 0 1 3-3h46a3 3 0 0 1 3 3v28a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3Z" fill="#a82cc7"/></svg>',
-    wallet: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><rect x="6" y="14" width="52" height="36" rx="6" fill="#0ca67d"/><path d="M6 20a6 6 0 0 1 6-6h36v10H6Z" fill="#71d8b0"/><rect x="42" y="28" width="16" height="12" rx="3" fill="#fff"/><circle cx="50" cy="34" r="3" fill="#0ca67d"/></svg>',
-    receipt: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M14 6h36a4 4 0 0 1 4 4v48l-6-4-6 4-6-4-6 4-6-4-6 4-6-4-6 4V10a4 4 0 0 1 4-4Z" fill="#50ddb0"/><path d="M22 20h20M22 30h20M22 40h14" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
-    bank: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M5 27 32 9l27 18H5Z" fill="#9bb1ed"/><path d="M12 31h40v22H12z" fill="#a9baf0"/><path d="M18 33v15M28 33v15M38 33v15M48 33v15M8 56h48" stroke="#fff" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="19" r="13" fill="#475d93" stroke="#fff" stroke-width="2"/><path d="M35 13c-4-3-8 1-4 4l4 2c4 2 1 6-4 5M32 10v17" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>',
-    shield: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M32 5 8 16v16c0 14 10 22 24 27 14-5 24-13 24-27V16Z" fill="#159db5"/><path d="M22 33l8 8 14-14" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-    ticket: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M8 14h48a5 5 0 0 1 5 5v8a7 7 0 0 0 0 14v8a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5v-8a7 7 0 0 0 0-14v-8a5 5 0 0 1 5-5Z" fill="#f4d33b"/><path d="M34 16v5m0 6v5m0 6v5m0 6v4" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
-    pencil: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="m12 47 5-16L42 6a5 5 0 0 1 7 0l9 9a5 5 0 0 1 0 7L33 47l-16 5-5-5Z" fill="#f08d37"/><path d="m38 11 15 15M21 38l5 5M29 30l5 5M37 22l5 5" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
-    heart: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M32 57 8 34C-5 18 15 2 29 14l3 3 3-3C49 2 69 18 56 34Z" fill="#ef6c7b"/><path d="M28 20h8v10h10v8H36v10h-8V38H18v-8h10V20Z" fill="#fff"/></svg>',
-    passport: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M13 24h38a4 4 0 0 1 4 4v28H9V28a4 4 0 0 1 4-4Z" fill="#8138d4"/><path d="M20 9h27a3 3 0 0 1 3 3v12H17V12a3 3 0 0 1 3-3Z" stroke="#b997ec" stroke-width="4"/><path d="M22 16h21M22 21h15" stroke="#b997ec" stroke-width="3" stroke-linecap="round"/></svg>',
-    chart: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M8 49h8V37H8v12Zm15 0h8V27h-8v22Zm15 0h8V15h-8v34Z" fill="#124be0"/></svg>',
-    bolt: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><polygon points="38 4 8 36 28 36 24 60 56 26 36 26 38 4" fill="#f4d33b" stroke="#e0b820" stroke-width="2"/></svg>',
-    users: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="22" cy="20" r="10" fill="#40a83b"/><circle cx="46" cy="24" r="8" fill="#71d8b0"/><path d="M4 56c0-10 8-16 18-16s18 6 18 16" fill="#40a83b"/><path d="M40 56c0-8 6-13 13-13s13 5 13 13" fill="#71d8b0"/></svg>',
-    globe: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="32" cy="32" r="26" fill="#10aec8"/><path d="M7 23h50M5 33h54M9 44h46M32 6c-8 8-12 17-12 26s4 18 12 26M32 6c8 8 12 17 12 26s-4 18-12 26" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
-    stamp: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M20 8c6-4 18-4 24 0M23 16c5-3 13-3 18 0" stroke="#71d8b0" stroke-width="5" stroke-linecap="round"/><path d="M32 19c-5 0-8 4-10 8L11 46c-4 8 2 14 10 14h22c8 0 14-6 10-14L42 27c-2-4-5-8-10-8Z" fill="#0ca67d"/><path d="M36 31c-1-4-9-4-9 1 0 5 10 3 10 8 0 5-8 6-11 1M32 27v18" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
-    more: '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="M32 7a23 23 0 0 0-23 23v4" stroke="#e75b2e" stroke-width="5" stroke-linecap="round"/><path d="M20 34v-4a12 12 0 0 1 24 0v4" stroke="#e75b2e" stroke-width="5" stroke-linecap="round"/><path d="M24 35c0-5 7-5 7 0v7h5c6 0 8 6 4 10l-6 6H20l-7-7V40c0-4 6-4 6 0v-5c0-4 5-4 5 0Z" fill="#f06438"/></svg>',
+
+  /**
+   * Render a Font Awesome icon as `<i class="fa-solid fa-<name>"></i>`.
+   * Optionally tinted via a `color` hex (defaults to currentColor).
+   *
+   * @param {string} faName  — Font Awesome icon name WITHOUT the `fa-`
+   *                           prefix, e.g. "printer", "graduation-cap",
+   *                           "building-columns".
+   * @param {object} opts    — { color?: string, size?: 'sm'|'lg'|'2x'|'3x',
+   *                              fw?: bool, cls?: string (extra classes) }
+   */
+  window.faIcon = function (faName, opts) {
+    opts = opts || {};
+    const name = String(faName || 'circle-question').replace(/^fa-/, '');
+    const classes = ['fa-solid', 'fa-' + name];
+    if (opts.fw) classes.push('fa-fw');
+    if (opts.size) classes.push('fa-' + opts.size);
+    if (opts.cls) classes.push(opts.cls);
+    const style = opts.color ? ' style="color:' + opts.color + ';"' : '';
+    return '<i class="' + classes.join(' ') + '"' + style + ' aria-hidden="true"></i>';
   };
 
-  // Friendly names (English key → Persian label) for the admin dropdown.
-  const CATEGORY_LABELS = {
-    printer: 'پرینت و کپی',
-    gradcap: 'خدمات دانشجویی',
-    building: 'خدمات اداری',
-    landmark: 'خدمات دولتی',
-    car: 'خودرویی',
-    grid: 'عمومی',
-    folder: 'آرشیو و فایل',
-    wallet: 'مالی و وام',
-    receipt: 'قبض و صورتحساب',
-    bank: 'بانکی',
-    shield: 'بیمه',
-    ticket: 'بلیط و سفر',
-    pencil: 'طراحی و نگارش',
-    heart: 'درمانی',
-    passport: ' passport و اتباع',
-    chart: 'مالیاتی',
-    bolt: 'فوری و ویژه',
-    users: 'ارتباطات و شبکه',
-    globe: 'ثبت‌نام اینترنتی',
-    stamp: 'قضایی',
-    more: 'سایر خدمات',
-  };
-
-  // Whitelist of icon keys the admin can pick from. Order = display order
-  // in the admin dropdown (most common first).
-  window.CATEGORY_ICON_KEYS = [
-    'printer','gradcap','building','landmark','car','grid','folder','wallet',
-    'receipt','bank','shield','ticket','pencil','heart','passport','chart',
-    'bolt','users','globe','stamp','more',
+  /* ─── Category icon library ───
+   * Curated list of Font Awesome 6 free solid icons suitable for the
+   * home-page category grid. Each entry: { key, fa, label }.
+   *  - key   : stable storage key (stored in `categories.icon_name`)
+   *  - fa    : Font Awesome class name (without `fa-` prefix)
+   *  - label : Persian label shown in the IconPicker
+   *
+   * To add a new icon: append to this list AND make sure the alias is
+   * declared in /public/css/fa.css. The IconPicker iterates this list,
+   * so the new icon immediately appears in the admin dropdown.
+   */
+  const CATEGORY_LIBRARY = [
+    { key: 'printer',          fa: 'print',                label: 'پرینت و کپی' },
+    { key: 'student',          fa: 'graduation-cap',       label: 'خدمات دانشجویی' },
+    { key: 'office',           fa: 'building',             label: 'خدمات اداری' },
+    { key: 'government',       fa: 'landmark',             label: 'خدمات دولتی' },
+    { key: 'car',              fa: 'car',                  label: 'خودرویی' },
+    { key: 'general',          fa: 'grip',                 label: 'عمومی' },
+    { key: 'archive',          fa: 'folder',               label: 'آرشیو و فایل' },
+    { key: 'finance',          fa: 'wallet',               label: 'مالی و وام' },
+    { key: 'bills',            fa: 'receipt',              label: 'قبض و صورتحساب' },
+    { key: 'bank',             fa: 'building-columns',     label: 'بانکی' },
+    { key: 'insurance',        fa: 'shield',               label: 'بیمه' },
+    { key: 'travel',           fa: 'ticket',               label: 'بلیط و سفر' },
+    { key: 'design',           fa: 'pen',                  label: 'طراحی و نگارش' },
+    { key: 'medical',          fa: 'heart',                label: 'درمانی' },
+    { key: 'passport',         fa: 'passport',             label: 'passport و اتباع' },
+    { key: 'tax',              fa: 'chart-column',         label: 'مالیاتی' },
+    { key: 'urgent',           fa: 'bolt',                 label: 'فوری و ویژه' },
+    { key: 'social',           fa: 'users',                label: 'ارتباطات و شبکه' },
+    { key: 'internet',         fa: 'globe',                label: 'ثبت‌نام اینترنتی' },
+    { key: 'legal',            fa: 'stamp',                label: 'قضایی' },
+    { key: 'other',            fa: 'ellipsis',             label: 'سایر خدمات' },
+    { key: 'phone',            fa: 'phone',                label: 'تماس و تلفن' },
+    { key: 'mail',             fa: 'envelope',             label: 'پست و ایمیل' },
+    { key: 'shopping',         fa: 'cart-shopping',        label: 'خرید و فروش' },
+    { key: 'store',            fa: 'store',                label: 'فروشگاه' },
+    { key: 'delivery',         fa: 'truck-fast',           label: 'ارسال و پیک' },
+    { key: 'box',              fa: 'box',                  label: 'بسته‌بندی' },
+    { key: 'warehouse',        fa: 'warehouse',            label: 'انبار' },
+    { key: 'tools',            fa: 'screwdriver-wrench',   label: 'تعمیرات و ابزار' },
+    { key: 'wrench',           fa: 'wrench',               label: 'تعمیرکار' },
+    { key: 'hammer',           fa: 'hammer',               label: 'نجاری' },
+    { key: 'paint',            fa: 'paintbrush',           label: 'رنگ‌آمیزی' },
+    { key: 'palette',          fa: 'palette',              label: 'هنری' },
+    { key: 'camera',           fa: 'camera',               label: 'عکاسی' },
+    { key: 'video',            fa: 'video',                label: 'ویدیو' },
+    { key: 'music',            fa: 'music',                label: 'موسیقی' },
+    { key: 'headphones',       fa: 'headphones',           label: 'صوتی' },
+    { key: 'book',             fa: 'book',                 label: 'کتاب و مطالعه' },
+    { key: 'clipboard',        fa: 'clipboard',            label: 'فرم و گزارش' },
+    { key: 'file',             fa: 'file-lines',           label: 'اسناد متنی' },
+    { key: 'pdf',              fa: 'file-pdf',             label: 'فایل PDF' },
+    { key: 'word',             fa: 'file-word',            label: 'فایل Word' },
+    { key: 'excel',            fa: 'file-excel',           label: 'فایل Excel' },
+    { key: 'image',            fa: 'file-image',           label: 'تصاویر' },
+    { key: 'archive-zip',      fa: 'file-zipper',          label: 'فایل فشرده' },
+    { key: 'calendar',         fa: 'calendar',             label: 'تقویم و زمان‌بندی' },
+    { key: 'clock',            fa: 'clock',                label: 'زمان‌سنجی' },
+    { key: 'stopwatch',        fa: 'stopwatch',            label: 'کرنومتر' },
+    { key: 'hourglass',        fa: 'hourglass-half',       label: 'در انتظار' },
+    { key: 'coffee',           fa: 'mug-saucer',           label: 'کافی‌نت' },
+    { key: 'food',             fa: 'utensils',             label: 'غذا' },
+    { key: 'drink',            fa: 'glass-water',          label: 'نوشیدنی' },
+    { key: 'leaf',             fa: 'leaf',                 label: 'محیط‌زیست' },
+    { key: 'seed',             fa: 'seedling',             label: 'کشاورزی' },
+    { key: 'tree',             fa: 'tree',                 label: 'فضای سبز' },
+    { key: 'sun',              fa: 'sun',                  label: 'انرژی' },
+    { key: 'fire',             fa: 'fire',                 label: 'اطفاء حریق' },
+    { key: 'water',            fa: 'droplet',              label: 'آب' },
+    { key: 'bus',              fa: 'bus',                  label: 'اتوبوس' },
+    { key: 'train',            fa: 'train',                label: 'قطار' },
+    { key: 'plane',            fa: 'plane',                label: 'هواپیما' },
+    { key: 'ship',             fa: 'ship',                 label: 'کشتی' },
+    { key: 'motorcycle',       fa: 'motorcycle',           label: 'موتور' },
+    { key: 'bicycle',          fa: 'bicycle',              label: 'دوچرخه' },
+    { key: 'rocket',           fa: 'rocket',               label: 'استارتاپ' },
+    { key: 'flask',            fa: 'flask',                label: 'آزمایشگاه' },
+    { key: 'atom',             fa: 'atom',                 label: 'علمی' },
+    { key: 'microscope',       fa: 'microscope',           label: 'پزشکی آزمایشگاهی' },
+    { key: 'stethoscope',      fa: 'stethoscope',          label: 'معاینه' },
+    { key: 'hospital',         fa: 'hospital',             label: 'بیمارستان' },
+    { key: 'firstaid',         fa: 'briefcase-medical',    label: 'کمک‌های اولیه' },
+    { key: 'pills',            fa: 'pills',                label: 'دارو' },
+    { key: 'prescription',     fa: 'prescription',         label: 'نسخه' },
+    { key: 'tooth',            fa: 'tooth',                label: 'دندانپزشکی' },
+    { key: 'gavel',            fa: 'gavel',                label: 'دادگاه' },
+    { key: 'scale',            fa: 'scale-balanced',       label: 'عدالت' },
+    { key: 'fingerprint',      fa: 'fingerprint',          label: 'هویت و احراز' },
+    { key: 'idcard',           fa: 'id-card',              label: 'کارت شناسایی' },
+    { key: 'school',           fa: 'school',               label: 'مدرسه' },
+    { key: 'chalkboard',       fa: 'chalkboard-user',      label: 'آموزش' },
+    { key: 'book-open',        fa: 'book-open',            label: 'کتاب‌خانه' },
+    { key: 'bookmark',         fa: 'bookmark',             label: 'نشانه‌گذاری' },
+    { key: 'tag',              fa: 'tag',                  label: 'برچسب' },
+    { key: 'tags',             fa: 'tags',                 label: 'برچسب‌ها' },
+    { key: 'gift',             fa: 'gift',                 label: 'هدیه' },
+    { key: 'star',             fa: 'star',                 label: 'امتیاز' },
+    { key: 'trophy',           fa: 'trophy',               label: 'مسابقه' },
+    { key: 'medal',            fa: 'medal',                label: 'افتخار' },
+    { key: 'crown',            fa: 'crown',                label: 'ویژه' },
+    { key: 'helmet',           fa: 'helmet-safety',        label: 'ایمنی' },
+    { key: 'wifi',             fa: 'wifi',                 label: 'اینترنت' },
+    { key: 'signal',           fa: 'signal',               label: 'ارتباط' },
+    { key: 'tower',            fa: 'tower-broadcast',      label: 'رادیویی' },
+    { key: 'satellite',        fa: 'satellite',            label: 'ماهواره‌ای' },
+    { key: 'chip',             fa: 'microchip',            label: 'الکترونیک' },
+    { key: 'memory',           fa: 'memory',               label: 'حافظه' },
+    { key: 'server',           fa: 'server',               label: 'سرور' },
+    { key: 'database',         fa: 'database',             label: 'پایگاه داده' },
+    { key: 'hdd',              fa: 'hard-drive',           label: 'دیسک' },
+    { key: 'cloud',            fa: 'cloud',                label: 'ابر' },
+    { key: 'cloud-up',         fa: 'cloud-arrow-up',       label: 'آپلود ابری' },
+    { key: 'cloud-down',       fa: 'cloud-arrow-down',     label: 'دانلود ابری' },
+    { key: 'lock',             fa: 'lock',                 label: 'امنیت' },
+    { key: 'lock-open',        fa: 'lock-open',            label: 'باز' },
+    { key: 'key',              fa: 'key',                  label: 'کلید' },
+    { key: 'keyboard',         fa: 'keyboard',             label: 'تایپ' },
+    { key: 'plug',             fa: 'plug',                 label: 'برق' },
+    { key: 'battery',          fa: 'battery-full',         label: 'باتری' },
+    { key: 'sitemap',          fa: 'sitemap',              label: 'ساختار' },
+    { key: 'network',          fa: 'network-wired',        label: 'شبکه' },
+    { key: 'share',            fa: 'share-nodes',          label: 'اشتراک‌گذاری' },
+    { key: 'link',             fa: 'link',                 label: 'لینک' },
+    { key: 'bell',             fa: 'bell',                 label: 'اطلاعیه' },
+    { key: 'message',          fa: 'message',              label: 'پیام' },
+    { key: 'comments',         fa: 'comments',             label: 'گفتگو' },
+    { key: 'comment',          fa: 'comment',              label: 'نظر' },
+    { key: 'phone-volume',     fa: 'phone-volume',         label: 'پاسخگویی' },
+    { key: 'headset',          fa: 'headset',              label: 'پشتیبانی' },
+    { key: 'bullhorn',         fa: 'bullhorn',             label: 'اعلان' },
+    { key: 'percent',          fa: 'percent',              label: 'تخفیف' },
+    { key: 'credit-card',      fa: 'credit-card',          label: 'کارت بانکی' },
+    { key: 'money',            fa: 'money-bill',           label: 'پول نقد' },
+    { key: 'coins',            fa: 'coins',                label: 'سکه' },
+    { key: 'piggy',            fa: 'piggy-bank',           label: 'پس‌انداز' },
+    { key: 'handshake',        fa: 'handshake',            label: 'توافق' },
+    { key: 'paw',              fa: 'paw',                  label: 'حیوانات' },
+    { key: 'dog',              fa: 'dog',                  label: 'سگ' },
+    { key: 'cat',              fa: 'cat',                  label: 'گربه' },
+    { key: 'fish',             fa: 'fish',                 label: 'ماهی' },
+    { key: 'bird',             fa: 'feather',              label: 'پرنده' },
+    { key: 'globe-asia',       fa: 'globe',                label: 'جهانی' },
+    { key: 'user-tie',         fa: 'user-tie',             label: 'مدیر' },
+    { key: 'user-doctor',      fa: 'user-doctor',          label: 'پزشک' },
+    { key: 'user-graduate',    fa: 'user-graduate',        label: 'دانشجو' },
+    { key: 'user-shield',      fa: 'user-shield',          label: 'نگهبان' },
+    { key: 'users-gear',       fa: 'users-gear',           label: 'مدیریت کاربران' },
   ];
 
-  window.CATEGORY_ICON_LABELS = CATEGORY_LABELS;
+  // Expose the library for the IconPicker.
+  window.CATEGORY_ICON_LIBRARY = CATEGORY_LIBRARY;
+  window.CATEGORY_ICON_KEYS = CATEGORY_LIBRARY.map((it) => it.key);
+  window.CATEGORY_ICON_LABELS = CATEGORY_LIBRARY.reduce((acc, it) => {
+    acc[it.key] = it.label;
+    return acc;
+  }, {});
+
+  // Quick lookups
+  const CATEGORY_BY_KEY = CATEGORY_LIBRARY.reduce((acc, it) => {
+    acc[it.key] = it;
+    return acc;
+  }, {});
+  const CATEGORY_BY_FA = CATEGORY_LIBRARY.reduce((acc, it) => {
+    acc[it.fa] = it;
+    return acc;
+  }, {});
 
   /**
-   * Render a colorful category SVG by key. Falls back to a tinted version
-   * of the default grid icon when the key is unknown.
+   * Render a category icon by its storage key. Storage key may be:
+   *  - one of the new keys ("printer", "student", …) — preferred path
+   *  - a legacy PascalCase key ("Printer", "GraduationCap", …) — converted
+   *    via SERVICE_ICONS and rendered through faIcon() with the closest FA
+   *    match
+   *  - a raw FA class name ("fa-print", "print", "graduation-cap") — used
+   *    as-is
+   *
+   * `opts.color` tints the icon (hex). Falls back to currentColor.
    */
-  window.renderCategoryIcon = function (key) {
-    const svg = CATEGORY_SVGS[key] || CATEGORY_SVGS.grid;
-    return svg;
+  window.renderCategoryIcon = function (key, opts) {
+    opts = opts || {};
+    const k = String(key || 'general');
+    let fa = null;
+
+    // 1) Direct hit in the library (preferred).
+    if (CATEGORY_BY_KEY[k]) fa = CATEGORY_BY_KEY[k].fa;
+    // 2) Raw FA class name (with or without `fa-` prefix).
+    else if (typeof window.faIcon === 'function' && /^[a-z][a-z0-9-]*$/.test(k)) {
+      fa = k.replace(/^fa-/, '');
+    }
+    // 3) Legacy PascalCase → map to FA via SERVICE_ICONS.
+    else if (SERVICE_ICONS[k]) {
+      // Map our internal lucide names → closest FA6 names.
+      const LEGACY_TO_FA = {
+        printer: 'print', gradcap: 'graduation-cap', building: 'building',
+        landmark: 'landmark', car: 'car', grid: 'grip', folder: 'folder',
+      };
+      fa = LEGACY_TO_FA[SERVICE_ICONS[k]] || 'circle-question';
+    }
+
+    if (!fa) fa = 'circle-question';
+    return window.faIcon(fa, opts);
+  };
+
+  /** Backward-compat: old code passed (key) and got back raw HTML.
+   *  renderCategoryIconTinted(key, color) is now just an alias for
+   *  renderCategoryIcon(key, { color }). */
+  window.renderCategoryIconTinted = function (key, color) {
+    return window.renderCategoryIcon(key, { color: color || null });
   };
 
   /**
-   * Render a category icon TINTED with a custom hex color. Used when the
-   * admin sets an iconColor that should override the icon's natural palette.
-   * Implementation: wrap the SVG in a span with CSS `color` set; the inner
-   * paths use `currentColor` (we strip the original fill).
-   *
-   * Note: the colorful SVGs above keep their original colors by default —
-   * this tinting is only applied when the admin explicitly sets iconColor.
+   * Render a service icon by name. Mirrors renderCategoryIcon so the home
+   * page grid + admin service form both show Font Awesome icons.
    */
-  window.renderCategoryIconTinted = function (key, color) {
-    const svg = CATEGORY_SVGS[key] || CATEGORY_SVGS.grid;
-    if (!color) return svg;
-    // Replace all fills/strokes inside the svg with currentColor so the
-    // outer span's color wins.
-    const tinted = svg
-      .replace(/fill="[^"]*"/g, 'fill="currentColor"')
-      .replace(/stroke="[^"]*"/g, 'stroke="currentColor"');
-    return '<span style="color:' + color + ';display:inline-flex;width:58%;height:58%;align-items:center;justify-content:center;">' + tinted + '</span>';
+  window.renderServiceIcon = function (name) {
+    return window.renderCategoryIcon(name);
   };
 })();

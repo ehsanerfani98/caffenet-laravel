@@ -66,35 +66,24 @@
 
   // The colorful category icon grid directly below the search field.
   // Mirrors the mobile_services_home.html reference: 4-column grid of
-  // large rounded tiles, each tile shows a colorful SVG icon and the
-  // category title. Tapping a tile opens the catalog filtered by that
-  // category.
+  // large rounded tiles, each tile shows a Font Awesome icon (optionally
+  // tinted with the admin-picked color) and the category title. Tapping a
+  // tile opens the catalog filtered by that category.
   function categoryIconGridHtml(state) {
     const cats = (state.categories || []).slice();
     if (!cats.length) {
       return '<div class="cat-icon-empty">هنوز دسته‌بندی ثبت نشده است.</div>';
     }
     const tiles = cats.map(function (cat) {
-      // Resolve the SVG: prefer the colorful version when the admin picked a
-      // known icon key; fall back to the legacy renderServiceIcon (which maps
-      // PascalCase names like "Printer"). If iconColor is set, tint the SVG.
-      const key = (cat.iconName || '').toLowerCase();
-      let svg;
-      if (window.CATEGORY_ICON_KEYS && window.CATEGORY_ICON_KEYS.indexOf(key) !== -1) {
-        // Modern colorful category icon (with optional tint override).
-        svg = cat.iconColor
-          ? window.renderCategoryIconTinted(key, cat.iconColor)
-          : window.renderCategoryIcon(key);
-      } else {
-        // Legacy icon path (PascalCase → 24×24 stroke SVG). Wrap so the size
-        // matches the 58% tile fill used by the colorful icons.
-        svg = '<span style="color:' + (cat.iconColor || 'var(--sky-deep)') +
-          ';display:inline-flex;width:58%;height:58%;align-items:center;justify-content:center;">' +
-          renderServiceIcon(cat.iconName) + '</span>';
-      }
+      // Font Awesome icon — renderCategoryIcon handles new keys, raw FA
+      // class names, and legacy PascalCase names alike.
+      const iconHtml = window.renderCategoryIcon(cat.iconName || 'general', {
+        color: cat.iconColor || null,
+        size: '2x',
+      });
       return (
         '<button type="button" class="cat-icon-tile" data-cat-tile="' + cat.id + '" aria-label="' + PU.escapeHtml(cat.title) + '">' +
-          '<span class="cat-icon-box">' + svg + '</span>' +
+          '<span class="cat-icon-box">' + iconHtml + '</span>' +
           '<span class="cat-icon-label">' + PU.escapeHtml(cat.title) + '</span>' +
         '</button>'
       );
