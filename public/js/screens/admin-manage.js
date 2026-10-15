@@ -290,9 +290,28 @@
           textField('smsSender', 'شماره فرستنده', { req: true, help: 'شماره اختصاصی شما در ippanel.' }) +
 
           '<div class="info-box" style="margin:12px 0;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:11px;line-height:1.8;color:#1e40af">' +
-            '<b>راهنما:</b> در پنل ippanel پترن خود را بسازید (مثلاً «سفارش {order_number} آماده شد»). ' +
-            'سپس کد پترن را در فیلد مربوطه وارد کنید. برای هر متغیری که در پترن تعریف کرده‌اید، یک ردیف اضافه کنید و نام متغیر را بنویسید. ' +
-            'سیستم خودکار مقدار هر متغیر را از داده‌های سفارش پر می‌کند.' +
+            '<b>راهنما:</b> در پنل ippanel پترن خود را بسازید. سپس کد پترن را در فیلد مربوطه وارد کنید. ' +
+            'برای هر متغیر که در پترن تعریف کرده‌اید، یک ردیف اضافه کنید و نام متغیر را دقیقاً همان‌طور که در ippanel وارد کرده‌اید بنویسید. ' +
+            'سیستم مقدار هر متغیر را از داده‌های سفارش پر می‌کند.<br><br>' +
+            '<b>نام متغیرهای قابل استفاده</b> (باید در ippanel همین نام‌ها را استفاده کنید):<br>' +
+            '<code dir="ltr">order_number</code> — شماره سفارش<br>' +
+            '<code dir="ltr">customer_name</code> — نام مشتری<br>' +
+            '<code dir="ltr">customer_phone</code> — شماره موبایل<br>' +
+            '<code dir="ltr">service_title</code> — عنوان خدمت<br>' +
+            '<code dir="ltr">status</code> — کد وضعیت<br>' +
+            '<code dir="ltr">status_title</code> — عنوان فارسی وضعیت<br>' +
+            '<code dir="ltr">eta_minutes</code> — زمان انتظار (دقیقه)<br>' +
+            '<code dir="ltr">duration_minutes</code> — مدت انجام (دقیقه)<br>' +
+            '<code dir="ltr">start_time</code> — زمان شروع<br>' +
+            '<code dir="ltr">end_time</code> — زمان تکمیل<br>' +
+            '<code dir="ltr">queue_position</code> — موقعیت در صف<br>' +
+            '<code dir="ltr">tracking_url</code> — لینک پیگیری<br>' +
+            '<code dir="ltr">amount</code> — مبلغ (تومان)<br>' +
+            '<code dir="ltr">payment_method</code> — روش پرداخت<br>' +
+            '<code dir="ltr">minutes_before</code> — دقیقه تا شروع<br>' +
+            '<code dir="ltr">title</code> — عنوان (همگانی)<br>' +
+            '<code dir="ltr">body</code> — متن (همگانی)<br>' +
+            '<code dir="ltr">site_title</code> — عنوان سایت' +
           '</div>' +
 
           '<div id="sms-patterns-container" style="margin-top:12px">' +

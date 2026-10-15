@@ -228,6 +228,20 @@ class SmsService
      * With data = {"order_number": "CN-1234", "customer_name": "احسان", ...}
      * Result: {"order_number": "CN-1234"}
      */
+    /**
+     * Read the admin's variable names from sms_pattern_vars and build
+     * the params object for the Edge API.
+     *
+     * For each variable the admin declared, look up its value in the
+     * $data pool. The admin's var_name must match a key in $data.
+     *
+     * For OTP: the caller passes data with the OTP code under every
+     * var_name the admin declared (see sendOtp).
+     *
+     * For order notifications: the caller passes the full order data
+     * pool (order_number, customer_name, etc.). The admin should use
+     * these same names when creating patterns in ippanel.
+     */
     private static function resolveParams(string $patternKey, array $data): array
     {
         $rows = SmsPatternVar::where('pattern_key', $patternKey)
@@ -236,8 +250,6 @@ class SmsService
 
         $params = [];
         foreach ($rows as $row) {
-            // The var_name the admin entered IS the key in $data.
-            // If it exists in $data, use its value. Otherwise empty string.
             $value = $data[$row->var_name] ?? '';
             $params[$row->var_name] = is_scalar($value) ? (string) $value : '';
         }
