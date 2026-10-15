@@ -290,17 +290,9 @@
           textField('smsSender', 'شماره فرستنده', { req: true, help: 'شماره اختصاصی شما در ippanel.' }) +
 
           '<div class="info-box" style="margin:12px 0;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:11px;line-height:1.8;color:#1e40af">' +
-            '<b>راهنما:</b> در پنل ippanel پترن خود را با هر نام متغیر دلخواه بسازید. ' +
-            'سپس کد پترن را وارد کنید و برای هر متغیر دو فیلد پر کنید:<br>' +
-            '۱. <b>نام متغیر در ippanel</b> — همان نامی که در پترن استفاده کرده‌اید (مثلاً order_id)<br>' +
-            '۲. <b>فیلد سیستمی</b> — نام فیلدی که مقدار آن پر می‌شود (مثلاً order_number)<br><br>' +
-            '<b>فیلدهای سیستمی قابل استفاده:</b><br>' +
-            '<code dir="ltr">order_number</code>، <code dir="ltr">customer_name</code>، <code dir="ltr">customer_phone</code>، ' +
-            '<code dir="ltr">service_title</code>، <code dir="ltr">status</code>، <code dir="ltr">status_title</code>، ' +
-            '<code dir="ltr">eta_minutes</code>، <code dir="ltr">duration_minutes</code>، <code dir="ltr">start_time</code>، ' +
-            '<code dir="ltr">end_time</code>، <code dir="ltr">queue_position</code>، <code dir="ltr">tracking_url</code>، ' +
-            '<code dir="ltr">amount</code>، <code dir="ltr">payment_method</code>، <code dir="ltr">minutes_before</code>، ' +
-            '<code dir="ltr">code</code> (برای OTP)، <code dir="ltr">title</code>، <code dir="ltr">body</code>، <code dir="ltr">site_title</code>' +
+            '<b>راهنما:</b> برای هر رویداد، کد پترن را وارد کنید. سپس برای هر فیلد، نام متغیری که در ippanel تعریف کرده‌اید را بنویسید. ' +
+            'مثال: در ippanel الگو «سفارش {factor} به مبلغ {amount}» را ساخته‌اید. ' +
+            'پس در فیلد «نام متغیر شماره سفارش» بنویسید: factor. در فیلد «نام متغیر قیمت» بنویسید: amount.' +
           '</div>' +
 
           '<div id="sms-patterns-container" style="margin-top:12px">' +
@@ -518,116 +510,68 @@
       // dynamic list of variable rows (var_name + data_field dropdown).
       // Variables are stored in the sms_pattern_vars table via API.
 
-      async function loadSmsPatterns(sheet) {
+      // ── SMS patterns — fixed fields per type, no add/remove ──────
+      function loadSmsPatterns(sheet) {
         const $container = sheet.body.find('#sms-patterns-container');
         if (!$container.length) return;
 
         const PATTERNS = [
-          { key: 'otp',           setting: 'smsPatternOtp',           label: '۱. کد تایید ورود (OTP)' },
-          { key: 'order_started', setting: 'smsPatternStarted',       label: '۲. شروع سفارش' },
-          { key: 'order_ready',   setting: 'smsPatternReady',         label: '۳. آماده شدن سفارش' },
-          { key: 'requeued',      setting: 'smsPatternRequeued',      label: '۴. انتقال به انتهای صف' },
-          { key: 'cancelled',     setting: 'smsPatternCancelled',     label: '۵. لغو سفارش' },
-          { key: 'reminder',      setting: 'smsPatternReminder',      label: '۶. یادآوری نزدیک شروع' },
-          { key: 'paid',          setting: 'smsPatternPaid',          label: '۷. پرداخت سفارش (کیف پول)' },
-          { key: 'status_change', setting: 'smsPatternStatusChange',  label: '۸. تغییر وضعیت (دستی)' },
-          { key: 'refund',        setting: 'smsPatternRefund',        label: '۹. عودت مبلغ به کیف پول' },
-          { key: 'broadcast',     setting: 'smsPatternBroadcast',     label: '۱۰. اطلاع‌رسانی همگانی' },
+          { key: 'otp',           label: '۱. کد تایید ورود (OTP)' },
+          { key: 'order_started', label: '۲. شروع سفارش' },
+          { key: 'order_ready',   label: '۳. آماده شدن سفارش' },
+          { key: 'requeued',      label: '۴. انتقال به انتهای صف' },
+          { key: 'cancelled',     label: '۵. لغو سفارش' },
+          { key: 'reminder',      label: '۶. یادآوری نزدیک شروع' },
+          { key: 'paid',          label: '۷. پرداخت سفارش (کیف پول)' },
+          { key: 'status_change', label: '۸. تغییر وضعیت (دستی)' },
+          { key: 'refund',        label: '۹. عودت مبلغ به کیف پول' },
+          { key: 'broadcast',     label: '۱۰. اطلاع‌رسانی همگانی' },
         ];
 
-        let varsByPattern = {};
-        try {
-          const varsResp = await api.request('GET', '/api/sms/pattern-vars');
-          (varsResp || []).forEach((v) => {
-            if (!varsByPattern[v.pattern_key]) varsByPattern[v.pattern_key] = [];
-            varsByPattern[v.pattern_key].push(v);
-          });
-        } catch (e) {
-          $container.html('<div class="warn-box">خطا در بارگذاری متغیرهای پترن: ' + PU.escapeHtml(e.message) + '</div>');
-          return;
-        }
-
-        function renderVarRow(v, patternKey) {
-          const id = v ? v.id : 'new-' + Math.random().toString(36).slice(2, 8);
-          const varName = v ? v.var_name : '';
-          const dataField = v ? v.data_field : '';
-          return (
-            '<div class="sms-var-row" data-var-id="' + id + '" data-pattern-key="' + patternKey + '" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">' +
-              '<input class="input sms-var-name" dir="ltr" placeholder="نام متغیر در ippanel (مثلاً order_id)" value="' + PU.escapeHtml(varName) + '" style="flex:1">' +
-              '<input class="input sms-var-field" dir="ltr" placeholder="فیلد سیستمی (مثلاً order_number)" value="' + PU.escapeHtml(dataField) + '" style="flex:1">' +
-              '<button type="button" class="icon-btn sms-var-save" style="background:var(--emerald-soft);color:var(--emerald-deep);flex:none">' + icon('check') + '</button>' +
-              '<button type="button" class="icon-btn sms-var-del" style="background:var(--rose-soft);color:var(--rose);flex:none">' + icon('trash') + '</button>' +
-            '</div>'
-          );
-        }
+        // Fixed fields per pattern type — mirrors SmsTypeRegistry.
+        const FIELDS = {
+          otp:           { setting: 'smsPatternOtp',           fields: { code: 'نام متغیر کد تایید' } },
+          order_started: { setting: 'smsPatternStarted',       fields: { order_number: 'نام متغیر شماره سفارش', customer_name: 'نام متغیر نام مشتری', service_title: 'نام متغیر عنوان خدمت', eta_minutes: 'نام متغیر زمان انتظار', start_time: 'نام متغیر زمان شروع', tracking_url: 'نام متغیر لینک پیگیری' } },
+          order_ready:   { setting: 'smsPatternReady',         fields: { order_number: 'نام متغیر شماره سفارش', customer_name: 'نام متغیر نام مشتری', tracking_url: 'نام متغیر لینک پیگیری' } },
+          requeued:      { setting: 'smsPatternRequeued',      fields: { order_number: 'نام متغیر شماره سفارش', customer_name: 'نام متغیر نام مشتری', queue_position: 'نام متغیر موقعیت در صف' } },
+          cancelled:     { setting: 'smsPatternCancelled',     fields: { order_number: 'نام متغیر شماره سفارش', customer_name: 'نام متغیر نام مشتری' } },
+          reminder:      { setting: 'smsPatternReminder',      fields: { order_number: 'نام متغیر شماره سفارش', customer_name: 'نام متغیر نام مشتری', minutes_before: 'نام متغیر دقیقه تا شروع', start_time: 'نام متغیر زمان شروع' } },
+          paid:          { setting: 'smsPatternPaid',          fields: { order_number: 'نام متغیر شماره سفارش', amount: 'نام متغیر قیمت' } },
+          status_change: { setting: 'smsPatternStatusChange',  fields: { order_number: 'نام متغیر شماره سفارش', customer_name: 'نام متغیر نام مشتری', status_title: 'نام متغیر عنوان وضعیت' } },
+          refund:        { setting: 'smsPatternRefund',        fields: { customer_name: 'نام متغیر نام مشتری', amount: 'نام متغیر مبلغ' } },
+          broadcast:     { setting: 'smsPatternBroadcast',     fields: { title: 'نام متغیر عنوان', body: 'نام متغیر متن' } },
+        };
 
         function renderPattern(p) {
-          const vars = varsByPattern[p.key] || [];
-          const patternCode = byKey[p.setting] ? byKey[p.setting].value : '';
-          return (
+          const def = FIELDS[p.key];
+          const patternCodeKey = def.setting;
+          const patternCode = byKey[patternCodeKey] ? byKey[patternCodeKey].value : '';
+          let html =
             '<div class="card" style="margin-bottom:10px;padding:12px">' +
               '<div style="font-size:12px;font-weight:700;margin-bottom:8px">' + p.label + '</div>' +
               '<label class="field-label">کد پترن</label>' +
-              '<input class="input" data-set="' + p.setting + '" dir="ltr" placeholder="مثلاً jhaskdab45s6f4sfw" value="' + esc(patternCode) + '">' +
-              '<label class="field-label" style="margin:10px 0 4px">متغیرها</label>' +
-              '<div class="sms-vars-list" data-pattern-key="' + p.key + '">' +
-                vars.map((v) => renderVarRow(v, p.key)).join('') +
-              '</div>' +
-              '<button type="button" class="btn ghost sm sms-var-add" data-pattern-key="' + p.key + '" style="margin-top:4px">' + icon('plus') + 'افزودن متغیر</button>' +
-            '</div>'
-          );
+              '<input class="input" data-set="' + patternCodeKey + '" dir="ltr" placeholder="مثلاً 96ttx5xosutvyp7" value="' + esc(patternCode) + '">';
+          rendered[patternCodeKey] = true;
+
+          let i = 0;
+          for (const fieldId in def.fields) {
+            const settingKey = patternCodeKey + '_' + fieldId;
+            const label = def.fields[fieldId];
+            const val = byKey[settingKey] ? byKey[settingKey].value : '';
+            html +=
+              '<label class="field-label"' + (i === 0 ? ' style="margin:10px 0 4px"' : ' style="margin:8px 0 4px"') + '>' + label + '</label>' +
+              '<input class="input" data-set="' + settingKey + '" dir="ltr" placeholder="نام متغیر در ippanel" value="' + esc(val) + '">';
+            rendered[settingKey] = true;
+            i++;
+          }
+          html += '</div>';
+          return html;
         }
 
         $container.html(PATTERNS.map(renderPattern).join(''));
-        PATTERNS.forEach((p) => { rendered[p.setting] = true; });
-
-        // Add variable row
-        $container.on('click', '.sms-var-add', function () {
-          const pk = $(this).data('pattern-key');
-          $(this).siblings('.sms-vars-list').append(renderVarRow(null, pk));
-        });
-
-        // Save variable (create or update)
-        $container.on('click', '.sms-var-save', async function () {
-          const $row = $(this).closest('.sms-var-row');
-          const id = $row.data('var-id');
-          const pk = $row.data('pattern-key');
-          const varName = $row.find('.sms-var-name').val().trim();
-          const dataField = $row.find('.sms-var-field').val().trim();
-          if (!varName || !dataField) {
-            UI.toast('نام متغیر و فیلد سیستمی هر دو الزامی است.', 'error');
-            return;
-          }
-          const $btn = $(this).prop('disabled', true);
-          try {
-            if (String(id).startsWith('new-')) {
-              const r = await api.request('POST', '/api/sms/pattern-vars', { pattern_key: pk, var_name: varName, data_field: dataField });
-              $row.data('var-id', r.id);
-              $row.attr('data-var-id', r.id);
-              UI.toast('متغیر اضافه شد.', 'success');
-            } else {
-              await api.request('PUT', '/api/sms/pattern-vars/' + id, { var_name: varName, data_field: dataField });
-              UI.toast('متغیر ذخیره شد.', 'success');
-            }
-          } catch (e) { UI.toast(e.message, 'error'); }
-          finally { $btn.prop('disabled', false); }
-        });
-
-        // Delete variable
-        $container.on('click', '.sms-var-del', async function () {
-          const $row = $(this).closest('.sms-var-row');
-          const id = $row.data('var-id');
-          if (String(id).startsWith('new-')) {
-            $row.remove();
-            return;
-          }
-          try {
-            await api.request('DELETE', '/api/sms/pattern-vars/' + id);
-            $row.remove();
-            UI.toast('متغیر حذف شد.', 'info');
-          } catch (e) { UI.toast(e.message, 'error'); }
-        });
       }
+
+      loadSmsPatterns(sheet);
 
       sheet.footer.html('<button class="btn block" id="sys-save">ذخیره تنظیمات سیستمی</button>');
       sheet.footer.find('#sys-save').on('click', async function () {

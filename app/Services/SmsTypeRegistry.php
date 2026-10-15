@@ -3,35 +3,36 @@
 namespace App\Services;
 
 /**
- * Central registry that defines the "data contract" for each SMS type.
+ * Central registry that defines the fixed fields for each SMS type.
  *
- * Each SMS type declares which INTERNAL data identifiers it needs.
- * The system produces the values for these identifiers; the admin maps
- * them to IPPanel variable names in the settings panel.
+ * Each SMS type has a FIXED set of fields. The system knows what data
+ * each field needs. The admin only enters the IPPanel variable name
+ * for each field.
  *
- * INTERNAL IDENTIFIERS (declared here, in code):
- *   These are the keys the system uses to look up values in the data pool.
- *   They are NOT the IPPanel variable names — the admin can name IPPanel
- *   variables anything they want and map them to these identifiers.
+ * Example — "paid" (ثبت سفارش) has two fields:
+ *   'order_number' => 'شماره سفارش'    → admin enters: "factor"
+ *   'amount'       => 'قیمت (تومان)'   → admin enters: "amount"
  *
- * Example:
- *   Registry says: 'otp' needs ['code']
- *   Admin maps:    var_name='otp' → data_field='code'
- *   System sends:  params = {'otp': '12345'}
+ * The system sends: params = {"factor": "CN-1234", "amount": "250000"}
  *
- *   Admin could also map: var_name='verification-code' → data_field='code'
- *   System would send:    params = {'verification-code': '12345'}
- *
- * The admin NEVER sees or changes the internal identifiers. They only
- * enter the IPPanel variable name + pick which internal identifier it
- * maps to (from the list declared here).
+ * No "add variable" button, no dropdowns, no free-form data field.
+ * The fields are fixed per SMS type; the admin only fills in the
+ * IPPanel variable name for each one.
  */
 class SmsTypeRegistry
 {
     /**
-     * The complete registry of SMS types and their data contracts.
+     * The complete registry of SMS types.
      *
-     * @return array<string, array{label: string, setting_key: string, data_keys: array<int, string>}>
+     * Each type has:
+     *   - label: Persian title shown in the admin panel
+     *   - setting_key: the settings key that holds the pattern code
+     *   - fields: array of [field_id => Persian label]
+     *     field_id is the INTERNAL identifier (the system knows how to
+     *     produce its value). The admin enters the IPPanel variable name
+     *     for each field, stored in settings as: {setting_key}_{field_id}
+     *
+     * @return array<string, array{label: string, setting_key: string, fields: array<string, string>}>
      */
     public static function types(): array
     {
@@ -39,127 +40,109 @@ class SmsTypeRegistry
             'otp' => [
                 'label' => 'کد تایید ورود (OTP)',
                 'setting_key' => 'smsPatternOtp',
-                'data_keys' => ['code'],
+                'fields' => [
+                    'code' => 'کد تایید',
+                ],
             ],
             'order_started' => [
                 'label' => 'شروع سفارش',
                 'setting_key' => 'smsPatternStarted',
-                'data_keys' => [
-                    'order_number', 'customer_name', 'customer_phone', 'service_title',
-                    'status', 'status_title', 'eta_minutes', 'duration_minutes',
-                    'start_time', 'end_time', 'queue_position', 'tracking_url',
-                    'site_title',
+                'fields' => [
+                    'order_number'    => 'شماره سفارش',
+                    'customer_name'   => 'نام مشتری',
+                    'service_title'   => 'عنوان خدمت',
+                    'eta_minutes'     => 'زمان انتظار (دقیقه)',
+                    'start_time'      => 'زمان شروع',
+                    'tracking_url'    => 'لینک پیگیری',
                 ],
             ],
             'order_ready' => [
                 'label' => 'آماده شدن سفارش',
                 'setting_key' => 'smsPatternReady',
-                'data_keys' => [
-                    'order_number', 'customer_name', 'service_title',
-                    'tracking_url', 'site_title',
+                'fields' => [
+                    'order_number'    => 'شماره سفارش',
+                    'customer_name'   => 'نام مشتری',
+                    'tracking_url'    => 'لینک پیگیری',
                 ],
             ],
             'requeued' => [
                 'label' => 'انتقال به انتهای صف',
                 'setting_key' => 'smsPatternRequeued',
-                'data_keys' => [
-                    'order_number', 'customer_name', 'queue_position', 'site_title',
+                'fields' => [
+                    'order_number'    => 'شماره سفارش',
+                    'customer_name'   => 'نام مشتری',
+                    'queue_position'  => 'موقعیت جدید در صف',
                 ],
             ],
             'cancelled' => [
                 'label' => 'لغو سفارش',
                 'setting_key' => 'smsPatternCancelled',
-                'data_keys' => [
-                    'order_number', 'customer_name', 'site_title',
+                'fields' => [
+                    'order_number'    => 'شماره سفارش',
+                    'customer_name'   => 'نام مشتری',
                 ],
             ],
             'reminder' => [
                 'label' => 'یادآوری نزدیک شروع',
                 'setting_key' => 'smsPatternReminder',
-                'data_keys' => [
-                    'order_number', 'customer_name', 'minutes_before',
-                    'start_time', 'site_title',
+                'fields' => [
+                    'order_number'    => 'شماره سفارش',
+                    'customer_name'   => 'نام مشتری',
+                    'minutes_before'  => 'دقیقه تا شروع',
+                    'start_time'      => 'زمان شروع',
                 ],
             ],
             'paid' => [
                 'label' => 'پرداخت سفارش (کیف پول)',
                 'setting_key' => 'smsPatternPaid',
-                'data_keys' => [
-                    'order_number', 'customer_name', 'amount', 'payment_method',
-                    'site_title',
+                'fields' => [
+                    'order_number'    => 'شماره سفارش',
+                    'amount'          => 'قیمت (تومان)',
                 ],
             ],
             'status_change' => [
                 'label' => 'تغییر وضعیت سفارش (دستی)',
                 'setting_key' => 'smsPatternStatusChange',
-                'data_keys' => [
-                    'order_number', 'customer_name', 'status', 'status_title',
-                    'site_title',
+                'fields' => [
+                    'order_number'    => 'شماره سفارش',
+                    'customer_name'   => 'نام مشتری',
+                    'status_title'    => 'عنوان وضعیت جدید',
                 ],
             ],
             'refund' => [
                 'label' => 'عودت مبلغ به کیف پول',
                 'setting_key' => 'smsPatternRefund',
-                'data_keys' => [
-                    'customer_name', 'amount', 'site_title',
+                'fields' => [
+                    'customer_name'   => 'نام مشتری',
+                    'amount'          => 'مبلغ عودتی (تومان)',
                 ],
             ],
             'broadcast' => [
                 'label' => 'اطلاع‌رسانی همگانی',
                 'setting_key' => 'smsPatternBroadcast',
-                'data_keys' => ['title', 'body', 'site_title'],
+                'fields' => [
+                    'title'           => 'عنوان',
+                    'body'            => 'متن',
+                ],
             ],
         ];
     }
 
-    /**
-     * Get the registry entry for a single SMS type.
-     */
     public static function get(string $type): ?array
     {
         return self::types()[$type] ?? null;
     }
 
-    /**
-     * Get the settings key that holds the pattern code for a type.
-     */
     public static function settingKey(string $type): ?string
     {
         return self::types()[$type]['setting_key'] ?? null;
     }
 
     /**
-     * Get the list of internal data identifiers a type needs.
-     * These are the keys the caller must provide in the data pool.
+     * Get the fixed fields for a type: [field_id => Persian label]
      */
-    public static function dataKeys(string $type): array
+    public static function fields(string $type): array
     {
-        return self::types()[$type]['data_keys'] ?? [];
+        return self::types()[$type]['fields'] ?? [];
     }
-
-    /**
-     * Human-readable label for each internal data identifier.
-     * Shown in the admin panel as a reference.
-     */
-    public const DATA_LABELS = [
-        'code'              => 'کد تایید OTP',
-        'order_number'      => 'شماره سفارش (CN-1234)',
-        'customer_name'     => 'نام مشتری',
-        'customer_phone'    => 'شماره موبایل مشتری',
-        'service_title'     => 'عنوان خدمت',
-        'status'            => 'کد وضعیت سفارش',
-        'status_title'      => 'عنوان فارسی وضعیت',
-        'eta_minutes'       => 'زمان انتظار تقریبی (دقیقه)',
-        'duration_minutes'  => 'مدت انجام تقریبی (دقیقه)',
-        'start_time'        => 'زمان تقریبی شروع',
-        'end_time'          => 'زمان تقریبی تکمیل',
-        'queue_position'    => 'موقعیت در صف',
-        'tracking_url'      => 'لینک پیگیری عمومی',
-        'amount'            => 'مبلغ (تومان)',
-        'payment_method'    => 'روش پرداخت',
-        'minutes_before'    => 'دقیقه تا شروع (یادآوری)',
-        'title'             => 'عنوان (همگانی)',
-        'body'              => 'متن (همگانی)',
-        'site_title'        => 'عنوان سایت',
-    ];
 }

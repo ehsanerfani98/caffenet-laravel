@@ -2,22 +2,21 @@
 
 namespace App\Services;
 
-use App\Models\SmsPatternVar;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
  * ippanel SMS service — ALL messages are pattern-based via the Edge API.
  *
- * Architecture:
- *   1. SmsTypeRegistry (code) defines what internal data each SMS type needs.
- *   2. sms_pattern_vars (DB) stores the admin's mapping:
- *        var_name (IPPanel) → data_field (internal identifier)
- *   3. The caller provides a data pool with internal identifiers as keys.
- *   4. resolveParams() reads the mapping, looks up each data_field in the
- *      pool, and sends the value under the admin's custom var_name.
+ * Each SMS type has FIXED fields (defined in SmsTypeRegistry). For each
+ * field, the admin enters the IPPanel variable name in the settings panel.
+ * The system knows what data each field needs and fills it automatically.
  *
- * No IPPanel variable names are hardcoded anywhere in the code.
+ * Example — "paid" has fields: order_number, amount
+ *   Admin enters: smsPatternPaid = "96ttx5xosutvyp7"
+ *                 smsPatternPaid_order_number = "factor"
+ *                 smsPatternPaid_amount = "amount"
+ *   System sends: params = {"factor": "CN-1234", "amount": "250000"}
  */
 class SmsService
 {
@@ -38,91 +37,63 @@ class SmsService
         return SettingsService::smsSettings()['canSend'];
     }
 
-    /**
-     * Send the OTP SMS.
-     * The registry says OTP needs: ['code'].
-     * The admin maps their IPPanel var name → 'code'.
-     */
     public static function sendOtp(string $phone, string $code): void
     {
-        self::send(
-            phone: $phone,
-            type: 'otp',
-            data: ['code' => $code],
-            logText: 'کد تایید ورود'
-        );
+        self::send($phone, 'otp', ['code' => $code], 'کد تایید ورود');
     }
 
-    /**
-     * Send an order-status notification SMS.
-     * The caller provides a data pool with internal identifiers as keys.
-     * The registry defines which identifiers each type needs.
-     */
     public static function sendOrderNotification(string $phone, string $type, array $data = []): void
     {
         if (! SettingsService::bool('smsNotifyEnabled')) {
             return;
         }
-
-        self::send(
-            phone: $phone,
-            type: $type,
-            data: $data,
-            logText: 'پیامک '.$type
-        );
+        self::send($phone, $type, $data, 'پیامک '.$type);
     }
 
     /**
-     * Core: send a pattern SMS via the Edge API.
+     * Core: send a pattern SMS.
      *
-     * Steps:
-     *   1. Read the pattern code from settings (via the registry's setting_key).
-     *   2. Read the admin's variable mappings from sms_pattern_vars.
-     *   3. For each mapping, look up data_field in the $data pool.
-     *   4. Build params: {admin_var_name: value_from_data_pool}
-     *   5. Validate that all required data is present.
-     *   6. POST to the Edge API.
+     * 1. Read the pattern code from settings.
+     * 2. Read the fixed fields from the registry.
+     * 3. For each field, read the admin's IPPanel var name from settings
+     *    (key = setting_key + '_' + field_id), look up the value in $data.
+     * 4. Build params: {admin_var_name: value}
+     * 5. POST to Edge API.
      */
     public static function send(string $phone, string $type, array $data, string $logText): void
     {
         try {
             $s = SettingsService::smsSettings();
 
-            // 1. Check if SMS is enabled
             if (! $s['enabled']) {
                 self::recordLog($phone, $logText.' — ارسال نشد (پیامک غیرفعال)', $type, 'failed', 'sms disabled');
                 return;
             }
 
-            // 2. Get the pattern code from settings
-            $settingKey = SmsTypeRegistry::settingKey($type);
-            if (! $settingKey) {
-                self::recordLog($phone, $logText.' — نوع پیامک نامعتبر', $type, 'failed', 'unknown type: '.$type);
+            $typeDef = SmsTypeRegistry::get($type);
+            if (! $typeDef) {
+                self::recordLog($phone, $logText.' — نوع نامعتبر', $type, 'failed', 'unknown type');
                 return;
             }
-            $patternCode = (string) SettingsService::raw($settingKey);
 
-            // 3. Build params from the admin's variable mappings
-            $params = self::buildParams($type, $data);
+            $patternCode = (string) SettingsService::raw($typeDef['setting_key']);
+            $params = self::buildParams($typeDef, $data);
 
-            // 4. Test mode — log and return
             if ($s['testMode']) {
                 $desc = $logText.' (آزمایشی) — pattern: '.$patternCode.' params: '.json_encode($params, JSON_UNESCAPED_UNICODE);
                 self::recordLog($phone, $desc, $type, 'test');
                 return;
             }
 
-            // 5. Validate
             if (! $s['canSend']) {
-                self::recordLog($phone, $logText.' — ارسال نشد (اعتبارنامه ناقص)', $type, 'failed', 'missing credentials');
+                self::recordLog($phone, $logText.' — اعتبارنامه ناقص', $type, 'failed', 'missing credentials');
                 return;
             }
             if ($patternCode === '') {
-                self::recordLog($phone, $logText.' — ارسال نشد (کد پترن خالی)', $type, 'failed', 'empty pattern code');
+                self::recordLog($phone, $logText.' — کد پترن خالی', $type, 'failed', 'empty pattern code');
                 return;
             }
 
-            // 6. Send to Edge API
             $body = [
                 'sending_type' => 'pattern',
                 'from_number'  => self::toE164($s['sender']),
@@ -159,51 +130,27 @@ class SmsService
     }
 
     /**
-     * Build the params object for the Edge API.
+     * Build params from the registry's fixed fields + the admin's var names.
      *
-     * Reads the admin's variable mappings from sms_pattern_vars for this
-     * SMS type. Each row maps:
-     *   var_name   = the name the admin used in IPPanel (e.g. "otp", "factor")
-     *   data_field = the internal identifier (e.g. "code", "order_number")
+     * For each field in the registry:
+     *   setting_key = typeDef['setting_key'] + '_' + field_id
+     *   var_name = SettingsService::raw(setting_key)  ← admin entered this
+     *   value = data[field_id]                         ← system produces this
+     *   params[var_name] = value
      *
-     * The system looks up data_field in $data to get the value, then sends
-     * it to IPPanel under the admin's custom var_name.
-     *
-     * Example:
-     *   DB rows: var_name="otp", data_field="code"
-     *   data: {"code": "12345"}
-     *   result: {"otp": "12345"}
-     *
-     * Validation:
-     *   - If a mapping's data_field is not in $data, logs a warning and
-     *     sends empty string for that var.
-     *   - Duplicate var_names are skipped (last one wins).
+     * Fields with empty var_name are skipped (admin didn't configure them).
      */
-    private static function buildParams(string $type, array $data): array
+    private static function buildParams(array $typeDef, array $data): array
     {
-        $rows = SmsPatternVar::where('pattern_key', $type)
-            ->orderBy('sort_order')
-            ->get();
-
         $params = [];
-        $seen = [];
-        foreach ($rows as $row) {
-            // Skip duplicates
-            if (in_array($row->var_name, $seen, true)) {
-                continue;
+        foreach ($typeDef['fields'] as $fieldId => $label) {
+            $settingKey = $typeDef['setting_key'].'_'.$fieldId;
+            $varName = (string) SettingsService::raw($settingKey);
+            if ($varName === '') {
+                continue; // admin didn't configure this field
             }
-            $seen[] = $row->var_name;
-
-            // Look up the internal identifier in the data pool
-            $value = $data[$row->data_field] ?? '';
-            if ($value === '' && ! isset($data[$row->data_field])) {
-                Log::warning('SmsService: data_field not found in data pool', [
-                    'type' => $type,
-                    'var_name' => $row->var_name,
-                    'data_field' => $row->data_field,
-                ]);
-            }
-            $params[$row->var_name] = is_scalar($value) ? (string) $value : '';
+            $value = $data[$fieldId] ?? '';
+            $params[$varName] = is_scalar($value) ? (string) $value : '';
         }
         return $params;
     }
@@ -211,12 +158,8 @@ class SmsService
     public static function recordLog(string $phone, string $text, string $type, string $status, ?string $error = null, ?string $providerId = null): void
     {
         \App\Models\SmsLog::create([
-            'phone' => $phone,
-            'text' => $text,
-            'type' => $type,
-            'status' => $status,
-            'provider_message_id' => $providerId,
-            'error' => $error,
+            'phone' => $phone, 'text' => $text, 'type' => $type, 'status' => $status,
+            'provider_message_id' => $providerId, 'error' => $error,
             'timestamp' => now()->toIso8601String(),
         ]);
     }
