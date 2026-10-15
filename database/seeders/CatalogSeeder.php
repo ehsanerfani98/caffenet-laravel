@@ -33,6 +33,7 @@ class CatalogSeeder extends Seeder
                 'description' => 'چاپ سیاه‌وسفید و رنگی در سایز A4 و A3 با گزینه صحافی',
                 'base_price' => 0, 'estimated_time' => '۱ الی ۳ ساعت', 'icon' => 'printer',
                 'icon_color' => '#1559de', 'sort_order' => 1,
+                'is_featured' => true, 'featured_sort' => 1,
                 'fields_json' => json_encode([
                     ['id' => 'pageCount', 'label' => 'تعداد صفحات', 'type' => 'number', 'placeholder' => 'مثلاً ۱۰', 'required' => true],
                     ['id' => 'copies', 'label' => 'تعداد نسخه', 'type' => 'number', 'placeholder' => 'مثلاً ۱', 'required' => true],
@@ -57,6 +58,7 @@ class CatalogSeeder extends Seeder
                 'description' => 'ثبت‌نام ترمی، انتخاب واحد و رفع اشکال سامانه دانشگاه',
                 'base_price' => 80000, 'estimated_time' => '۲ الی ۴ ساعت', 'icon' => 'student',
                 'icon_color' => '#475d93', 'sort_order' => 1,
+                'is_featured' => true, 'featured_sort' => 2,
                 'fields_json' => json_encode([
                     ['id' => 'university', 'label' => 'نام دانشگاه', 'type' => 'text', 'placeholder' => 'نام دانشگاه خود را بنویسید', 'required' => true],
                     ['id' => 'serviceLevel', 'label' => 'سطح خدمات', 'type' => 'select', 'required' => true, 'options' => [

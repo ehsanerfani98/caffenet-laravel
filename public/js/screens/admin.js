@@ -93,7 +93,9 @@
             '<div class="list-row"><div class="lr-icon" style="background:transparent;padding:0;width:44px;height:44px;flex:none;overflow:hidden;font-size:20px;' + (s.iconColor ? 'color:' + PU.escapeHtml(s.iconColor) + ';' : '') + '">' +
               window.renderCategoryIcon(s.icon || 'printer', { color: s.iconColor || null }) +
             '</div>' +
-            '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(s.title) + '</div>' +
+            '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(s.title) +
+              (s.isFeatured ? ' <span style="display:inline-flex;align-items:center;gap:2px;color:#f59e0b;font-size:10px;font-weight:700;background:#fef3c7;padding:2px 7px;border-radius:8px;vertical-align:middle">' + icon('star') + 'پرطرفدار</span>' : '') +
+            '</div>' +
             '<div class="lr-sub">' + PU.toPersianDigits(s.fields.length) + ' فیلد • ' + (s.isActive ? 'فعال' : 'غیرفعال') + (s.iconColor ? ' • <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + PU.escapeHtml(s.iconColor) + ';vertical-align:middle"></span>' : '') + '</div></div>' +
             '<button class="icon-btn" style="background:var(--slate-soft);color:var(--ink)" data-edit-svc="' + s.id + '">' + icon('edit') + '</button></div>'
           ).join('');
@@ -318,6 +320,16 @@
           '<input class="input" id="svc-sort" type="number" inputmode="numeric" value="' + svcSortOrder + '" style="margin-bottom:6px">' +
           '<div style="font-size:11px;color:var(--ink-soft);margin-bottom:10px">خدمات با عدد مساوی، بر اساس زمان ایجاد مرتب می‌شوند.</div>' +
 
+          '<div class="card" style="padding:10px 12px;margin-bottom:10px;background:#fffbeb;border-color:#fde68a">' +
+            '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:#92400e;cursor:pointer">' +
+              '<input type="checkbox" id="svc-featured"' + (svc && svc.isFeatured ? ' checked' : '') + ' style="width:18px;height:18px;accent-color:#f59e0b"> ' +
+              icon('star') + 'نمایش در بخش «خدمات پرطرفدار» صفحه اول</label>' +
+            '<div id="svc-featured-row" style="margin-top:8px;' + (svc && svc.isFeatured ? '' : 'display:none') + '">' +
+              '<label class="field-label" style="margin:0 0 4px">ترتیب در بخش پرطرفدار (عدد کوچک‌تر = زودتر)</label>' +
+              '<input class="input" id="svc-featured-sort" type="number" inputmode="numeric" value="' + (svc && typeof svc.featuredSort === 'number' ? svc.featuredSort : 0) + '">' +
+            '</div>' +
+          '</div>' +
+
           '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;margin:14px 2px">' +
             '<input type="checkbox" id="svc-active"' + (!svc || svc.isActive ? ' checked' : '') + '> خدمت فعال باشد</label>' +
 
@@ -404,6 +416,11 @@
           sheet.body.find('#svc-icon-preview').html(svcPreviewBox());
         }, 220));
 
+        // Featured checkbox → show/hide the featured_sort field.
+        sheet.body.find('#svc-featured').off('change').on('change', function () {
+          sheet.body.find('#svc-featured-row').toggle($(this).is(':checked'));
+        });
+
         sheet.body.find('#add-field').off('click').on('click', () => {
           collectFields();
           fields.push({ id: 'fld-' + Math.random().toString(36).slice(2, 8), label: '', type: 'text', required: false });
@@ -438,6 +455,8 @@
             iconColor: (sheet.body.find('#svc-color').val() || '').trim(),
             sortOrder: parseInt(sheet.body.find('#svc-sort').val() || '0', 10),
             isActive: sheet.body.find('#svc-active').is(':checked'),
+            isFeatured: sheet.body.find('#svc-featured').is(':checked'),
+            featuredSort: parseInt(sheet.body.find('#svc-featured-sort').val() || '0', 10),
             fields,
           });
           UI.toast('خدمت ذخیره شد.', 'success');

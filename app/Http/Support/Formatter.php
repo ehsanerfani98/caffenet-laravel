@@ -38,6 +38,8 @@ class Formatter
             'iconColor' => (string) ($row->icon_color ?? ''),
             'sortOrder' => (int) ($row->sort_order ?? 0),
             'isActive' => (bool) $row->is_active,
+            'isFeatured' => (bool) ($row->is_featured ?? false),
+            'featuredSort' => (int) ($row->featured_sort ?? 0),
             'fields' => $row->fields(),
             'pricingFormulaDescription' => (string) ($row->pricing_formula ?? ''),
         ];

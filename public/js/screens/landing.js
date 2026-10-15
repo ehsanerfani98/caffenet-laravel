@@ -116,9 +116,27 @@
   // the search box can restore it verbatim when the query is cleared.
   function homeServicesHtml(state, settings) {
     let html = '';
-    html += '<div class="section-title">' + icon('zap') + 'خدمات پرطرفدار</div>';
-    const popular = state.services.filter((s) => s.isActive).slice(0, 4);
-    html += '<section class="cat-icon-grid">' + popular.map(serviceTile).join('') + '</section>';
+
+    // ── Popular services ──
+    // Services explicitly marked isFeatured by the admin, sorted by
+    // featuredSort (smaller first), then by created_at as a tie-breaker.
+    // When NO service is featured yet, fall back to the legacy behavior
+    // (first 4 active services by created_at) so the section isn't empty.
+    const featured = state.services
+      .filter((s) => s.isActive && s.isFeatured)
+      .sort((a, b) => {
+        const sa = (a.featuredSort || 0) - (b.featuredSort || 0);
+        if (sa !== 0) return sa;
+        return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+      });
+    const popular = featured.length > 0
+      ? featured
+      : state.services.filter((s) => s.isActive).slice(0, 4);
+
+    if (popular.length > 0) {
+      html += '<div class="section-title">' + icon('star') + 'خدمات پرطرفدار</div>';
+      html += '<section class="cat-icon-grid">' + popular.map(serviceTile).join('') + '</section>';
+    }
 
     html += '<div class="section-title">' + icon('grid') + 'همه خدمات</div>';
     state.categories.forEach((cat) => {

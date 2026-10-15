@@ -151,6 +151,8 @@ class CatalogController extends Controller
             'icon_color' => $iconColor,
             'sort_order' => $sortOrder,
             'is_active' => (bool) ($body['isActive'] ?? true),
+            'is_featured' => (bool) ($body['isFeatured'] ?? false),
+            'featured_sort' => (int) ($body['featuredSort'] ?? 0),
             'fields_json' => json_encode($clean, JSON_UNESCAPED_UNICODE),
             'pricing_formula' => (string) ($body['pricingFormulaDescription'] ?? ''),
         ];
