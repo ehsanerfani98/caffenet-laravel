@@ -21,6 +21,8 @@ use App\Http\Controllers\Api\QueueOrderController;
 use App\Http\Controllers\Api\TrackController;
 // Firebase Cloud Messaging (push notifications):
 use App\Http\Controllers\Api\FcmController;
+// SMS pattern variable mappings:
+use App\Http\Controllers\Api\SmsPatternVarController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -196,4 +198,13 @@ Route::middleware('auth.session')->group(function () {
         ->middleware('permission:settings.edit|settings.manage');
     Route::get('/fcm/logs', [FcmController::class, 'logs'])
         ->middleware('permission:settings.edit|settings.manage');
+});
+
+// ---------------- SMS pattern variable mappings ----------------
+Route::middleware(['auth.session', 'permission:settings.edit|settings.manage'])->group(function () {
+    Route::get('/sms/pattern-vars', [SmsPatternVarController::class, 'index']);
+    Route::get('/sms/pattern-vars/data-fields', [SmsPatternVarController::class, 'dataFields']);
+    Route::post('/sms/pattern-vars', [SmsPatternVarController::class, 'store']);
+    Route::put('/sms/pattern-vars/{id}', [SmsPatternVarController::class, 'update']);
+    Route::delete('/sms/pattern-vars/{id}', [SmsPatternVarController::class, 'destroy']);
 });

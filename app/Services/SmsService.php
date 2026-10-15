@@ -2,33 +2,28 @@
 
 namespace App\Services;
 
+use App\Models\SmsPatternVar;
 use Illuminate\Support\Facades\Http;
 
 /**
  * ippanel SMS service — ALL messages are pattern-based via the Edge API.
  *
- * No plain-text SMS is ever sent. Every SMS requires:
- *  1. A pattern code (configured in the ippanel panel, pasted into the
- *     admin settings by the operator).
- *  2. A variable mapping (JSON, also configured by the admin) that maps
- *     pattern variable names → field names from the available data pool.
+ * The admin creates patterns in ippanel with their OWN variable names
+ * (e.g. %customer%, %order%). For each pattern event, the admin enters
+ * in the settings panel:
+ *   1. The pattern code (from ippanel)
+ *   2. A list of variable mappings — each row maps the admin's custom
+ *      variable name to a system data field:
+ *        var_name="customer" → data_field="customer_name"
+ *        var_name="order"    → data_field="order_number"
  *
- * The data pool (PATTERN_DATA_FIELDS) is the complete set of values the
- * system can pass to a pattern. The admin picks which ones to use for
- * each pattern by writing a mapping like:
- *   {"order_number": "order_number", "name": "customer_name"}
- * where the KEY is the variable name declared in ippanel and the VALUE
- * is a key from PATTERN_DATA_FIELDS.
+ * These mappings are stored in the sms_pattern_vars table.
  */
 class SmsService
 {
     private const TIMEOUT = 15;
     private const DEFAULT_EDGE_BASE_URL = 'https://edge.ippanel.com/v1';
 
-    /**
-     * The Edge API send endpoint. Built from the admin-configurable
-     * smsBaseUrl setting + the fixed /api/send path.
-     */
     private static function edgeApiUrl(): string
     {
         $base = rtrim((string) SettingsService::raw('smsBaseUrl'), '/');
@@ -38,66 +33,54 @@ class SmsService
         return $base.'/api/send';
     }
 
-    /**
-     * The complete pool of data fields that can be passed to patterns.
-     * The admin references these by name in the variable mapping JSON.
-     */
-    public const PATTERN_DATA_FIELDS = [
-        'order_number'       => 'شماره سفارش (مثلاً CN-1234)',
-        'customer_name'      => 'نام مشتری',
-        'customer_phone'     => 'شماره موبایل مشتری',
-        'service_title'      => 'عنوان خدمت',
-        'status'             => 'کد وضعیت فعلی سفارش',
-        'status_title'       => 'عنوان فارسی وضعیت',
-        'eta_minutes'        => 'زمان انتظار تقریبی (دقیقه)',
-        'duration_minutes'   => 'مدت انجام تقریبی (دقیقه)',
-        'start_time'         => 'زمان تقریبی شروع (ISO)',
-        'end_time'           => 'زمان تقریبی تکمیل (ISO)',
-        'queue_position'     => 'موقعیت در صف',
-        'tracking_url'       => 'لینک پیگیری عمومی',
-        'amount'             => 'مبلغ (تومان — برای عودت/پرداخت)',
-        'payment_method'     => 'روش پرداخت (wallet/online)',
-        'minutes_before'     => 'دقیقه تا شروع (برای یادآوری)',
-        'code'               => 'کد تایید OTP',
-        'title'              => 'عنوان (برای اطلاع‌رسانی همگانی)',
-        'body'               => 'متن (برای اطلاع‌رسانی همگانی)',
-        'site_title'         => 'عنوان سایت',
-    ];
-
-    /** Logical gate: enabled && !testMode && apiKey && sender present. */
     public static function canSend(): bool
     {
         return SettingsService::smsSettings()['canSend'];
     }
 
     /**
+     * All system data fields that can be mapped to pattern variables.
+     * The admin picks from this list when configuring each variable.
+     */
+    public const DATA_FIELDS = [
+        'order_number'       => 'شماره سفارش (CN-1234)',
+        'customer_name'      => 'نام مشتری',
+        'customer_phone'     => 'شماره موبایل مشتری',
+        'service_title'      => 'عنوان خدمت',
+        'status'             => 'کد وضعیت سفارش',
+        'status_title'       => 'عنوان فارسی وضعیت',
+        'eta_minutes'        => 'زمان انتظار تقریبی (دقیقه)',
+        'duration_minutes'   => 'مدت انجام تقریبی (دقیقه)',
+        'start_time'         => 'زمان تقریبی شروع',
+        'end_time'           => 'زمان تقریبی تکمیل',
+        'queue_position'     => 'موقعیت در صف',
+        'tracking_url'       => 'لینک پیگیری عمومی',
+        'amount'             => 'مبلغ (تومان)',
+        'payment_method'     => 'روش پرداخت',
+        'minutes_before'     => 'دقیقه تا شروع (یادآوری)',
+        'code'               => 'کد تایید OTP',
+        'title'              => 'عنوان (همگانی)',
+        'body'               => 'متن (همگانی)',
+        'site_title'         => 'عنوان سایت',
+    ];
+
+    /**
      * Send the OTP pattern message.
-     *
-     * @param  string  $phone  Recipient phone.
-     * @param  string  $code   The 5-digit OTP code.
      */
     public static function sendOtp(string $phone, string $code): void
     {
-        $patternCode = (string) SettingsService::raw('smsPatternOtp');
-        $varsJson = (string) SettingsService::raw('smsPatternOtpVars');
-        $data = ['code' => $code];
-
-        self::sendPatternFromConfig(
+        self::sendPattern(
             phone: $phone,
-            patternCode: $patternCode,
-            varsJson: $varsJson,
-            data: $data,
+            patternKey: 'otp',
+            patternCode: (string) SettingsService::raw('smsPatternOtp'),
+            data: ['code' => $code],
             type: 'otp',
             logText: 'کد تایید ورود'
         );
     }
 
     /**
-     * Send an order-status notification SMS — ALL pattern-based.
-     *
-     * @param  string  $phone       Customer phone.
-     * @param  string  $eventType   One of the EVENT_TYPE_* keys below.
-     * @param  array   $data        The data pool (order fields + extras).
+     * Send an order-status notification SMS.
      */
     public static function sendOrderNotification(string $phone, string $eventType, array $data = []): void
     {
@@ -105,54 +88,44 @@ class SmsService
             return;
         }
 
-        // Map event type → (pattern code setting key, variable mapping setting key).
-        $config = self::EVENT_PATTERN_MAP[$eventType] ?? null;
-        if (! $config) {
+        $patternSettingKey = self::EVENT_PATTERN_SETTING[$eventType] ?? null;
+        if (! $patternSettingKey) {
             return;
         }
 
-        self::sendPatternFromConfig(
+        self::sendPattern(
             phone: $phone,
-            patternCode: (string) SettingsService::raw($config[0]),
-            varsJson: (string) SettingsService::raw($config[1]),
+            patternKey: $eventType,
+            patternCode: (string) SettingsService::raw($patternSettingKey),
             data: $data,
             type: $eventType,
             logText: 'پیامک '.$eventType
         );
     }
 
-    /**
-     * Event type → [pattern_code_setting_key, vars_mapping_setting_key].
-     */
-    private const EVENT_PATTERN_MAP = [
-        'order_started'  => ['smsPatternStarted',        'smsPatternStartedVars'],
-        'order_ready'    => ['smsPatternReady',           'smsPatternReadyVars'],
-        'requeued'       => ['smsPatternRequeued',        'smsPatternRequeuedVars'],
-        'cancelled'      => ['smsPatternCancelled',       'smsPatternCancelledVars'],
-        'reminder'       => ['smsPatternReminder',        'smsPatternReminderVars'],
-        'paid'           => ['smsPatternPaid',            'smsPatternPaidVars'],
-        'status_change'  => ['smsPatternStatusChange',    'smsPatternStatusChangeVars'],
-        'refund'         => ['smsPatternRefund',           'smsPatternRefundVars'],
-        'broadcast'      => ['smsPatternBroadcast',       'smsPatternBroadcastVars'],
+    private const EVENT_PATTERN_SETTING = [
+        'order_started'  => 'smsPatternStarted',
+        'order_ready'    => 'smsPatternReady',
+        'requeued'       => 'smsPatternRequeued',
+        'cancelled'      => 'smsPatternCancelled',
+        'reminder'       => 'smsPatternReminder',
+        'paid'           => 'smsPatternPaid',
+        'status_change'  => 'smsPatternStatusChange',
+        'refund'         => 'smsPatternRefund',
+        'broadcast'      => 'smsPatternBroadcast',
     ];
 
     /**
-     * Core method: send a pattern SMS using the Edge API.
+     * Core: send a pattern SMS.
      *
-     * Reads the pattern code + variable mapping from the settings, resolves
-     * the variables from the data pool, and POSTs to the Edge API.
-     *
-     * @param  string  $phone        Recipient phone.
-     * @param  string  $patternCode  The pattern code from ippanel.
-     * @param  string  $varsJson     JSON mapping: {pattern_var: data_field}.
-     * @param  array   $data         The data pool (key→value).
-     * @param  string  $type         sms_logs.type value.
-     * @param  string  $logText      Short description for sms_logs.
+     * Reads the admin's variable mappings from sms_pattern_vars for this
+     * patternKey, resolves each variable from the $data pool, and POSTs
+     * to the Edge API.
      */
-    public static function sendPatternFromConfig(
+    public static function sendPattern(
         string $phone,
+        string $patternKey,
         string $patternCode,
-        string $varsJson,
         array $data,
         string $type,
         string $logText
@@ -165,8 +138,10 @@ class SmsService
                 return;
             }
 
+            // Build params from the admin's variable mappings.
+            $params = self::resolveParams($patternKey, $data);
+
             if ($s['testMode']) {
-                $params = self::resolveParams($varsJson, $data);
                 $desc = $logText.' (آزمایشی) — pattern: '.$patternCode.' params: '.json_encode($params, JSON_UNESCAPED_UNICODE);
                 self::recordLog($phone, $desc, $type, 'test');
                 return;
@@ -181,8 +156,6 @@ class SmsService
                 self::recordLog($phone, $logText.' — ارسال نشد (کد پترن خالی)', $type, 'failed', 'empty pattern code');
                 return;
             }
-
-            $params = self::resolveParams($varsJson, $data);
 
             $body = [
                 'sending_type' => 'pattern',
@@ -220,26 +193,26 @@ class SmsService
     }
 
     /**
-     * Resolve the pattern variables from the data pool using the admin's
-     * variable mapping.
+     * Read the admin's variable mappings from sms_pattern_vars and resolve
+     * each variable from the data pool.
      *
-     * The mapping JSON is: {"pattern_var_name": "data_field_name", ...}
-     * For example: {"order_number": "order_number", "name": "customer_name"}
-     * This maps the ippanel pattern variable "name" to the system field "customer_name".
+     * Example: patternKey = "order_started", rows in DB:
+     *   var_name="customer" → data_field="customer_name"
+     *   var_name="order"    → data_field="order_number"
      *
-     * @return array<string,string> The resolved params for the Edge API.
+     * With data = {"customer_name": "احسان", "order_number": "CN-1234", ...}
+     * Result: {"customer": "احسان", "order": "CN-1234"}
      */
-    private static function resolveParams(string $varsJson, array $data): array
+    private static function resolveParams(string $patternKey, array $data): array
     {
-        $mapping = json_decode($varsJson, true);
-        if (! is_array($mapping)) {
-            $mapping = [];
-        }
+        $rows = SmsPatternVar::where('pattern_key', $patternKey)
+            ->orderBy('sort_order')
+            ->get();
 
         $params = [];
-        foreach ($mapping as $patternVar => $dataField) {
-            $value = $data[$dataField] ?? '';
-            $params[$patternVar] = is_scalar($value) ? (string) $value : '';
+        foreach ($rows as $row) {
+            $value = $data[$row->data_field] ?? '';
+            $params[$row->var_name] = is_scalar($value) ? (string) $value : '';
         }
         return $params;
     }
@@ -257,32 +230,20 @@ class SmsService
         ]);
     }
 
-    /** Normalize to international 98… format. */
     public static function normalizePhone(string $raw): string
     {
         $p = AuthService::normalizePhone($raw);
-        if (str_starts_with($p, '+98')) {
-            return '98'.substr($p, 3);
-        }
-        if (str_starts_with($p, '0') && strlen($p) === 11) {
-            return '98'.substr($p, 1);
-        }
+        if (str_starts_with($p, '+98')) return '98'.substr($p, 3);
+        if (str_starts_with($p, '0') && strlen($p) === 11) return '98'.substr($p, 1);
         return $p;
     }
 
-    /** Normalize to E.164 (+98…) format used by the ippanel Edge API. */
     public static function toE164(string $raw): string
     {
         $p = AuthService::normalizePhone($raw);
-        if (str_starts_with($p, '+98')) {
-            return $p;
-        }
-        if (str_starts_with($p, '0') && strlen($p) === 11) {
-            return '+98'.substr($p, 1);
-        }
-        if (str_starts_with($p, '98')) {
-            return '+'.$p;
-        }
+        if (str_starts_with($p, '+98')) return $p;
+        if (str_starts_with($p, '0') && strlen($p) === 11) return '+98'.substr($p, 1);
+        if (str_starts_with($p, '98')) return '+'.$p;
         return $p;
     }
 }

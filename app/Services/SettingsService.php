@@ -148,70 +148,38 @@ TEXT;
             'label' => 'شماره فرستنده', 'default' => ''],
 
         // ---- SMS patterns (ippanel Edge API) ----
-        // ALL SMS messages in the system are pattern-based — no plain-text
-        // SMS is ever sent. For each event type, the admin configures:
-        //   - the pattern code (from the ippanel panel)
-        //   - the variable mapping (JSON): which order fields map to which
-        //     pattern variable names.
+        // ALL SMS messages are pattern-based. The admin only enters the
+        // pattern code for each event type. The system automatically passes
+        // ALL available order data as params — the admin just needs to make
+        // sure the variable names in the ippanel pattern template match the
+        // field names listed in SmsService::PATTERN_DATA_FIELDS.
         //
-        // The variable mapping is a JSON string like:
-        //   {"order_number":"order_number","customer_name":"customer_name"}
-        // where the KEY is the pattern variable name declared in ippanel
-        // (without % delimiters) and the VALUE is the field name from the
-        // available data pool (see SmsService::PATTERN_DATA_FIELDS).
-        //
-        // This lets the admin freely rename variables in ippanel without
-        // changing code — they just update the mapping in the settings panel.
+        // Example: the admin creates a pattern in ippanel with the template:
+        //   "%customer_name% عزیز، سفارش شماره %order_number% شروع شد."
+        // and declares variables: customer_name, order_number.
+        // The system automatically sends params:
+        //   {"customer_name": "احسان", "order_number": "CN-1234", ...}
+        // The admin just pastes the pattern code here — no variable mapping needed.
         ['key' => 'smsPatternOtp', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'کد پترن کد تایید (OTP)', 'default' => ''],
-        ['key' => 'smsPatternOtpVars', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
-            'label' => 'متغیرهای پترن OTP (JSON)', 'default' => '{"code":"code"}'],
-
         ['key' => 'smsPatternStarted', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'کد پترن شروع سفارش', 'default' => ''],
-        ['key' => 'smsPatternStartedVars', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
-            'label' => 'متغیرهای پترن شروع سفارش (JSON)', 'default' => '{"order_number":"order_number","customer_name":"customer_name"}'],
-
         ['key' => 'smsPatternReady', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'کد پترن آماده شدن سفارش', 'default' => ''],
-        ['key' => 'smsPatternReadyVars', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
-            'label' => 'متغیرهای پترن آماده شدن (JSON)', 'default' => '{"order_number":"order_number","customer_name":"customer_name"}'],
-
         ['key' => 'smsPatternRequeued', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'کد پترن انتقال به انتهای صف', 'default' => ''],
-        ['key' => 'smsPatternRequeuedVars', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
-            'label' => 'متغیرهای پترن انتقال صف (JSON)', 'default' => '{"order_number":"order_number"}'],
-
         ['key' => 'smsPatternCancelled', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'کد پترن لغو سفارش', 'default' => ''],
-        ['key' => 'smsPatternCancelledVars', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
-            'label' => 'متغیرهای پترن لغو (JSON)', 'default' => '{"order_number":"order_number"}'],
-
         ['key' => 'smsPatternReminder', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'کد پترن یادآوری نزدیک شروع', 'default' => ''],
-        ['key' => 'smsPatternReminderVars', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
-            'label' => 'متغیرهای پترن یادآوری (JSON)', 'default' => '{"order_number":"order_number","minutes_before":"minutes_before"}'],
-
         ['key' => 'smsPatternPaid', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'کد پترن پرداخت سفارش (کیف پول)', 'default' => ''],
-        ['key' => 'smsPatternPaidVars', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
-            'label' => 'متغیرهای پترن پرداخت (JSON)', 'default' => '{"order_number":"order_number"}'],
-
         ['key' => 'smsPatternStatusChange', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'کد پترن تغییر وضعیت سفارش (دستی)', 'default' => ''],
-        ['key' => 'smsPatternStatusChangeVars', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
-            'label' => 'متغیرهای پترن تغییر وضعیت (JSON)', 'default' => '{"order_number":"order_number","status_title":"status_title"}'],
-
         ['key' => 'smsPatternRefund', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'کد پترن عودت مبلغ به کیف پول', 'default' => ''],
-        ['key' => 'smsPatternRefundVars', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
-            'label' => 'متغیرهای پترن عودت (JSON)', 'default' => '{"amount":"amount"}'],
-
         ['key' => 'smsPatternBroadcast', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'کد پترن اطلاع‌رسانی همگانی', 'default' => ''],
-        ['key' => 'smsPatternBroadcastVars', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
-            'label' => 'متغیرهای پترن همگانی (JSON)', 'default' => '{"title":"title","body":"body"}'],
-
         ['key' => 'smsNotifyEnabled', 'category' => 'sms', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'ارسال پیامک اطلاع‌رسانی سفارش (در کنار پوش)', 'default' => '0'],
         ['key' => 'smsBaseUrl', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
