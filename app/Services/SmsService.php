@@ -102,7 +102,7 @@ class SmsService
                 'params'       => $params,
             ];
 
-            $response = Http::withTimeout(self::TIMEOUT)
+            $response = Http::timeout(self::TIMEOUT)
                 ->withHeaders([
                     'Authorization' => $s['apiKey'],
                     'Content-Type'  => 'application/json',
