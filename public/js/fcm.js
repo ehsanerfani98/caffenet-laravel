@@ -124,6 +124,9 @@
 
     /**
      * Get the FCM token + register it with the server via POST /api/fcm/token.
+     * The server ALSO subscribes the token to the "all" broadcast topic
+     * (handled in FcmController::registerToken via FirebasePushService) so
+     * the admin can send a single topic push that reaches every device.
      * Uses the VAPID key from the public config for web push.
      */
     async _registerToken() {

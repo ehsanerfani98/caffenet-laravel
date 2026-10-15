@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\FcmToken;
+use App\Models\FcmPushLog;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -41,6 +42,7 @@ class FirebasePushService
 
     /**
      * Send a push notification to ALL active tokens belonging to a user.
+     * Logs the attempt to fcm_push_logs.
      *
      * @param  string  $userId  The recipient's user id (orders.customer_id)
      * @param  array   $payload {title, body, data?, url?}
@@ -60,11 +62,13 @@ class FirebasePushService
         }
 
         $sent = 0;
+        $failed = 0;
         foreach ($tokens as $token) {
             $ok = self::sendToToken($token->token, $payload);
             if ($ok) {
                 $sent++;
             } else {
+                $failed++;
                 // FCM returned an "invalid registration token" style error —
                 // disable the token so we don't keep trying to send to it.
                 $token->is_active = false;
@@ -73,7 +77,197 @@ class FirebasePushService
             }
         }
 
+        // Write to the audit log (only when this is a real send, not a test).
+        self::logPush([
+            'channel' => 'user',
+            'target' => $userId,
+            'title' => $payload['title'] ?? '',
+            'body' => $payload['body'] ?? '',
+            'data_json' => json_encode($payload['data'] ?? [], JSON_UNESCAPED_UNICODE),
+            'status' => $failed === 0 ? 'sent' : ($sent === 0 ? 'failed' : 'partial'),
+            'sent_count' => $sent,
+            'failed_count' => $failed,
+        ]);
+
         return $sent;
+    }
+
+    /**
+     * Send a push notification to a Firebase TOPIC (broadcast to every
+     * device subscribed to that topic). Used for system-wide announcements.
+     *
+     * The frontend subscribes each user's device to the topic "all" on
+     * token registration (see fcm.js → _registerToken), so sending to
+     * "all" reaches every user.
+     *
+     * @param  string  $topic   The FCM topic name (e.g. "all", "admins")
+     * @param  array   $payload {title, body, data?, url?}
+     * @param  ?string $sentBy  Admin user id (for the audit log)
+     * @return bool True on success
+     */
+    public static function sendToTopic(string $topic, array $payload, ?string $sentBy = null): bool
+    {
+        if (! SettingsService::bool('fcmEnabled')) {
+            return false;
+        }
+
+        $projectId = SettingsService::get('fcmProjectId', '');
+        if ($projectId === '') {
+            return false;
+        }
+
+        // Test mode: log and pretend success.
+        if (SettingsService::bool('fcmTestMode')) {
+            Log::info('FirebasePushService (test mode): would send topic push', [
+                'topic' => $topic,
+                'payload' => $payload,
+            ]);
+            self::logPush([
+                'channel' => 'topic', 'target' => $topic,
+                'title' => $payload['title'] ?? '', 'body' => $payload['body'] ?? '',
+                'data_json' => json_encode($payload['data'] ?? [], JSON_UNESCAPED_UNICODE),
+                'status' => 'sent', 'sent_count' => 0, 'failed_count' => 0,
+                'sent_by' => $sentBy,
+            ]);
+            return true;
+        }
+
+        $accessToken = self::getAccessToken();
+        if ($accessToken === null) {
+            self::logPush([
+                'channel' => 'topic', 'target' => $topic,
+                'title' => $payload['title'] ?? '', 'body' => $payload['body'] ?? '',
+                'data_json' => json_encode($payload['data'] ?? [], JSON_UNESCAPED_UNICODE),
+                'status' => 'failed', 'sent_count' => 0, 'failed_count' => 1,
+                'error' => 'could not obtain access token',
+                'sent_by' => $sentBy,
+            ]);
+            return false;
+        }
+
+        $url = sprintf(self::FCM_SEND_URL_TEMPLATE, $projectId);
+        $body = [
+            'message' => [
+                'topic' => $topic,
+                'notification' => [
+                    'title' => $payload['title'] ?? '',
+                    'body' => $payload['body'] ?? '',
+                ],
+                'data' => self::normalizeData($payload['data'] ?? [], $payload['url'] ?? null),
+                'android' => [
+                    'priority' => 'high',
+                    'notification' => [
+                        'channel_id' => 'caffenet_announcements',
+                        'icon' => 'icon',
+                        'color' => '#1559de',
+                    ],
+                ],
+                'webpush' => [
+                    'fcm_options' => [
+                        'link' => $payload['url'] ?? '/',
+                    ],
+                ],
+            ],
+        ];
+
+        try {
+            $resp = Http::withToken($accessToken)
+                ->timeout(15)
+                ->post($url, $body);
+
+            $ok = $resp->successful();
+            self::logPush([
+                'channel' => 'topic', 'target' => $topic,
+                'title' => $payload['title'] ?? '', 'body' => $payload['body'] ?? '',
+                'data_json' => json_encode($payload['data'] ?? [], JSON_UNESCAPED_UNICODE),
+                'status' => $ok ? 'sent' : 'failed',
+                'sent_count' => $ok ? 1 : 0,
+                'failed_count' => $ok ? 0 : 1,
+                'error' => $ok ? null : mb_substr($resp->body(), 0, 500),
+                'sent_by' => $sentBy,
+            ]);
+            return $ok;
+        } catch (\Throwable $e) {
+            self::logPush([
+                'channel' => 'topic', 'target' => $topic,
+                'title' => $payload['title'] ?? '', 'body' => $payload['body'] ?? '',
+                'data_json' => json_encode($payload['data'] ?? [], JSON_UNESCAPED_UNICODE),
+                'status' => 'failed', 'sent_count' => 0, 'failed_count' => 1,
+                'error' => $e->getMessage(),
+                'sent_by' => $sentBy,
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Send a manual push to a specific user. Called by the admin "ارسال
+     * پوش دستی" panel. Returns the send count.
+     */
+    public static function sendManual(string $userId, string $title, string $body, ?string $sentBy = null): int
+    {
+        $sent = self::sendToUser($userId, [
+            'title' => $title,
+            'body' => $body,
+            'data' => ['type' => 'manual', 'sent_by' => $sentBy ?? 'admin'],
+            'url' => '/',
+        ]);
+
+        // Tag the most recent log row with the admin's id so the audit
+        // trail shows who sent the manual push.
+        if ($sentBy) {
+            $latest = FcmPushLog::where('channel', 'user')
+                ->where('target', $userId)
+                ->orderByDesc('created_at')
+                ->first();
+            if ($latest) {
+                $latest->sent_by = $sentBy;
+                $latest->save();
+            }
+        }
+
+        return $sent;
+    }
+
+    /**
+     * Return the most recent N push log rows for the admin panel.
+     */
+    public static function recentLogs(int $limit = 50): array
+    {
+        return FcmPushLog::orderByDesc('created_at')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($r) => [
+                'id' => $r->id,
+                'channel' => $r->channel,
+                'target' => $r->target,
+                'title' => $r->title,
+                'body' => $r->body,
+                'status' => $r->status,
+                'sent_count' => $r->sent_count,
+                'failed_count' => $r->failed_count,
+                'error' => $r->error,
+                'sent_by' => $r->sent_by,
+                'created_at' => $r->created_at,
+            ])
+            ->all();
+    }
+
+    /**
+     * Insert a row into fcm_push_logs. Internal helper.
+     */
+    private static function logPush(array $attrs): void
+    {
+        try {
+            FcmPushLog::create(array_merge($attrs, [
+                'id' => 'fcmpush-'.\Illuminate\Support\Str::uuid(),
+                'created_at' => now()->toIso8601String(),
+            ]));
+        } catch (\Throwable $e) {
+            Log::warning('FirebasePushService: failed to write push log', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -198,6 +392,41 @@ class FirebasePushService
                 'is_active' => false,
                 'updated_at' => now()->toIso8601String(),
             ]);
+    }
+
+    /**
+     * Subscribe an FCM token to a topic (server-side, using the OAuth2
+     * access token). Called automatically when a token is registered so
+     * the admin can broadcast to the "all" topic without per-device work.
+     *
+     * Uses the FCM Instance ID API:
+     *   POST https://iid.googleapis.com/iid/v1/<token>/rel/topics/<topic>
+     * with the OAuth2 access token as the bearer.
+     */
+    public static function subscribeToTopic(string $fcmToken, string $topic = 'all'): bool
+    {
+        if (! SettingsService::bool('fcmEnabled')) {
+            return false;
+        }
+        $accessToken = self::getAccessToken();
+        if ($accessToken === null) {
+            return false;
+        }
+
+        $url = 'https://iid.googleapis.com/iid/v1/'.rawurlencode($fcmToken).'/rel/topics/'.rawurlencode($topic);
+        try {
+            $resp = Http::withToken($accessToken)
+                ->timeout(10)
+                ->withHeaders(['Content-Length' => '0'])
+                ->post($url);
+            return $resp->successful();
+        } catch (\Throwable $e) {
+            Log::warning('FirebasePushService: topic subscribe failed', [
+                'topic' => $topic,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
     }
 
     // ─── Internals ────────────────────────────────────────────────────

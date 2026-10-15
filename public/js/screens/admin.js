@@ -664,5 +664,150 @@
     renderBody();
   }
 
+  /* ================= Push notifications admin ================= */
+
+  S.adminPush = function (ctx) {
+    return (
+      '<div class="segmented" id="push-seg">' +
+        '<button class="seg on" data-view="broadcast">ارسال همگانی</button>' +
+        '<button class="seg" data-view="manual">ارسال به کاربر</button>' +
+        '<button class="seg" data-view="logs">تاریخچه</button>' +
+      '</div>' +
+      '<div id="push-view" style="margin-top:12px"></div>'
+    );
+  };
+
+  S.bind_admin_push = function ($host, ctx) {
+    let view = 'broadcast';
+
+    function render() {
+      const $v = $host.find('#push-view');
+      if (view === 'broadcast') {
+        $v.html(
+          '<div class="card" style="padding:14px">' +
+            '<div class="section-title" style="margin:0 0 10px">' + icon('bell') + 'ارسال پوش به همه کاربران</div>' +
+            '<label class="field-label">عنوان <span class="req">*</span></label>' +
+            '<input class="input" id="push-bc-title" placeholder="مثلاً: تخفیف ویژه آخر هفته">' +
+            '<label class="field-label" style="margin-top:10px">متن <span class="req">*</span></label>' +
+            '<textarea class="textarea" id="push-bc-body" rows="3" placeholder="متن اعلان…"></textarea>' +
+            '<label class="field-label" style="margin-top:10px">موضوع (topic)</label>' +
+            '<input class="input" id="push-bc-topic" value="all" placeholder="all">' +
+            '<div style="font-size:11px;color:var(--ink-soft);margin:4px 0 10px">پیش‌فرض «all» به همه کاربران ارسال می‌شود.</div>' +
+            '<button class="btn block" id="push-bc-send">' + icon('send') + 'ارسال پوش همگانی</button>' +
+          '</div>'
+        );
+        $v.find('#push-bc-send').on('click', async function () {
+          const $btn = $(this).prop('disabled', true).text('در حال ارسال...');
+          const title = $v.find('#push-bc-title').val().trim();
+          const body = $v.find('#push-bc-body').val().trim();
+          const topic = $v.find('#push-bc-topic').val().trim() || 'all';
+          if (!title || !body) {
+            UI.toast('عنوان و متن الزامی است.', 'error');
+            $btn.prop('disabled', false).html(icon('send') + 'ارسال پوش همگانی');
+            return;
+          }
+          try {
+            const r = await api.request('POST', '/api/fcm/send-topic', { title, body, topic });
+            UI.toast(r.message, r.ok ? 'success' : 'error');
+            if (r.ok) {
+              $v.find('#push-bc-title').val('');
+              $v.find('#push-bc-body').val('');
+            }
+          } catch (e) { UI.toast(e.message, 'error'); }
+          finally { $btn.prop('disabled', false).html(icon('send') + 'ارسال پوش همگانی'); }
+        });
+      } else if (view === 'manual') {
+        $v.html(
+          '<div class="card" style="padding:14px">' +
+            '<div class="section-title" style="margin:0 0 10px">' + icon('user') + 'ارسال پوش به یک کاربر</div>' +
+            '<label class="field-label">شماره موبایل کاربر <span class="req">*</span></label>' +
+            '<input class="input" id="push-mu-phone" inputmode="tel" placeholder="09123456789">' +
+            '<label class="field-label" style="margin-top:10px">عنوان <span class="req">*</span></label>' +
+            '<input class="input" id="push-mu-title" placeholder="عنوان اعلان">' +
+            '<label class="field-label" style="margin-top:10px">متن <span class="req">*</span></label>' +
+            '<textarea class="textarea" id="push-mu-body" rows="3" placeholder="متن اعلان…"></textarea>' +
+            '<button class="btn block" id="push-mu-send">' + icon('send') + 'ارسال پوش به این کاربر</button>' +
+          '</div>'
+        );
+        $v.find('#push-mu-send').on('click', async function () {
+          const $btn = $(this).prop('disabled', true).text('در حال ارسال...');
+          const phone = $v.find('#push-mu-phone').val().trim();
+          const title = $v.find('#push-mu-title').val().trim();
+          const body = $v.find('#push-mu-body').val().trim();
+          if (!phone || !title || !body) {
+            UI.toast('شماره موبایل، عنوان و متن همگی الزامی هستند.', 'error');
+            $btn.prop('disabled', false).html(icon('send') + 'ارسال پوش به این کاربر');
+            return;
+          }
+          try {
+            const r = await api.request('POST', '/api/fcm/send-user', { phone, title, body });
+            UI.toast(r.message, r.sent > 0 ? 'success' : 'info');
+            if (r.sent > 0) {
+              $v.find('#push-mu-title').val('');
+              $v.find('#push-mu-body').val('');
+            }
+          } catch (e) { UI.toast(e.message, 'error'); }
+          finally { $btn.prop('disabled', false).html(icon('send') + 'ارسال پوش به این کاربر'); }
+        });
+      } else if (view === 'logs') {
+        $v.html('<div id="push-logs-list" style="margin-top:4px"><div style="text-align:center;padding:20px;color:var(--ink-soft)">در حال بارگذاری…</div></div>');
+        loadLogs($v);
+      }
+    }
+
+    async function loadLogs($v) {
+      try {
+        const r = await api.request('GET', '/api/fcm/logs?limit=50');
+        const logs = r.logs || [];
+        const $list = $v.find('#push-logs-list');
+        if (!logs.length) {
+          $list.html(UI.emptyState('هنوز پوشی ارسال نشده', '', 'bell'));
+          return;
+        }
+        const STATUS_META = {
+          sent:    { tone: 'emerald', label: 'موفق' },
+          failed:  { tone: 'rose',    label: 'ناموفق' },
+          partial: { tone: 'amber',   label: 'جزئی' },
+          pending: { tone: 'slate',   label: 'در انتظار' },
+        };
+        $list.html(logs.map((l) => {
+          const meta = STATUS_META[l.status] || STATUS_META.pending;
+          const channelLabel = l.channel === 'topic'
+            ? ('موضوع: ' + PU.escapeHtml(l.target || ''))
+            : ('کاربر: ' + PU.escapeHtml(String(l.target || '').slice(0, 12)) + '…');
+          return (
+            '<div class="card" style="margin-bottom:8px;padding:11px">' +
+              '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+                '<div style="flex:1;min-width:0">' +
+                  '<div style="font-weight:700;font-size:13px">' + PU.escapeHtml(l.title || '(بدون عنوان)') + '</div>' +
+                  (l.body ? '<div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px">' + PU.escapeHtml(l.body) + '</div>' : '') +
+                '</div>' +
+                '<span class="pill ' + meta.tone + '">' + meta.label + '</span>' +
+              '</div>' +
+              '<div style="font-size:10.5px;color:var(--ink-soft);margin-top:6px;display:flex;flex-wrap:wrap;gap:8px">' +
+                '<span>' + channelLabel + '</span>' +
+                '<span>•</span>' +
+                '<span>' + PU.toJalaliDate(l.createdAt) + '</span>' +
+                (l.sentCount ? '<span>• ارسال: ' + PU.toPersianDigits(l.sentCount) + '</span>' : '') +
+                (l.failedCount ? '<span>• ناموفق: ' + PU.toPersianDigits(l.failedCount) + '</span>' : '') +
+              '</div>' +
+              (l.error ? '<div style="font-size:10.5px;color:var(--rose);margin-top:4px">' + PU.escapeHtml(l.error) + '</div>' : '') +
+            '</div>'
+          );
+        }).join(''));
+      } catch (e) {
+        $v.find('#push-logs-list').html(UI.emptyState('خطا در بارگذاری', e.message, 'alert'));
+      }
+    }
+
+    render();
+    $host.find('#push-seg .seg').on('click', function () {
+      $host.find('#push-seg .seg').removeClass('on');
+      $(this).addClass('on');
+      view = $(this).data('view');
+      render();
+    });
+  };
+
   Object.assign(window.Screens, S);
 })();

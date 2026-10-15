@@ -182,6 +182,7 @@
         { key: 'admin/dashboard', label: 'داشبورد', icon: 'chart' },
         { key: 'admin/orders', label: 'سفارش‌ها', icon: 'folder' },
         { key: 'admin/users', label: 'کاربران', icon: 'users' },
+        { key: 'admin/push', label: 'پوش', icon: 'bell' },
         { key: 'admin/more', label: 'بیشتر', icon: 'more' },
       ];
     },
@@ -200,6 +201,7 @@
         'admin/orders': { t1: 'سفارش‌ها و تراکنش‌ها', t2: 'رهگیری سفارش‌ها، اپراتورها و گردش کیف پول' },
         'admin/services': { t1: 'مدیریت خدمات', t2: 'کاتالوگ و فرم‌ساز پویا' },
         'admin/users': { t1: 'مدیریت کاربران', t2: 'نقش‌ها و مجوزها' },
+        'admin/push': { t1: 'پوش نوتیفیکیشن', t2: 'ارسال اعلان، تاریخچه پوش‌ها' },
         'admin/more': { t1: 'ابزارهای مدیریتی', t2: 'کد تخفیف، تنظیمات، اسلایدر' },
         terms: { t1: 'قوانین و حریم خصوصی', t2: 'شرایط استفاده و حفظ اطلاعات' },
       };
@@ -244,6 +246,7 @@
       else if (scr === 'admin/orders') html = window.Screens.adminOrders(ctx);
       else if (scr === 'admin/services') html = window.Screens.adminServices(ctx);
       else if (scr === 'admin/users') html = window.Screens.adminUsers(ctx);
+      else if (scr === 'admin/push') html = window.Screens.adminPush(ctx);
       else if (scr === 'admin/more') html = window.Screens.adminMore(ctx);
       else if (scr.indexOf('admin/user-transactions') === 0) {
         ctx.userId = scr.split('/')[2] || '';

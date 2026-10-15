@@ -189,4 +189,11 @@ Route::middleware('auth.session')->group(function () {
     Route::delete('/fcm/token', [FcmController::class, 'unregister']);
     Route::post('/fcm/test', [FcmController::class, 'test'])
         ->middleware('permission:settings.edit|settings.manage');
+    // Admin-only: manual send + broadcast + audit log.
+    Route::post('/fcm/send-user', [FcmController::class, 'sendToUser'])
+        ->middleware('permission:settings.edit|settings.manage');
+    Route::post('/fcm/send-topic', [FcmController::class, 'sendToTopic'])
+        ->middleware('permission:settings.edit|settings.manage');
+    Route::get('/fcm/logs', [FcmController::class, 'logs'])
+        ->middleware('permission:settings.edit|settings.manage');
 });

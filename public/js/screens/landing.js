@@ -407,6 +407,8 @@
       '<div class="card" style="margin-top:10px">' +
         '<div class="list-row" id="profile-install"><div class="lr-icon tone-indigo">' + icon('download') + '</div>' +
           '<div class="lr-main"><div class="lr-title">نصب برنامه</div><div class="lr-sub">افزودن به صفحه اصلی دستگاه</div></div></div>' +
+        '<div class="list-row" id="profile-notify"><div class="lr-icon tone-sky">' + icon('bell') + '</div>' +
+          '<div class="lr-main"><div class="lr-title">فعال‌سازی نوتیفیکیشن</div><div class="lr-sub" id="profile-notify-sub">دریافت اعلان وضعیت سفارش‌ها</div></div></div>' +
         '<div class="list-row" id="profile-privacy"><div class="lr-icon tone-slate">' + icon('shield') + '</div>' +
           '<div class="lr-main"><div class="lr-title">حریم خصوصی</div><div class="lr-sub">داده‌های شما فقط روی همین سامانه ذخیره می‌شود</div></div></div>' +
       '</div>' +
@@ -437,6 +439,65 @@
       } else if (!ok) {
         UI.toast('نصب در حال حاضر در دسترس نیست.', 'info');
       }
+    });
+
+    // ── Notifications toggle ─────────────────────────────────────
+    // Reflect the current browser permission state in the subtitle.
+    function refreshNotifyState() {
+      const $sub = $host.find('#profile-notify-sub');
+      if (!('Notification' in window)) {
+        $sub.text('مرورگر شما از نوتیفیکیشن پشتیبانی نمی‌کند');
+        return;
+      }
+      const perm = Notification.permission;
+      if (perm === 'granted') {
+        $sub.text('✓ نوتیفیکیشن فعال است');
+      } else if (perm === 'denied') {
+        $sub.text('✗ نوتیفیکیشن مسدود شده — از تنظیمات مرورگر فعال کنید');
+      } else {
+        $sub.text('دریافت اعلان وضعیت سفارش‌ها');
+      }
+    }
+    refreshNotifyState();
+
+    $host.find('#profile-notify').on('click', async function () {
+      if (!('Notification' in window)) {
+        UI.toast('مرورگر شما از نوتیفیکیشن پشتیبانی نمی‌کند.', 'error');
+        return;
+      }
+      if (Notification.permission === 'granted') {
+        UI.toast('نوتیفیکیشن از قبل فعال است.', 'info');
+        return;
+      }
+      if (Notification.permission === 'denied') {
+        UI.toast('نوتیفیکیشن در تنظیمات مرورگر مسدود شده. لطفاً از آیکون قفل کنار آدرس فعالش کنید.', 'info');
+        return;
+      }
+      // Request permission via FCM (which also registers the token).
+      if (window.FCM && typeof window.FCM.requestPermission === 'function') {
+        UI.toast('در حال درخواست اجازه…', 'info');
+        const ok = await window.FCM.requestPermission();
+        if (ok) {
+          UI.toast('نوتیفیکیشن فعال شد. ✓', 'success');
+        } else {
+          UI.toast('اجازه نوتیفیکیشن داده نشد.', 'info');
+        }
+      } else {
+        // FCM not loaded (probably disabled in admin) — fall back to a plain
+        // Notification.requestPermission() so the user at least gets local
+        // notifications from the polling layer.
+        try {
+          const p = await Notification.requestPermission();
+          if (p === 'granted') {
+            UI.toast('نوتیفیکیشن محلی فعال شد (پوش سرور غیرفعال است).', 'success');
+          } else {
+            UI.toast('اجازه نوتیفیکیشن داده نشد.', 'info');
+          }
+        } catch (e) {
+          UI.toast('خطا در درخواست اجازه.', 'error');
+        }
+      }
+      refreshNotifyState();
     });
   };
 })();
