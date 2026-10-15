@@ -8,11 +8,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * CRUD for SMS pattern variable names.
+ * CRUD for SMS pattern variable mappings.
  *
- * Each row stores just the variable NAME the admin declared in ippanel
- * (e.g. "order_number", "customer_name"). The system internally knows
- * what value to fill for each name — the admin never selects a "data field".
+ * Each row has TWO free-text fields:
+ *   var_name   = the custom name the admin used in ippanel (e.g. "order_id")
+ *   data_field = the system field that fills it (e.g. "order_number")
+ *
+ * The admin can name variables anything they want in ippanel, then map
+ * each one to a system field here. No dropdowns — both are free text.
  */
 class SmsPatternVarController extends Controller
 {
@@ -26,6 +29,7 @@ class SmsPatternVarController extends Controller
             'id' => $r->id,
             'pattern_key' => $r->pattern_key,
             'var_name' => $r->var_name,
+            'data_field' => $r->data_field,
             'sort_order' => $r->sort_order,
         ]));
     }
@@ -34,14 +38,16 @@ class SmsPatternVarController extends Controller
     {
         $patternKey = trim((string) $request->json('pattern_key', ''));
         $varName = trim((string) $request->json('var_name', ''));
+        $dataField = trim((string) $request->json('data_field', ''));
 
-        if ($patternKey === '' || $varName === '') {
-            return response()->json(['error' => 'نام متغیر الزامی است.'], 400);
+        if ($patternKey === '' || $varName === '' || $dataField === '') {
+            return response()->json(['error' => 'نام متغیر و فیلد داده الزامی است.'], 400);
         }
 
         $var = SmsPatternVar::create([
             'pattern_key' => $patternKey,
             'var_name' => $varName,
+            'data_field' => $dataField,
             'sort_order' => (int) SmsPatternVar::where('pattern_key', $patternKey)->max('sort_order') + 1,
             'created_at' => now()->toIso8601String(),
         ]);
@@ -50,6 +56,7 @@ class SmsPatternVarController extends Controller
             'id' => $var->id,
             'pattern_key' => $var->pattern_key,
             'var_name' => $var->var_name,
+            'data_field' => $var->data_field,
             'sort_order' => $var->sort_order,
         ], 201);
     }
@@ -62,13 +69,16 @@ class SmsPatternVarController extends Controller
         }
 
         $varName = trim((string) $request->json('var_name', ''));
+        $dataField = trim((string) $request->json('data_field', ''));
         if ($varName !== '') $var->var_name = $varName;
+        if ($dataField !== '') $var->data_field = $dataField;
         $var->save();
 
         return response()->json([
             'id' => $var->id,
             'pattern_key' => $var->pattern_key,
             'var_name' => $var->var_name,
+            'data_field' => $var->data_field,
         ]);
     }
 

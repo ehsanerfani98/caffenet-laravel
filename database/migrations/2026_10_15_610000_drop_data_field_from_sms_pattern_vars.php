@@ -5,32 +5,31 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Drops the data_field column from sms_pattern_vars.
+ * Re-adds the data_field column to sms_pattern_vars.
  *
- * The previous migration (2026_10_15_600000) created the table with a
- * data_field column. We removed data_field from the code but the column
- * still exists on deployed databases with a NOT NULL constraint, causing
- * INSERT failures.
+ * Each variable mapping now has TWO fields:
+ *   var_name   = the custom name the admin used in ippanel (e.g. "order_id")
+ *   data_field = the system field that fills it (e.g. "order_number")
  *
- * This migration drops the column. On SQLite, we use the dropColumn
- * approach which works by recreating the table.
+ * This lets the admin use ANY variable name in ippanel and map it to
+ * ANY system data field. Neither is hardcoded — both are free text.
  */
 return new class extends Migration
 {
     public function up(): void
     {
-        if (Schema::hasColumn('sms_pattern_vars', 'data_field')) {
+        if (! Schema::hasColumn('sms_pattern_vars', 'data_field')) {
             Schema::table('sms_pattern_vars', function (Blueprint $table) {
-                $table->dropColumn('data_field');
+                $table->string('data_field')->default('')->after('var_name');
             });
         }
     }
 
     public function down(): void
     {
-        if (! Schema::hasColumn('sms_pattern_vars', 'data_field')) {
+        if (Schema::hasColumn('sms_pattern_vars', 'data_field')) {
             Schema::table('sms_pattern_vars', function (Blueprint $table) {
-                $table->string('data_field')->nullable()->after('var_name');
+                $table->dropColumn('data_field');
             });
         }
     }

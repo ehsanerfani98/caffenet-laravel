@@ -72,32 +72,21 @@ class SmsService
     /**
      * Send the OTP pattern message.
      *
-     * The admin may have named the OTP variable anything in ippanel
-     * (e.g. "verification-code", "code", "otp"). We pass the code under
-     * multiple possible names so whatever the admin named it, it resolves.
+     * The admin names the OTP variable whatever they want in ippanel
+     * (e.g. "verification-code"). In the admin panel they enter:
+     *   var_name = "verification-code"  (what they used in ippanel)
+     *   data_field = "code"             (the system field for OTP)
+     *
+     * resolveParams() reads this mapping and sends:
+     *   {"verification-code": "12345"}
      */
     public static function sendOtp(string $phone, string $code): void
     {
-        // Read the admin's variable names from the DB for the 'otp' pattern.
-        // The admin entered e.g. "verification-code" — we need to pass
-        // the OTP code value under that exact key.
-        $vars = SmsPatternVar::where('pattern_key', 'otp')->get();
-        $data = [];
-        foreach ($vars as $v) {
-            // Every OTP variable gets the code value — ippanel will use
-            // whichever one matches the pattern template.
-            $data[$v->var_name] = $code;
-        }
-        // Also pass 'code' as a fallback in case the admin named it that.
-        if (! isset($data['code'])) {
-            $data['code'] = $code;
-        }
-
         self::sendPattern(
             phone: $phone,
             patternKey: 'otp',
             patternCode: (string) SettingsService::raw('smsPatternOtp'),
-            data: $data,
+            data: ['code' => $code],
             type: 'otp',
             logText: 'کد تایید ورود'
         );
@@ -229,18 +218,20 @@ class SmsService
      * Result: {"order_number": "CN-1234"}
      */
     /**
-     * Read the admin's variable names from sms_pattern_vars and build
+     * Read the admin's variable mappings from sms_pattern_vars and build
      * the params object for the Edge API.
      *
-     * For each variable the admin declared, look up its value in the
-     * $data pool. The admin's var_name must match a key in $data.
+     * Each DB row has:
+     *   var_name   = the name the admin used in ippanel (e.g. "order_id")
+     *   data_field = the system field to get the value from (e.g. "order_number")
      *
-     * For OTP: the caller passes data with the OTP code under every
-     * var_name the admin declared (see sendOtp).
+     * The system looks up data_field in $data to get the value, then sends
+     * it to ippanel under the admin's custom var_name.
      *
-     * For order notifications: the caller passes the full order data
-     * pool (order_number, customer_name, etc.). The admin should use
-     * these same names when creating patterns in ippanel.
+     * Example:
+     *   DB: var_name="order_id", data_field="order_number"
+     *   data: {"order_number": "CN-1234", "customer_name": "احسان"}
+     *   result: {"order_id": "CN-1234"}
      */
     private static function resolveParams(string $patternKey, array $data): array
     {
@@ -250,7 +241,7 @@ class SmsService
 
         $params = [];
         foreach ($rows as $row) {
-            $value = $data[$row->var_name] ?? '';
+            $value = $data[$row->data_field] ?? '';
             $params[$row->var_name] = is_scalar($value) ? (string) $value : '';
         }
         return $params;
