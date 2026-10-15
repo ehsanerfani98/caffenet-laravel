@@ -49,12 +49,35 @@
     const active = (state.orders || []).find((o) =>
       ['pending_payment', 'submitted', 'processing', 'ready'].includes(o.status));
     if (!active) return '';
+
+    // ── Queue summary badge ──
+    // Shown only for paid orders that are waiting or being processed.
+    // Mirrors the same data as the order-tracker queue status card but
+    // compressed into a one-line badge so the home page stays compact.
+    let queueBadge = '';
+    if (active.status === 'submitted' && active.queuePosition != null) {
+      const ahead = Math.max(0, active.queuePosition - 1);
+      const cls = ahead === 0 ? 'urgent' : '';
+      const text = ahead === 0
+        ? 'نوبت شما رسیده — در انتظار شروع'
+        : (PU.toPersianDigits(ahead) + ' نفر جلوی شما');
+      queueBadge = '<span class="home-order-queue-badge ' + cls + '">' + icon('clock') + text + '</span>';
+    } else if (active.status === 'submitted' && active.estimatedWaitMinutes != null) {
+      queueBadge = '<span class="home-order-queue-badge">' + icon('clock') +
+        'شروع تقریبی: ' + PU.formatDuration(active.estimatedWaitMinutes) + ' دیگر</span>';
+    } else if (active.status === 'processing') {
+      queueBadge = '<span class="home-order-queue-badge processing">' + icon('cog') + 'در حال انجام</span>';
+    } else if (active.status === 'ready') {
+      queueBadge = '<span class="home-order-queue-badge" style="background:#dcfce7;color:#15803d">' + icon('check') + 'آماده تحویل</span>';
+    }
+
     return (
       '<div class="home-order-block">' +
         '<div class="section-title">' + icon('folder') + 'سفارش جاری شما</div>' +
         '<div class="order-card" data-track="' + active.id + '">' +
           '<div class="oc-head"><span class="oc-num">' + PU.toPersianDigits(active.orderNumber) + '</span>' + UI.statusBadge(active.status) + '</div>' +
           '<div class="oc-title">' + PU.escapeHtml(active.serviceTitle) + '</div>' +
+          queueBadge +
           '<div class="oc-foot"><span class="oc-price">' + PU.formatToman(Math.max(0, active.totalPrice - active.discountAmount)) + '</span>' +
           '<span style="color:var(--sky);font-weight:700">پیگیری ↗</span></div>' +
         '</div>' +

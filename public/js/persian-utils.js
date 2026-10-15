@@ -128,5 +128,38 @@
       if (!Array.isArray(list) || !list.length) return '';
       return list.map((k) => PU.contactMethodLabel(k)).join('، ');
     },
+
+    /** Format a minute count as a Persian human duration: "۲۰ دقیقه", "۱ ساعت و ۵ دقیقه". */
+    formatDuration(minutes) {
+      const m = Math.max(0, Math.round(Number(minutes) || 0));
+      if (m <= 0) return 'اکنون';
+      if (m < 60) return PU.toPersianDigits(m) + ' دقیقه';
+      const h = Math.floor(m / 60);
+      const rem = m % 60;
+      if (rem === 0) return PU.toPersianDigits(h) + ' ساعت';
+      return PU.toPersianDigits(h) + ' ساعت و ' + PU.toPersianDigits(rem) + ' دقیقه';
+    },
+
+    /** Format an ISO 8601 timestamp as Persian HH:MM (e.g. "۱۴:۳۰"). */
+    formatTime(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '—';
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      return PU.toPersianDigits(hh + ':' + mm);
+    },
+
+    /** Format an ISO 8601 timestamp as Persian date + time "۱۴۰۳/۰۷/۲۱ - ۱۴:۳۰". */
+    formatDateTime(iso) {
+      if (!iso) return '—';
+      return PU.toJalaliDate(iso);
+    },
+
+    /** Friendly label for the queue_type field. */
+    queueTypeLabel(t) {
+      const map = { quick: 'فوری', normal: 'عادی', long: 'زمان‌بر' };
+      return map[t] || 'عادی';
+    },
   };
 })();

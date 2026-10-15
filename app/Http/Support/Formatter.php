@@ -201,6 +201,18 @@ class Formatter
             'reviewComment' => $o->review_comment,
             'createdAt' => $o->created_at,
             'updatedAt' => $o->updated_at,
+            // ── Smart queue / capacity fields ─────────────────────────
+            // Exposed so the customer-facing tracker + home page can show
+            // "you are #N in queue", "estimated start HH:MM", etc.
+            'queueType' => (string) ($o->queue_type ?? 'normal'),
+            'queuePosition' => $o->queue_position !== null ? (int) $o->queue_position : null,
+            'estimatedWaitMinutes' => $o->estimated_wait_minutes !== null ? (int) $o->estimated_wait_minutes : null,
+            'estimatedDurationMinutes' => $o->estimated_duration_minutes !== null ? (int) $o->estimated_duration_minutes : null,
+            'estimatedStartAt' => $o->estimated_start_at,
+            'estimatedEndAt' => $o->estimated_end_at,
+            'noResponseDeadline' => $o->no_response_deadline,
+            'trackToken' => $o->track_token,
+            'reservedSlotId' => $o->reserved_slot_id,
             'logs' => $o->logs()->orderBy('timestamp')->get()->map([self::class, 'orderLog'])->values()->all(),
             'ticketMessages' => $o->ticketMessages()->orderBy('timestamp')->get()->map([self::class, 'ticketMessage'])->values()->all(),
         ];

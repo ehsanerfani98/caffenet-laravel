@@ -666,3 +666,93 @@ svg.i.i-lg { width: 30px; height: 30px; }
 @media (min-width: 400px) {
     .cat-icon-box i, .cat-icon-box .fa { font-size: 32px; }
 }
+
+/* ─── Smart queue status card (order tracker) ─── */
+.queue-card { padding: 0; overflow: hidden; }
+.queue-hero {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 13px; font-weight: 700;
+}
+.queue-hero-icon {
+    width: 44px; height: 44px; flex: none;
+    border-radius: 13px;
+    background: rgba(255, 255, 255, .65);
+    display: grid; place-items: center;
+}
+.queue-hero-icon svg { width: 22px; height: 22px; }
+.queue-hero-body { flex: 1; min-width: 0; }
+.queue-hero-value {
+    font-size: 22px; font-weight: 800;
+    line-height: 1.2;
+}
+.queue-hero-label { font-size: 11px; font-weight: 600; opacity: .85; }
+.queue-hero-type {
+    font-size: 10.5px; font-weight: 700;
+    padding: 4px 10px; border-radius: 12px;
+    background: rgba(255, 255, 255, .65);
+}
+
+.queue-eta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--line);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+}
+.queue-eta-cell {
+    background: var(--card);
+    padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 3px;
+}
+.queue-eta-label {
+    font-size: 10.5px; font-weight: 600;
+    color: var(--ink-soft);
+    line-height: 1.4;
+}
+.queue-eta-value {
+    font-size: 14px; font-weight: 800;
+    color: var(--ink);
+    line-height: 1.3;
+}
+
+.queue-warn {
+    margin: 10px 12px 0;
+    padding: 9px 11px;
+    border-radius: 11px;
+    background: var(--rose-soft);
+    color: var(--rose);
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.7;
+    display: flex; align-items: flex-start; gap: 7px;
+}
+.queue-warn svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+
+.queue-actions {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    padding: 10px 12px 12px;
+}
+.queue-actions .btn { flex: 1; min-width: 0; }
+.queue-actions .btn svg { width: 15px; height: 15px; }
+
+/* ─── Home-page active order: queue summary badge ─── */
+.home-order-queue-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    margin-top: 6px;
+    padding: 3px 9px;
+    border-radius: 10px;
+    background: var(--sky-soft);
+    color: var(--sky-deep);
+    font-size: 10.5px;
+    font-weight: 700;
+}
+.home-order-queue-badge svg { width: 12px; height: 12px; }
+.home-order-queue-badge.urgent {
+    background: var(--rose-soft);
+    color: var(--rose);
+}
+.home-order-queue-badge.processing {
+    background: #fff4e0;
+    color: #b35e00;
+}

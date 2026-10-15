@@ -106,7 +106,13 @@
       icon: 'folder',
       tone: 'indigo',
       size: 'tall',
-      onClose: () => clearInterval(pollTimer),
+      onClose: () => {
+        clearInterval(pollTimer);
+        // Stop the QueueUI tracker so its 15s polling loop doesn't leak.
+        if (window.QueueUI && typeof window.QueueUI.stopOrderTracking === 'function') {
+          window.QueueUI.stopOrderTracking();
+        }
+      },
     });
 
     /* True while focus sits in an input/textarea inside this sheet. */
@@ -128,6 +134,127 @@
       } catch (e) {
         if (!silent) UI.toast(e.message, 'error');
       }
+    }
+
+    /**
+     * Smart queue status card. Shown for paid orders (submitted / processing /
+     * ready). Renders two zones:
+     *
+     *   ⏳ انتظار تقریبی: 35 دقیقه       (when waiting — submitted)
+     *   👥 نفرهای جلوی شما: ۲
+     *   ⏱ شروع تقریبی: ۱۴:۳۰
+     *
+     *   ⚙️ مدت انجام تقریبی: ۲۰ دقیقه
+     *   ⏱ تکمیل تقریبی: ۱۴:۵۰           (when processing or ready)
+     *
+     * Plus a "خبرم کن هنگام شروع" button (POST /api/orders/{id}/notify-me) and
+     * a "لینک پیگیری عمومی" share button (uses trackToken).
+     */
+    function queueStatusCardHtml(o, isOwner) {
+      // Only show for paid orders that are still in the queue lifecycle.
+      const ACTIVE = ['submitted', 'processing', 'ready'];
+      if (ACTIVE.indexOf(o.status) === -1) return '';
+
+      const isWaiting = o.status === 'submitted';
+      const isProcessing = o.status === 'processing';
+      const isReady = o.status === 'ready';
+
+      // Hero stat — what the customer cares most about right now.
+      let heroLabel, heroValue, heroIcon, heroColor;
+      if (isWaiting) {
+        const pos = o.queuePosition != null ? o.queuePosition : '—';
+        const ahead = (typeof pos === 'number' && pos > 1) ? (pos - 1) : 0;
+        heroLabel = 'نفرهای جلوی شما';
+        heroValue = PU.toPersianDigits(ahead);
+        heroIcon = 'users';
+        heroColor = '#1559de';
+      } else if (isProcessing) {
+        heroLabel = 'در حال انجام';
+        heroValue = '⚙️';
+        heroIcon = 'gear';
+        heroColor = '#f08d37';
+      } else { // ready
+        heroLabel = 'آماده تحویل';
+        heroValue = '✓';
+        heroIcon = 'check';
+        heroColor = '#0ca67d';
+      }
+
+      // Build the two-row ETA grid. We always show wait + duration + start + end
+      // (when present) so the customer sees the FULL picture per the spec.
+      const rows = [];
+      if (isWaiting) {
+        if (o.estimatedWaitMinutes != null) {
+          rows.push({ icon: 'clock', label: '⏳ انتظار تقریبی', value: PU.formatDuration(o.estimatedWaitMinutes) });
+        }
+        if (o.queuePosition != null && o.queuePosition > 0) {
+          rows.push({ icon: 'users', label: '👥 نوبت شما در صف', value: PU.toPersianDigits(o.queuePosition) });
+        }
+        if (o.estimatedStartAt) {
+          rows.push({ icon: 'play', label: '⏱ شروع تقریبی', value: PU.formatTime(o.estimatedStartAt) });
+        }
+      }
+      if (o.estimatedDurationMinutes != null) {
+        rows.push({ icon: 'cog', label: '⚙️ مدت انجام تقریبی', value: PU.formatDuration(o.estimatedDurationMinutes) });
+      }
+      if (o.estimatedEndAt) {
+        rows.push({ icon: 'flag', label: '⏱ تکمیل تقریبی', value: PU.formatTime(o.estimatedEndAt) });
+      }
+
+      // The "no response deadline" warning when the order is at position 1
+      // and waiting for the customer to confirm something.
+      let warnHtml = '';
+      if (o.noResponseDeadline && isWaiting) {
+        const deadline = new Date(o.noResponseDeadline);
+        const now = new Date();
+        const minsLeft = Math.max(0, Math.round((deadline - now) / 60000));
+        if (minsLeft > 0 && minsLeft <= 15) {
+          warnHtml = '<div class="queue-warn">' + icon('alert') +
+            ' پاسخ شما تا ' + PU.toPersianDigits(minsLeft) + ' دقیقه دیگر نیاز است؛ ' +
+            'در غیر این صورت سفارش به انتهای صف منتقل می‌شود.</div>';
+        }
+      }
+
+      // Action buttons: "notify me on start" + "share tracking link"
+      const showNotify = isWaiting && isOwner;
+      const showShare = !!o.trackToken && isOwner;
+      let actionsHtml = '';
+      if (showNotify || showShare) {
+        actionsHtml = '<div class="queue-actions">';
+        if (showNotify) {
+          actionsHtml += '<button class="btn ghost sm" id="queue-notify">' + icon('bell') + 'خبرم کن هنگام شروع</button>';
+        }
+        if (showShare) {
+          actionsHtml += '<button class="btn ghost sm" id="queue-share">' + icon('share') + 'لینک پیگیری</button>';
+        }
+        actionsHtml += '</div>';
+      }
+
+      // Render the rows grid (2 columns).
+      const rowsHtml = rows.length
+        ? '<div class="queue-eta-grid">' + rows.map((r) => (
+            '<div class="queue-eta-cell">' +
+              '<div class="queue-eta-label">' + r.label + '</div>' +
+              '<div class="queue-eta-value">' + PU.escapeHtml(r.value) + '</div>' +
+            '</div>'
+          )).join('') + '</div>'
+        : '';
+
+      return (
+        '<div class="card queue-card" style="margin-bottom:12px">' +
+          '<div class="queue-hero" style="background:' + heroColor + '1a;color:' + heroColor + ';">' +
+            '<div class="queue-hero-icon">' + icon(heroIcon) + '</div>' +
+            '<div class="queue-hero-body">' +
+              '<div class="queue-hero-value">' + heroValue + '</div>' +
+              '<div class="queue-hero-label">' + PU.escapeHtml(heroLabel) + '</div>' +
+            '</div>' +
+            '<div class="queue-hero-type">' + PU.escapeHtml(PU.queueTypeLabel(o.queueType)) + '</div>' +
+          '</div>' +
+          rowsHtml +
+          warnHtml +
+          actionsHtml +
+        '</div>'
+      );
     }
 
     function render() {
@@ -163,6 +290,16 @@
             '<span style="font-weight:800;color:var(--sky-deep)">' + PU.formatToman(paid ? o.paidAmount : Math.max(0, o.totalPrice - o.discountAmount)) + '</span>' +
           '</div>' +
         '</div>';
+
+      // ── Smart queue status card ──────────────────────────────────
+      // Shown when the order is paid and either waiting in the queue or
+      // being worked on. Mirrors the spec:
+      //   ⏳ انتظار تقریبی: 35 دقیقه
+      //   ⚙️ مدت انجام تقریبی: 20 دقیقه
+      //   ⏱ شروع تقریبی: 14:30
+      //   ⏱ تکمیل تقریبی: 14:50
+      //   👥 نفرهای جلوی شما: 2
+      body += queueStatusCardHtml(o, isOwner);
 
       // Chat now lives on its own page; this is just the entry point.
       body += '<button class="btn ghost block sm" id="open-chat" style="margin-bottom:12px">' +
@@ -231,6 +368,52 @@
         });
       });
 
+      // ── Smart queue buttons ───────────────────────────────────────
+      // "Notify me on start" — registers a per-order flag in cache so the
+      // SendStartReminder job will push a browser notification when the
+      // estimated start is ~5 min away.
+      sheet.body.find('#queue-notify').on('click', async function () {
+        const $btn = $(this).prop('disabled', true);
+        try {
+          await api.notifyMeOnStart(o.id);
+          UI.toast('هنگام شروع کار روی سفارش، به شما اطلاع می‌دهیم.', 'success');
+          // Request browser notification permission at the same time so
+          // the SendStartReminder dispatcher can actually ping the user.
+          if (window.QueueUI && typeof window.QueueUI.requestNotificationPermission === 'function') {
+            window.QueueUI.requestNotificationPermission();
+          }
+        } catch (e) {
+          UI.toast(e.message, 'error');
+        } finally {
+          $btn.prop('disabled', false);
+        }
+      });
+
+      // "Share tracking link" — uses the public track_token so the customer
+      // can open the order status on a second device without logging in.
+      sheet.body.find('#queue-share').on('click', function () {
+        if (!o.trackToken) {
+          UI.toast('لینک پیگیری در دسترس نیست.', 'info');
+          return;
+        }
+        const url = window.location.origin + '/api/orders/track/' + o.trackToken;
+        // Try the Web Share API first (mobile), fall back to clipboard.
+        if (navigator.share) {
+          navigator.share({
+            title: 'پیگیری سفارش ' + PU.toPersianDigits(o.orderNumber),
+            text: 'وضعیت سفارش شما در کافی‌نت احسان',
+            url: url,
+          }).catch(() => {});
+        } else if (navigator.clipboard) {
+          navigator.clipboard.writeText(url).then(
+            () => UI.toast('لینک پیگیری کپی شد.', 'success'),
+            () => UI.toast(url, 'info')
+          );
+        } else {
+          UI.toast(url, 'info');
+        }
+      });
+
       if (retryable) sheet.body.find('#retry-pay').on('click', async function () {
         const $btn = $(this).prop('disabled', true);
         try {
@@ -266,7 +449,18 @@
     }
 
     refresh().then(() => {
+      // 5-second polling keeps the queue status card live: position changes,
+      // status transitions (submitted → processing), ETA recalculations.
       pollTimer = setInterval(() => refresh(true), 5000);
+      // Hook the QueueUI tracker so the browser notification fires when
+      // the order transitions to "processing" or "ready".
+      if (window.QueueUI && typeof window.QueueUI.startOrderTracking === 'function') {
+        window.QueueUI.startOrderTracking(orderId, function (data) {
+          // The poller already calls refresh(); we just react to status
+          // changes for the browser notification, which QueueUI handles
+          // internally via _maybeNotify().
+        });
+      }
     });
   };
 })();

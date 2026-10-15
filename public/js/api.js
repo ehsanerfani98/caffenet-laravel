@@ -217,6 +217,27 @@
       return this.request('GET', '/api/orders/' + id);
     }
 
+    /**
+     * Lightweight polling endpoint — returns only the queue-relevant fields
+     * + recent notifications. Use this for the live tracker instead of the
+     * full fetchOrderById, since it's much cheaper on the server.
+     */
+    async fetchOrderUpdates(id) {
+      return this.request('GET', '/api/orders/' + id + '/updates');
+    }
+
+    /** Register "notify me when work starts on this order". */
+    async notifyMeOnStart(id) {
+      return this.request('POST', '/api/orders/' + id + '/notify-me', {});
+    }
+
+    /** Cancel an order — calls DELETE /api/orders/{id}/cancel. */
+    async cancelOrder(id) {
+      const r = await this.request('DELETE', '/api/orders/' + id + '/cancel', {});
+      await this.syncWithBackend();
+      return r;
+    }
+
     async createOrder(payload) {
       const order = await this.request('POST', '/api/orders', payload);
       this.state.orders.unshift(order);
