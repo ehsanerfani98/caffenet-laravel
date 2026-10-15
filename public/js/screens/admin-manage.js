@@ -363,17 +363,22 @@
           '<button type="button" class="btn ghost block sm" id="fcm-test-btn" style="margin-top:10px">' + icon('bell') + 'تست ارسال پوش به دستگاه من</button>' +
         '</div>';
 
-      /* ---- Mark SMS pattern settings as rendered BEFORE building leftovers ----
-       * loadSmsPatterns() is async and runs later, but the pattern code fields
-       * (smsPatternOtp, smsPatternStarted, etc.) are already rendered in smsHtml
-       * via the container placeholder. We must mark them as rendered now so they
-       * don't also appear in the leftovers section (which would create duplicate
-       * fields and break the save handler).
+      /* ---- Mark ALL SMS settings as rendered BEFORE building leftovers ----
+       * loadSmsPatterns() runs synchronously but AFTER leftoversHtml is built.
+       * We must mark every SMS setting key (pattern codes + variable names)
+       * as rendered now so they don't also appear in the leftovers section.
        */
-      ['smsPatternOtp', 'smsPatternStarted', 'smsPatternReady', 'smsPatternRequeued',
-       'smsPatternCancelled', 'smsPatternReminder', 'smsPatternPaid',
-       'smsPatternStatusChange', 'smsPatternRefund', 'smsPatternBroadcast',
-       'smsNotifyEnabled', 'smsBaseUrl',
+      ['smsEnabled', 'smsApiKey', 'smsSender', 'smsNotifyEnabled', 'smsBaseUrl',
+       'smsPatternOtp', 'smsPatternOtp_code',
+       'smsPatternStarted', 'smsPatternStarted_order_number', 'smsPatternStarted_customer_name', 'smsPatternStarted_service_title', 'smsPatternStarted_eta_minutes', 'smsPatternStarted_start_time', 'smsPatternStarted_tracking_url',
+       'smsPatternReady', 'smsPatternReady_order_number', 'smsPatternReady_customer_name', 'smsPatternReady_tracking_url',
+       'smsPatternRequeued', 'smsPatternRequeued_order_number', 'smsPatternRequeued_customer_name', 'smsPatternRequeued_queue_position',
+       'smsPatternCancelled', 'smsPatternCancelled_order_number', 'smsPatternCancelled_customer_name',
+       'smsPatternReminder', 'smsPatternReminder_order_number', 'smsPatternReminder_customer_name', 'smsPatternReminder_minutes_before', 'smsPatternReminder_start_time',
+       'smsPatternPaid', 'smsPatternPaid_order_number', 'smsPatternPaid_amount',
+       'smsPatternStatusChange', 'smsPatternStatusChange_order_number', 'smsPatternStatusChange_customer_name', 'smsPatternStatusChange_status_title',
+       'smsPatternRefund', 'smsPatternRefund_customer_name', 'smsPatternRefund_amount',
+       'smsPatternBroadcast', 'smsPatternBroadcast_title', 'smsPatternBroadcast_body',
       ].forEach((k) => { rendered[k] = true; });
 
       /* ---- fallback: any system key the layout above did not claim ---- */
