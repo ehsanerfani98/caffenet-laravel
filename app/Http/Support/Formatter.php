@@ -35,6 +35,8 @@ class Formatter
             'basePrice' => (int) $row->base_price,
             'estimatedTime' => (string) ($row->estimated_time ?? ''),
             'icon' => (string) ($row->icon ?? ''),
+            'iconColor' => (string) ($row->icon_color ?? ''),
+            'sortOrder' => (int) ($row->sort_order ?? 0),
             'isActive' => (bool) $row->is_active,
             'fields' => $row->fields(),
             'pricingFormulaDescription' => (string) ($row->pricing_formula ?? ''),

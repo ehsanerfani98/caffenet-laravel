@@ -107,6 +107,17 @@ class CatalogController extends Controller
             return response()->json(['error' => 'دسته‌بندی انتخاب‌شده معتبر نیست.'], 400);
         }
 
+        // Sanitize iconColor — same rule as categories: 6-digit hex, leading
+        // # added if missing. NULL/empty → frontend falls back to default.
+        $iconColor = trim((string) ($body['iconColor'] ?? ''));
+        if ($iconColor !== '' && ! preg_match('/^#?[0-9a-fA-F]{6}$/', $iconColor)) {
+            return response()->json(['error' => 'رنگ آیکون باید کد هگز ۶ رقمی باشد (مثل #a82cc7).'], 400);
+        }
+        if ($iconColor !== '' && ! str_starts_with($iconColor, '#')) {
+            $iconColor = '#'.$iconColor;
+        }
+        $sortOrder = (int) ($body['sortOrder'] ?? 0);
+
         // Validate dynamic fields structure (form-builder contract).
         $fields = is_array($body['fields'] ?? null) ? array_values($body['fields']) : [];
         $allowedTypes = ['text', 'number', 'textarea', 'date', 'select', 'radio', 'checkbox', 'file'];
@@ -137,6 +148,8 @@ class CatalogController extends Controller
             'base_price' => (int) ($body['basePrice'] ?? 0),
             'estimated_time' => (string) ($body['estimatedTime'] ?? ''),
             'icon' => (string) ($body['icon'] ?? ''),
+            'icon_color' => $iconColor,
+            'sort_order' => $sortOrder,
             'is_active' => (bool) ($body['isActive'] ?? true),
             'fields_json' => json_encode($clean, JSON_UNESCAPED_UNICODE),
             'pricing_formula' => (string) ($body['pricingFormulaDescription'] ?? ''),

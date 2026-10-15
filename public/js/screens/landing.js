@@ -8,9 +8,15 @@
 
   function serviceCard(svc, settings) {
     const price = svc.basePrice > 0 ? PU.formatToman(svc.basePrice) : 'محاسبه در سفارش';
+    // Apply the admin-picked icon color when set; otherwise the .svc-icon
+    // background (sky-soft) + color (sky-deep) defaults apply.
+    const iconHtml = window.renderCategoryIcon(svc.icon || 'printer', { color: svc.iconColor || null });
+    const iconStyle = svc.iconColor
+      ? ' style="background:transparent;color:' + PU.escapeHtml(svc.iconColor) + ';"'
+      : '';
     return (
       '<div class="svc-card" data-service="' + svc.id + '">' +
-        '<div class="svc-icon">' + renderServiceIcon(svc.icon) + '</div>' +
+        '<div class="svc-icon"' + iconStyle + '>' + iconHtml + '</div>' +
         '<div class="svc-title">' + PU.escapeHtml(svc.title) + '</div>' +
         '<div class="svc-desc">' + PU.escapeHtml(svc.description || '') + '</div>' +
         '<div class="svc-meta"><span>' + (svc.estimatedTime ? PU.escapeHtml(svc.estimatedTime) : '') + '</span>' +

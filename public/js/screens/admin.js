@@ -90,11 +90,11 @@
             window.renderCategoryIcon(c.iconName || 'general', { color: c.iconColor || null }) +
             ' ' + PU.escapeHtml(c.title) + '</div>';
           html += items.map((s) =>
-            '<div class="list-row"><div class="lr-icon" style="background:transparent;padding:0;width:44px;height:44px;flex:none;overflow:hidden;font-size:20px;">' +
-              window.renderCategoryIcon(s.icon || 'printer', {}) +
+            '<div class="list-row"><div class="lr-icon" style="background:transparent;padding:0;width:44px;height:44px;flex:none;overflow:hidden;font-size:20px;' + (s.iconColor ? 'color:' + PU.escapeHtml(s.iconColor) + ';' : '') + '">' +
+              window.renderCategoryIcon(s.icon || 'printer', { color: s.iconColor || null }) +
             '</div>' +
             '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(s.title) + '</div>' +
-            '<div class="lr-sub">' + PU.toPersianDigits(s.fields.length) + ' فیلد • ' + (s.isActive ? 'فعال' : 'غیرفعال') + '</div></div>' +
+            '<div class="lr-sub">' + PU.toPersianDigits(s.fields.length) + ' فیلد • ' + (s.isActive ? 'فعال' : 'غیرفعال') + (s.iconColor ? ' • <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + PU.escapeHtml(s.iconColor) + ';vertical-align:middle"></span>' : '') + '</div></div>' +
             '<button class="icon-btn" style="background:var(--slate-soft);color:var(--ink)" data-edit-svc="' + s.id + '">' + icon('edit') + '</button></div>'
           ).join('');
         });
@@ -247,16 +247,20 @@
 
       // Service icon — defaults to a sensible Font Awesome key.
       let svcIconKey = (svc && svc.icon) || 'printer';
+      // Service icon color — empty means "use default sky color".
+      let svcIconColor = (svc && svc.iconColor) || '';
+      let svcSortOrder = (svc && typeof svc.sortOrder === 'number') ? svc.sortOrder : 0;
       const LIB = window.CATEGORY_ICON_LIBRARY || [];
       function lookupLabel(key) {
         const it = LIB.find((x) => x.key === key);
         return it ? it.label : key;
       }
       function svcIconFieldHtml() {
+        // Preview shows the icon with the current color (or default).
         return (
           '<div class="iconpick-field" id="svc-icon-trigger">' +
-            '<div class="iconpick-preview" id="svc-icon-preview">' +
-              window.renderCategoryIcon(svcIconKey, { size: '2x' }) +
+            '<div class="iconpick-preview" id="svc-icon-preview" style="' + (svcIconColor ? 'background:transparent;color:' + PU.escapeHtml(svcIconColor) + ';' : '') + '">' +
+              window.renderCategoryIcon(svcIconKey, { color: svcIconColor || null, size: '2x' }) +
             '</div>' +
             '<div class="iconpick-meta">' +
               '<div class="iconpick-meta-title" id="svc-icon-label">' + PU.escapeHtml(lookupLabel(svcIconKey)) + '</div>' +
@@ -281,8 +285,26 @@
           '<input class="input" id="svc-price" inputmode="numeric" value="' + (svc ? svc.basePrice : 0) + '">' +
           '<label class="field-label">زمان تقریبی</label>' +
           '<input class="input" id="svc-time" value="' + PU.escapeHtml(svc ? svc.estimatedTime : '') + '">' +
+
           '<label class="field-label">آیکون</label>' +
           '<div id="svc-icon-host">' + svcIconFieldHtml() + '</div>' +
+
+          '<label class="field-label" style="margin-top:12px">رنگ آیکون (اختیاری)</label>' +
+          '<input class="input" id="svc-color" type="text" value="' + PU.escapeHtml(svcIconColor) + '" placeholder="#1559de یا خالی برای رنگ پیش‌فرض">' +
+          '<div id="svc-color-swatches" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">' +
+            ['#1559de', '#10aec8', '#0ca67d', '#40a83b', '#f4d33b',
+             '#f08d37', '#e75b2e', '#d91543', '#ef6c7b', '#a82cc7',
+             '#8138d4', '#475d93', '#159db5', '#124be0', '#e40012'].map(function (c) {
+              return '<button type="button" class="svc-color-swatch" data-color="' + c + '" ' +
+                'style="width:22px;height:22px;border-radius:6px;background:' + c + ';' +
+                'border:2px solid #fff;box-shadow:0 0 0 1px var(--line);cursor:pointer;padding:0"></button>';
+            }).join('') +
+          '</div>' +
+
+          '<label class="field-label" style="margin-top:12px">ترتیب نمایش در دسته (عدد کوچک‌تر = زودتر)</label>' +
+          '<input class="input" id="svc-sort" type="number" inputmode="numeric" value="' + svcSortOrder + '" style="margin-bottom:6px">' +
+          '<div style="font-size:11px;color:var(--ink-soft);margin-bottom:10px">خدمات با عدد مساوی، بر اساس زمان ایجاد مرتب می‌شوند.</div>' +
+
           '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;margin:14px 2px">' +
             '<input type="checkbox" id="svc-active"' + (!svc || svc.isActive ? ' checked' : '') + '> خدمت فعال باشد</label>' +
 
@@ -356,6 +378,18 @@
           });
         });
 
+        // Color swatch click → fill the input + refresh preview.
+        sheet.body.find('.svc-color-swatch').off('click').on('click', function () {
+          svcIconColor = $(this).data('color');
+          sheet.body.find('#svc-color').val(svcIconColor);
+          sheet.body.find('#svc-icon-host').html(svcIconFieldHtml());
+        });
+        // Live preview when typing a hex color.
+        sheet.body.find('#svc-color').off('input').on('input', PU.debounce(function () {
+          svcIconColor = ($(this).val() || '').trim();
+          sheet.body.find('#svc-icon-host').html(svcIconFieldHtml());
+        }, 220));
+
         sheet.body.find('#add-field').off('click').on('click', () => {
           collectFields();
           fields.push({ id: 'fld-' + Math.random().toString(36).slice(2, 8), label: '', type: 'text', required: false });
@@ -387,6 +421,8 @@
             basePrice: Number(sheet.body.find('#svc-price').val()) || 0,
             estimatedTime: sheet.body.find('#svc-time').val(),
             icon: svcIconKey,
+            iconColor: (sheet.body.find('#svc-color').val() || '').trim(),
+            sortOrder: parseInt(sheet.body.find('#svc-sort').val() || '0', 10),
             isActive: sheet.body.find('#svc-active').is(':checked'),
             fields,
           });

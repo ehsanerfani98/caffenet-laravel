@@ -32,6 +32,7 @@ class CatalogSeeder extends Seeder
                 'id' => 'srv-print-doc', 'category_id' => 'cat-print', 'title' => 'پرینت و تکثیر',
                 'description' => 'چاپ سیاه‌وسفید و رنگی در سایز A4 و A3 با گزینه صحافی',
                 'base_price' => 0, 'estimated_time' => '۱ الی ۳ ساعت', 'icon' => 'printer',
+                'icon_color' => '#1559de', 'sort_order' => 1,
                 'fields_json' => json_encode([
                     ['id' => 'pageCount', 'label' => 'تعداد صفحات', 'type' => 'number', 'placeholder' => 'مثلاً ۱۰', 'required' => true],
                     ['id' => 'copies', 'label' => 'تعداد نسخه', 'type' => 'number', 'placeholder' => 'مثلاً ۱', 'required' => true],
@@ -55,6 +56,7 @@ class CatalogSeeder extends Seeder
                 'id' => 'srv-student-register', 'category_id' => 'cat-student', 'title' => 'ثبت‌نام دانشگاه',
                 'description' => 'ثبت‌نام ترمی، انتخاب واحد و رفع اشکال سامانه دانشگاه',
                 'base_price' => 80000, 'estimated_time' => '۲ الی ۴ ساعت', 'icon' => 'student',
+                'icon_color' => '#475d93', 'sort_order' => 1,
                 'fields_json' => json_encode([
                     ['id' => 'university', 'label' => 'نام دانشگاه', 'type' => 'text', 'placeholder' => 'نام دانشگاه خود را بنویسید', 'required' => true],
                     ['id' => 'serviceLevel', 'label' => 'سطح خدمات', 'type' => 'select', 'required' => true, 'options' => [
@@ -68,6 +70,7 @@ class CatalogSeeder extends Seeder
                 'id' => 'srv-gov-followup', 'category_id' => 'cat-gov', 'title' => 'پیگیری امور اداری',
                 'description' => 'پیگیری نامه‌ها، مجوزها و امور دولتی',
                 'base_price' => 120000, 'estimated_time' => '۱ الی ۲ روز کاری', 'icon' => 'office',
+                'icon_color' => '#a82cc7', 'sort_order' => 1,
                 'fields_json' => json_encode([
                     ['id' => 'subject', 'label' => 'موضوع پیگیری', 'type' => 'text', 'placeholder' => 'موضوع را شرح دهید', 'required' => true],
                 ], JSON_UNESCAPED_UNICODE),
@@ -77,6 +80,7 @@ class CatalogSeeder extends Seeder
                 'id' => 'srv-tax-loan', 'category_id' => 'cat-tax', 'title' => 'مشاوره مالیات و وام',
                 'description' => 'تنظیم اظهارنامه، تسویه مالیات و مشاوره وام',
                 'base_price' => 150000, 'estimated_time' => '۱ الی ۳ روز کاری', 'icon' => 'government',
+                'icon_color' => '#124be0', 'sort_order' => 1,
                 'fields_json' => json_encode([
                     ['id' => 'taxType', 'label' => 'نوع خدمت', 'type' => 'radio', 'required' => true, 'options' => [
                         ['label' => 'اظهارنامه مالیاتی (۵۰٬۰۰۰ اضافه)', 'value' => 'declaration', 'extraPrice' => 50000],
