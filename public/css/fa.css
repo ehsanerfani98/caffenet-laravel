@@ -1,30 +1,44 @@
 /* ================================================================
-   Caffenet Lite — Font Awesome 6 (self-hosted, hand-curated subset)
+   Caffenet Lite — Font Awesome 6 (self-hosted fallback + curated aliases)
    ----------------------------------------------------------------
-   Only the three bundled woff2 weights in /public/fonts are loaded
-   (fa-solid-900, fa-regular-400, fa-brands-400). This file declares
-   the @font-face rules + a curated whitelist of class aliases used by
-   the UI. Each alias maps to a codepoint inside fa-solid-900.woff2.
+   The MAIN Font Awesome stylesheet is loaded from the cdnjs CDN in
+   app.blade.php. This file plays two roles:
+
+   1) FALLBACK @font-face rules — if the CDN is blocked or slow, the
+      three self-hosted woff2 files in /public/fonts are loaded as a
+      fallback. They use the SAME font-family names ('Font Awesome 6
+      Free', 'Font Awesome 6 Brands') so the existing class rules
+      from the CDN stylesheet apply without any changes.
+
+   2) Curated icon alias whitelist — declarations of `.fa-<name>:before
+      { content: "<code>" }` so the admin IconPicker can iterate
+      CATEGORY_ICON_LIBRARY and know which icons are safe to render.
+      These aliases are also declared by the CDN stylesheet, but having
+      them here means we can render the right glyph even if the CDN
+      stylesheet partially fails to load.
 
    To add a new icon: append `.fa-<name>:before { content: "\<code>"; }`
    here, then pick it from the admin IconPicker. Codepoints are listed
    on https://fontawesome.com/icons (click an icon → "Unicode").
    ================================================================ */
 
-/* ─── @font-face rules ─── */
+/* ─── FALLBACK @font-face rules (self-hosted woff2) ───
+   Loaded only when the browser can't fetch the CDN fonts; the CDN
+   stylesheet declares the same @font-face names, so browsers pick
+   whichever source loads first. */
 @font-face {
     font-family: 'Font Awesome 6 Free';
-    font-style: normal; font-weight: 900; font-display: block;
+    font-style: normal; font-weight: 900; font-display: swap;
     src: url('/fonts/fa-solid-900.woff2') format('woff2');
 }
 @font-face {
     font-family: 'Font Awesome 6 Free';
-    font-style: normal; font-weight: 400; font-display: block;
+    font-style: normal; font-weight: 400; font-display: swap;
     src: url('/fonts/fa-regular-400.woff2') format('woff2');
 }
 @font-face {
     font-family: 'Font Awesome 6 Brands';
-    font-style: normal; font-weight: 400; font-display: block;
+    font-style: normal; font-weight: 400; font-display: swap;
     src: url('/fonts/fa-brands-400.woff2') format('woff2');
 }
 

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تست آیکن Font Awesome</title>
+    <!-- CDN first -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <!-- Local fallback -->
+    <link rel="stylesheet" href="/css/fa.css">
+    <style>
+        body { font-family: Tahoma, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        h1 { font-size: 18px; }
+        .test-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px; border-bottom: 1px solid #eee;
+        }
+        .test-row i { font-size: 24px; color: #1559de; width: 32px; text-align: center; }
+        .test-row span { font-size: 14px; }
+        .ok { color: #16a34a; font-weight: bold; }
+        .fail { color: #dc2626; font-weight: bold; }
+        .note { background: #fef3c7; padding: 10px; border-radius: 8px; font-size: 13px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <h1>تست لود شدن Font Awesome</h1>
+
+    <div class="note">
+        اگر آیکن‌ها زیر نشان داده می‌شوند، فونت درست لود شده. اگر جای خالی یا مربع می‌بینید، مشکل از لود فونت است.
+    </div>
+
+    <div class="test-row">
+        <i class="fa-solid fa-print"></i>
+        <span>fa-print (پرینت)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-graduation-cap"></i>
+        <span>fa-graduation-cap (دانشجویی)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-landmark"></i>
+        <span>fa-landmark (دولتی)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-wallet"></i>
+        <span>fa-wallet (کیف پول)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-car"></i>
+        <span>fa-car (خودرو)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-shield"></i>
+        <span>fa-shield (بیمه)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-heart"></i>
+        <span>fa-heart (درمانی)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-globe"></i>
+        <span>fa-globe (اینترنت)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-bolt"></i>
+        <span>fa-bolt (فوری)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-users"></i>
+        <span>fa-users (ارتباطات)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-ticket"></i>
+        <span>fa-ticket (بلیط)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-receipt"></i>
+        <span>fa-receipt (قبض)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-building-columns"></i>
+        <span>fa-building-columns (بانک)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-chart-column"></i>
+        <span>fa-chart-column (مالیاتی)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-stamp"></i>
+        <span>fa-stamp (قضایی)</span>
+    </div>
+
+    <h2 style="margin-top: 30px;">تست آیکن‌های پیکر (admin)</h2>
+    <div class="test-row">
+        <i class="fa-solid fa-mug-saucer"></i>
+        <span>fa-mug-saucer (کافی‌نت)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-bell"></i>
+        <span>fa-bell (اطلاعیه)</span>
+    </div>
+    <div class="test-row">
+        <i class="fa-solid fa-comment"></i>
+        <span>fa-comment (نظر)</span>
+    </div>
+
+    <div class="note" style="margin-top: 20px;">
+        <strong>راهنمای رفع مشکل:</strong><br>
+        ۱. اگر هیچ آیکنی نشان داده نشد: CDN مسدود است یا اینترنت قطع است.<br>
+        ۲. اگر مربع □ نشان داد: فایل woff2 لود نشد — بررسی کنید <code>/fonts/fa-solid-900.woff2</code> قابل دسترس است.<br>
+        ۳. اگر آیکن ناقص نشان داد: کش مرورگر را پاک کنید (Ctrl+F5).<br>
+        ۴. اگر فقط برخی آیکن‌ها نبودند: نام کلاس اشتباه است یا alias در fa.css تعریف نشده.
+    </div>
+</body>
+</html>

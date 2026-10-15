@@ -19,9 +19,13 @@ class SecurityHeaders
         $csp = implode('; ', [
             "default-src 'self'",
             "script-src 'self'",
-            "style-src 'self' 'unsafe-inline'",
+            // Style-src allows cdnjs (Font Awesome CSS) + 'unsafe-inline'
+            // (we use inline styles in many places — sheets, color swatches,
+            // dynamic positioning from jQuery).
+            "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
             "img-src 'self' data: blob:",
-            "font-src 'self' data:",
+            // Font-src allows cdnjs (FA webfonts) + self-hosted /fonts/.
+            "font-src 'self' data: https://cdnjs.cloudflare.com",
             "connect-src 'self'",
             "frame-ancestors 'none'",
             "base-uri 'self'",
@@ -31,7 +35,35 @@ class SecurityHeaders
         // The SPA shell is a Blade page whose <script> URLs are versioned by
         // filemtime. If the HTML itself were cached, a browser could keep loading
         // an old shell that points at old (polling) scripts — so never cache it.
-        if ($request->isMethod('GET') && ! $request->is('api/*')) {
+        // Static assets under /css/ /js/ /fonts/ /uploads/ /media/ ARE cached
+        // (their URLs include ?v=<filemtime> so cache busting works); this is
+        // important for woff2 fonts which are 80KB+ and would otherwise be
+        // re-downloaded on every page load.
+        $isStaticAsset = $request->isMethod('GET') && (
+            $request->is('css/*') ||
+            $request->is('js/*') ||
+            $request->is('js/screens/*') ||
+            $request->is('fonts/*') ||
+            $request->is('uploads/*') ||
+            $request->is('media/*') ||
+            $request->is('JalaliDatePicker-main/*') ||
+            $request->is('*.woff2') ||
+            $request->is('*.woff') ||
+            $request->is('*.ttf') ||
+            $request->is('*.otf') ||
+            $request->is('*.css') ||
+            $request->is('*.js') ||
+            $request->is('*.png') ||
+            $request->is('*.jpg') ||
+            $request->is('*.jpeg') ||
+            $request->is('*.gif') ||
+            $request->is('*.svg') ||
+            $request->is('*.ico') ||
+            $request->is('manifest.webmanifest') ||
+            $request->is('sw.js')
+        );
+
+        if ($request->isMethod('GET') && ! $request->is('api/*') && ! $isStaticAsset) {
             $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
             $response->headers->set('Pragma', 'no-cache');
             $response->headers->set('Expires', '0');
