@@ -300,7 +300,7 @@
           '</div>' +
 
           switchRow('smsNotifyEnabled', 'ارسال پیامک اطلاع‌رسانی سفارش (در کنار پوش)') +
-          advBox('تنظیمات پیشرفته', textField('smsBaseUrl', 'آدرس پایه Edge API', { placeholder: 'https://edge.ippanel.com/v1', help: 'پیش‌فرض: https://edge.ippanel.com/v1' })) +
+          textField('smsBaseUrl', 'آدرس پایه Edge API', { placeholder: 'https://edge.ippanel.com/v1', help: 'پیش‌فرض: https://edge.ippanel.com/v1 — این آدرس باید https://edge.ippanel.com/v1 باشد.' }) +
         '</div>';
 
       /* ---- پرداخت ---- */
