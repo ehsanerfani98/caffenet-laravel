@@ -5,17 +5,16 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Each row = one variable mapping for one SMS pattern.
+ * Each row = one variable name for one SMS pattern.
  *
  * The admin creates a pattern in ippanel with custom variable names
- * (e.g. %customer%, %order%), gets a pattern code, then in the admin
- * panel enters:
- *   - pattern_key  = "order_started" (the event type)
- *   - var_name     = "customer" (the name they used in ippanel)
- *   - data_field   = "customer_name" (the system field to fill it with)
+ * (e.g. %order_number%), gets a pattern code, then in the admin panel
+ * enters:
+ *   - pattern_key  = "order_ready" (the event type)
+ *   - var_name     = "order_number" (the name they used in ippanel)
  *
- * The system reads all rows for a pattern_key, builds the params object,
- * and sends it to the Edge API.
+ * The system looks up var_name in the order data to get the value.
+ * No data_field column needed — the var_name IS the data field name.
  */
 return new class extends Migration
 {
