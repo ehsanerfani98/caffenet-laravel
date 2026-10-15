@@ -4,19 +4,20 @@ namespace App\Services;
 
 use App\Models\SmsPatternVar;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * ippanel SMS service — ALL messages are pattern-based via the Edge API.
  *
- * The admin workflow:
- *   1. Create a pattern in ippanel (e.g. "سفارش {order_number} آماده شد")
- *   2. Get the pattern code
- *   3. In the admin panel, enter: pattern code + variable names
- *      (e.g. "order_number" — just the name, nothing else)
+ * Architecture:
+ *   1. SmsTypeRegistry (code) defines what internal data each SMS type needs.
+ *   2. sms_pattern_vars (DB) stores the admin's mapping:
+ *        var_name (IPPanel) → data_field (internal identifier)
+ *   3. The caller provides a data pool with internal identifiers as keys.
+ *   4. resolveParams() reads the mapping, looks up each data_field in the
+ *      pool, and sends the value under the admin's custom var_name.
  *
- * The system internally knows what each variable name means and fills it
- * with the correct value from the order data. The mapping is HARDCODED
- * in the VALUE_MAP below — the admin never selects a "data field".
+ * No IPPanel variable names are hardcoded anywhere in the code.
  */
 class SmsService
 {
@@ -38,137 +39,90 @@ class SmsService
     }
 
     /**
-     * HARDCODED internal mapping: variable name → how to extract its value.
-     *
-     * The admin just types the variable name (e.g. "order_number") in the
-     * settings panel. The system looks it up here to know what value to
-     * send. If a variable isn't in this map, it's sent as empty string.
-     *
-     * These are the ONLY variable names the system knows about. The admin
-     * must use these exact names when creating patterns in ippanel.
-     */
-    private const VALUE_MAP = [
-        'order_number'       => 'order_number',
-        'customer_name'      => 'customer_name',
-        'customer_phone'     => 'customer_phone',
-        'service_title'      => 'service_title',
-        'status'             => 'status',
-        'status_title'       => 'status_title',
-        'eta_minutes'        => 'eta_minutes',
-        'duration_minutes'   => 'duration_minutes',
-        'start_time'         => 'start_time',
-        'end_time'           => 'end_time',
-        'queue_position'     => 'queue_position',
-        'tracking_url'       => 'tracking_url',
-        'amount'             => 'amount',
-        'payment_method'     => 'payment_method',
-        'minutes_before'     => 'minutes_before',
-        'code'               => 'code',
-        'title'              => 'title',
-        'body'               => 'body',
-        'site_title'         => 'site_title',
-    ];
-
-    /**
-     * Send the OTP pattern message.
-     *
-     * The admin names the OTP variable whatever they want in ippanel
-     * (e.g. "verification-code"). In the admin panel they enter:
-     *   var_name = "verification-code"  (what they used in ippanel)
-     *   data_field = "code"             (the system field for OTP)
-     *
-     * resolveParams() reads this mapping and sends:
-     *   {"verification-code": "12345"}
+     * Send the OTP SMS.
+     * The registry says OTP needs: ['code'].
+     * The admin maps their IPPanel var name → 'code'.
      */
     public static function sendOtp(string $phone, string $code): void
     {
-        self::sendPattern(
+        self::send(
             phone: $phone,
-            patternKey: 'otp',
-            patternCode: (string) SettingsService::raw('smsPatternOtp'),
-            data: ['code' => $code],
             type: 'otp',
+            data: ['code' => $code],
             logText: 'کد تایید ورود'
         );
     }
 
     /**
      * Send an order-status notification SMS.
+     * The caller provides a data pool with internal identifiers as keys.
+     * The registry defines which identifiers each type needs.
      */
-    public static function sendOrderNotification(string $phone, string $eventType, array $data = []): void
+    public static function sendOrderNotification(string $phone, string $type, array $data = []): void
     {
         if (! SettingsService::bool('smsNotifyEnabled')) {
             return;
         }
 
-        $patternSettingKey = self::EVENT_PATTERN_SETTING[$eventType] ?? null;
-        if (! $patternSettingKey) {
-            return;
-        }
-
-        self::sendPattern(
+        self::send(
             phone: $phone,
-            patternKey: $eventType,
-            patternCode: (string) SettingsService::raw($patternSettingKey),
+            type: $type,
             data: $data,
-            type: $eventType,
-            logText: 'پیامک '.$eventType
+            logText: 'پیامک '.$type
         );
     }
-
-    private const EVENT_PATTERN_SETTING = [
-        'order_started'  => 'smsPatternStarted',
-        'order_ready'    => 'smsPatternReady',
-        'requeued'       => 'smsPatternRequeued',
-        'cancelled'      => 'smsPatternCancelled',
-        'reminder'       => 'smsPatternReminder',
-        'paid'           => 'smsPatternPaid',
-        'status_change'  => 'smsPatternStatusChange',
-        'refund'         => 'smsPatternRefund',
-        'broadcast'      => 'smsPatternBroadcast',
-    ];
 
     /**
      * Core: send a pattern SMS via the Edge API.
      *
-     * Reads the admin's variable names from sms_pattern_vars, looks up
-     * each one in the VALUE_MAP to get the value from $data, and POSTs.
+     * Steps:
+     *   1. Read the pattern code from settings (via the registry's setting_key).
+     *   2. Read the admin's variable mappings from sms_pattern_vars.
+     *   3. For each mapping, look up data_field in the $data pool.
+     *   4. Build params: {admin_var_name: value_from_data_pool}
+     *   5. Validate that all required data is present.
+     *   6. POST to the Edge API.
      */
-    public static function sendPattern(
-        string $phone,
-        string $patternKey,
-        string $patternCode,
-        array $data,
-        string $type,
-        string $logText
-    ): void {
+    public static function send(string $phone, string $type, array $data, string $logText): void
+    {
         try {
             $s = SettingsService::smsSettings();
 
+            // 1. Check if SMS is enabled
             if (! $s['enabled']) {
                 self::recordLog($phone, $logText.' — ارسال نشد (پیامک غیرفعال)', $type, 'failed', 'sms disabled');
                 return;
             }
 
-            // Build params: read variable names from DB, get values from $data.
-            $params = self::resolveParams($patternKey, $data);
+            // 2. Get the pattern code from settings
+            $settingKey = SmsTypeRegistry::settingKey($type);
+            if (! $settingKey) {
+                self::recordLog($phone, $logText.' — نوع پیامک نامعتبر', $type, 'failed', 'unknown type: '.$type);
+                return;
+            }
+            $patternCode = (string) SettingsService::raw($settingKey);
 
+            // 3. Build params from the admin's variable mappings
+            $params = self::buildParams($type, $data);
+
+            // 4. Test mode — log and return
             if ($s['testMode']) {
                 $desc = $logText.' (آزمایشی) — pattern: '.$patternCode.' params: '.json_encode($params, JSON_UNESCAPED_UNICODE);
                 self::recordLog($phone, $desc, $type, 'test');
                 return;
             }
 
+            // 5. Validate
             if (! $s['canSend']) {
                 self::recordLog($phone, $logText.' — ارسال نشد (اعتبارنامه ناقص)', $type, 'failed', 'missing credentials');
                 return;
             }
-
             if ($patternCode === '') {
                 self::recordLog($phone, $logText.' — ارسال نشد (کد پترن خالی)', $type, 'failed', 'empty pattern code');
                 return;
             }
 
+            // 6. Send to Edge API
             $body = [
                 'sending_type' => 'pattern',
                 'from_number'  => self::toE164($s['sender']),
@@ -205,43 +159,50 @@ class SmsService
     }
 
     /**
-     * Read the admin's variable names from sms_pattern_vars and resolve
-     * each one to its value from the $data pool.
+     * Build the params object for the Edge API.
      *
-     * The DB only stores the variable NAME (e.g. "order_number").
-     * The system looks it up in $data to get the value (e.g. "CN-1234").
-     *
-     * Example: DB rows for pattern_key="order_ready":
-     *   var_name = "order_number"
-     *
-     * With data = {"order_number": "CN-1234", "customer_name": "احسان", ...}
-     * Result: {"order_number": "CN-1234"}
-     */
-    /**
-     * Read the admin's variable mappings from sms_pattern_vars and build
-     * the params object for the Edge API.
-     *
-     * Each DB row has:
-     *   var_name   = the name the admin used in ippanel (e.g. "order_id")
-     *   data_field = the system field to get the value from (e.g. "order_number")
+     * Reads the admin's variable mappings from sms_pattern_vars for this
+     * SMS type. Each row maps:
+     *   var_name   = the name the admin used in IPPanel (e.g. "otp", "factor")
+     *   data_field = the internal identifier (e.g. "code", "order_number")
      *
      * The system looks up data_field in $data to get the value, then sends
-     * it to ippanel under the admin's custom var_name.
+     * it to IPPanel under the admin's custom var_name.
      *
      * Example:
-     *   DB: var_name="order_id", data_field="order_number"
-     *   data: {"order_number": "CN-1234", "customer_name": "احسان"}
-     *   result: {"order_id": "CN-1234"}
+     *   DB rows: var_name="otp", data_field="code"
+     *   data: {"code": "12345"}
+     *   result: {"otp": "12345"}
+     *
+     * Validation:
+     *   - If a mapping's data_field is not in $data, logs a warning and
+     *     sends empty string for that var.
+     *   - Duplicate var_names are skipped (last one wins).
      */
-    private static function resolveParams(string $patternKey, array $data): array
+    private static function buildParams(string $type, array $data): array
     {
-        $rows = SmsPatternVar::where('pattern_key', $patternKey)
+        $rows = SmsPatternVar::where('pattern_key', $type)
             ->orderBy('sort_order')
             ->get();
 
         $params = [];
+        $seen = [];
         foreach ($rows as $row) {
+            // Skip duplicates
+            if (in_array($row->var_name, $seen, true)) {
+                continue;
+            }
+            $seen[] = $row->var_name;
+
+            // Look up the internal identifier in the data pool
             $value = $data[$row->data_field] ?? '';
+            if ($value === '' && ! isset($data[$row->data_field])) {
+                Log::warning('SmsService: data_field not found in data pool', [
+                    'type' => $type,
+                    'var_name' => $row->var_name,
+                    'data_field' => $row->data_field,
+                ]);
+            }
             $params[$row->var_name] = is_scalar($value) ? (string) $value : '';
         }
         return $params;

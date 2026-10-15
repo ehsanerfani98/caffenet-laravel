@@ -174,16 +174,10 @@ class NotificationDispatcherService implements NotificationDispatcherServiceInte
     /**
      * Build the data pool for an order notification.
      *
-     * ALL possible field names are included. The admin declares variable
-     * names in ippanel that must match these keys exactly. resolveParams()
-     * reads the admin's variable names from sms_pattern_vars and looks up
-     * each one in this pool.
-     *
-     * Available keys (the admin must use these exact names in ippanel):
-     *   order_number, customer_name, customer_phone, service_title,
-     *   status, status_title, eta_minutes, duration_minutes,
-     *   start_time, end_time, queue_position, tracking_url,
-     *   amount, payment_method, minutes_before, title, body, site_title
+     * Produces values for ALL internal data identifiers declared in
+     * SmsTypeRegistry::DATA_LABELS. The admin's variable mapping
+     * (in sms_pattern_vars) connects these identifiers to the variable
+     * names they used in IPPanel.
      */
     private static function orderDataPool(Order $order, array $payload): array
     {
@@ -206,8 +200,7 @@ class NotificationDispatcherService implements NotificationDispatcherServiceInte
             'payment_method'   => $order->payment_method,
             'site_title'       => SettingsService::get('siteTitle', 'کافی‌نت احسان'),
         ];
-        // Merge any extra payload fields (e.g. minutes_before for reminders,
-        // title/body for broadcasts).
+        // Merge extra payload fields (e.g. minutes_before, title, body).
         foreach ($payload as $k => $v) {
             if (is_scalar($v) && ! isset($data[$k])) {
                 $data[$k] = (string) $v;
