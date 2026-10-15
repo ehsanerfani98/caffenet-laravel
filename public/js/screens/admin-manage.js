@@ -363,6 +363,19 @@
           '<button type="button" class="btn ghost block sm" id="fcm-test-btn" style="margin-top:10px">' + icon('bell') + 'تست ارسال پوش به دستگاه من</button>' +
         '</div>';
 
+      /* ---- Mark SMS pattern settings as rendered BEFORE building leftovers ----
+       * loadSmsPatterns() is async and runs later, but the pattern code fields
+       * (smsPatternOtp, smsPatternStarted, etc.) are already rendered in smsHtml
+       * via the container placeholder. We must mark them as rendered now so they
+       * don't also appear in the leftovers section (which would create duplicate
+       * fields and break the save handler).
+       */
+      ['smsPatternOtp', 'smsPatternStarted', 'smsPatternReady', 'smsPatternRequeued',
+       'smsPatternCancelled', 'smsPatternReminder', 'smsPatternPaid',
+       'smsPatternStatusChange', 'smsPatternRefund', 'smsPatternBroadcast',
+       'smsNotifyEnabled', 'smsBaseUrl',
+      ].forEach((k) => { rendered[k] = true; });
+
       /* ---- fallback: any system key the layout above did not claim ---- */
       const leftoverItems = settings.filter((s) => !s.readOnly && !rendered[s.key]);
       const leftoversHtml = leftoverItems.length
