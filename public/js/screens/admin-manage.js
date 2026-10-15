@@ -279,33 +279,69 @@
 
       /* ---- پیامک ---- */
       const smsHtml =
-        '<div class="section-title">' + icon('sms') + 'پیامک</div>' +
+        '<div class="section-title">' + icon('sms') + 'پیامک (همه پترن‌محور)</div>' +
         switchRow('smsEnabled', 'سامانه پیامک فعال') +
         segment('sms', state.smsSim ? 'sim' : 'real', 'حالت پیامک',
           [['real', 'واقعی'], ['sim', 'شبیه‌ساز']],
-          'در حالت شبیه‌ساز، پیامکی ارسال نمی‌شود و کد تایید به‌صورت آزمایشی نمایش داده می‌شود.') +
-        '<div class="warn-box hidden" id="sms-disabled-note" style="margin-top:10px">سامانه پیامک غیرفعال است؛ تا زمانی که آن را فعال نکنید هیچ پیامکی ارسال نمی‌شود — نه واقعی و نه شبیه‌ساز.</div>' +
+          'در حالت شبیه‌ساز، پیامکی ارسال نمی‌شود و کد تایید به‌صورت آزمایشی نمایش داده می‌شود. همه پیامک‌ها از طریق پترن ارسال می‌شوند — هیچ پیامک متن‌ساده‌ای ارسال نمی‌شود.') +
+        '<div class="warn-box hidden" id="sms-disabled-note" style="margin-top:10px">سامانه پیامک غیرفعال است؛ تا زمانی که آن را فعال نکنید هیچ پیامکی ارسال نمی‌شود.</div>' +
         '<div id="sms-fields">' +
           textField('smsApiKey', 'کلید دسترسی ippanel', { req: true }) +
-          textField('smsSender', 'شماره فرستنده', { req: true }) +
-          textField('smsOtpPattern', 'کد پترن کد تایید') +
-          advBox('تنظیمات پیشرفته پیامک', textField('smsBaseUrl', 'آدرس پایه ippanel', { placeholder: 'https://api2.ippanel.com/api/v1' })) +
-        '</div>' +
-        '<div class="section-title" style="margin-top:16px">' + icon('bell') + 'پیامک اطلاع‌رسانی سفارش (پترن)</div>' +
-        switchRow('smsNotifyEnabled', 'ارسال پیامک اطلاع‌رسانی در تغییر وضعیت سفارش (در کنار پوش)') +
-        '<div id="sms-notify-fields">' +
-          '<div style="font-size:11px;color:var(--ink-soft);margin:6px 2px 10px;line-height:1.7">' +
-            'برای هر رویداد، کد پترن مربوطه را از پنل ippanel وارد کنید. اگه کد پترن خالی باشد، پیامک متن ساده ارسال می‌شود. ' +
-            'متغیرهای قابل استفاده در پترن: <code dir="ltr">%order_number%</code>، <code dir="ltr">%customer_name%</code>، ' +
-            '<code dir="ltr">%service_title%</code>، <code dir="ltr">%eta_minutes%</code>، <code dir="ltr">%start_time%</code>، ' +
-            '<code dir="ltr">%end_time%</code>، <code dir="ltr">%queue_position%</code>، <code dir="ltr">%tracking_url%</code>.' +
+          textField('smsSender', 'شماره فرستنده', { req: true, help: 'شماره اختصاصی شما در ippanel (مثلاً 983000505).' }) +
+
+          '<div class="info-box" style="margin:12px 0;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:11px;line-height:1.8;color:#1e40af">' +
+            '<b>راهنمای متغیرها:</b> برای هر پترن، یک JSON با ساختار <code dir="ltr">{"نام_متغیر_در_پترن": "نام_فیلد_سیستم"}</code> وارد کنید. ' +
+            'کلید = نام متغیری که در پنل ippanel تعریف کرده‌اید (بدون %). مقدار = یکی از فیلدهای زیر:<br>' +
+            '<code dir="ltr">order_number</code>، <code dir="ltr">customer_name</code>، <code dir="ltr">customer_phone</code>، ' +
+            '<code dir="ltr">service_title</code>، <code dir="ltr">status</code>، <code dir="ltr">status_title</code>، ' +
+            '<code dir="ltr">eta_minutes</code>، <code dir="ltr">duration_minutes</code>، <code dir="ltr">start_time</code>، ' +
+            '<code dir="ltr">end_time</code>، <code dir="ltr">queue_position</code>، <code dir="ltr">tracking_url</code>، ' +
+            '<code dir="ltr">amount</code>، <code dir="ltr">payment_method</code>، <code dir="ltr">minutes_before</code>، ' +
+            '<code dir="ltr">code</code>، <code dir="ltr">title</code>، <code dir="ltr">body</code>، <code dir="ltr">site_title</code>' +
           '</div>' +
-          textField('smsPatternStarted', 'پترن شروع سفارش (order_started)', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
-          textField('smsPatternReady', 'پترن آماده شدن سفارش (order_ready)', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
-          textField('smsPatternRequeued', 'پترن انتقال به انتهای صف (requeued)', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
-          textField('smsPatternCancelled', 'پترن لغو سفارش (cancelled)', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
-          textField('smsPatternReminder', 'پترن یادآوری نزدیک شروع (reminder)', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
-          textField('smsPatternBroadcast', 'پترن اطلاع‌رسانی همگانی (broadcast)', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+
+          '<div class="section-title" style="font-size:12px;margin:14px 0 6px">۱. کد تایید ورود (OTP)</div>' +
+          textField('smsPatternOtp', 'کد پترن OTP', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternOtpVars', 'متغیرهای پترن OTP (JSON)', { placeholder: '{"code":"code"}' }) +
+
+          '<div class="section-title" style="font-size:12px;margin:14px 0 6px">۲. شروع سفارش</div>' +
+          textField('smsPatternStarted', 'کد پترن شروع سفارش', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternStartedVars', 'متغیرها (JSON)', { placeholder: '{"order_number":"order_number","customer_name":"customer_name"}' }) +
+
+          '<div class="section-title" style="font-size:12px;margin:14px 0 6px">۳. آماده شدن سفارش</div>' +
+          textField('smsPatternReady', 'کد پترن آماده شدن', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternReadyVars', 'متغیرها (JSON)', { placeholder: '{"order_number":"order_number","customer_name":"customer_name"}' }) +
+
+          '<div class="section-title" style="font-size:12px;margin:14px 0 6px">۴. انتقال به انتهای صف</div>' +
+          textField('smsPatternRequeued', 'کد پترن انتقال صف', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternRequeuedVars', 'متغیرها (JSON)', { placeholder: '{"order_number":"order_number","queue_position":"queue_position"}' }) +
+
+          '<div class="section-title" style="font-size:12px;margin:14px 0 6px">۵. لغو سفارش</div>' +
+          textField('smsPatternCancelled', 'کد پترن لغو', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternCancelledVars', 'متغیرها (JSON)', { placeholder: '{"order_number":"order_number"}' }) +
+
+          '<div class="section-title" style="font-size:12px;margin:14px 0 6px">۶. یادآوری نزدیک شروع</div>' +
+          textField('smsPatternReminder', 'کد پترن یادآوری', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternReminderVars', 'متغیرها (JSON)', { placeholder: '{"order_number":"order_number","minutes_before":"minutes_before"}' }) +
+
+          '<div class="section-title" style="font-size:12px;margin:14px 0 6px">۷. پرداخت سفارش (کیف پول)</div>' +
+          textField('smsPatternPaid', 'کد پترن پرداخت', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternPaidVars', 'متغیرها (JSON)', { placeholder: '{"order_number":"order_number","amount":"amount"}' }) +
+
+          '<div class="section-title" style="font-size:12px;margin:14px 0 6px">۸. تغییر وضعیت سفارش (دستی)</div>' +
+          textField('smsPatternStatusChange', 'کد پترن تغییر وضعیت', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternStatusChangeVars', 'متغیرها (JSON)', { placeholder: '{"order_number":"order_number","status_title":"status_title"}' }) +
+
+          '<div class="section-title" style="font-size:12px;margin:14px 0 6px">۹. عودت مبلغ به کیف پول</div>' +
+          textField('smsPatternRefund', 'کد پترن عودت', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternRefundVars', 'متغیرها (JSON)', { placeholder: '{"amount":"amount","customer_name":"customer_name"}' }) +
+
+          '<div class="section-title" style="font-size:12px;margin:14px 0 6px">۱۰. اطلاع‌رسانی همگانی</div>' +
+          textField('smsPatternBroadcast', 'کد پترن همگانی', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternBroadcastVars', 'متغیرها (JSON)', { placeholder: '{"title":"title","body":"body"}' }) +
+
+          switchRow('smsNotifyEnabled', 'ارسال پیامک اطلاع‌رسانی سفارش (در کنار پوش)') +
+          advBox('تنظیمات پیشرفته', textField('smsBaseUrl', 'آدرس پایه ippanel', { placeholder: 'https://edge.ippanel.com/v1' })) +
         '</div>';
 
       /* ---- پرداخت ---- */
@@ -427,11 +463,6 @@
         sheet.body.find('[data-mode="sms"] .seg').prop('disabled', !enabled);
         sheet.body.find('#sms-fields').toggle(enabled && !state.smsSim);
         sheet.body.find('#sms-disabled-note').toggle(!enabled);
-        // Notification pattern fields only make sense when the main SMS
-        // gateway is enabled — hide them otherwise so the admin doesn't
-        // configure patterns that can never fire.
-        const notifyOn = sheet.body.find('[data-set="smsNotifyEnabled"]').is(':checked');
-        sheet.body.find('#sms-notify-fields').toggle(enabled && notifyOn);
       }
 
       function refreshStatus() {
@@ -496,7 +527,6 @@
       });
 
       sheet.body.find('[data-set="smsEnabled"]').on('change', refreshSmsFields);
-      sheet.body.find('[data-set="smsNotifyEnabled"]').on('change', refreshSmsFields);
 
       refreshStatus();
 

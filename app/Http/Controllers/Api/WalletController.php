@@ -181,10 +181,15 @@ class WalletController extends Controller
             'performedByName' => $actor?->name,
         ]);
 
-        SmsService::sendNotification(
+        // SMS: pattern-based — uses smsPatternRefund + smsPatternRefundVars.
+        SmsService::sendOrderNotification(
             $target->phone,
-            'کافی‌نت احسان: مبلغ '.number_format($amount).' تومان به کیف پول شما عودت داده شد.',
-            'order_status'
+            'refund',
+            [
+                'amount'         => (string) $amount,
+                'customer_name'  => $target->name,
+                'customer_phone' => $target->phone,
+            ]
         );
 
         return response()->json([

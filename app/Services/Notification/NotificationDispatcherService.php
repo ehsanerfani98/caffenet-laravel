@@ -134,20 +134,17 @@ class NotificationDispatcherService implements NotificationDispatcherServiceInte
             }
         }
 
-        // 3) Send an SMS notification (pattern-based when a pattern code is
-        //    configured for this event type, plain-text fallback otherwise).
+        // 3) Send an SMS notification — ALL pattern-based.
         //    Only fires when the admin has enabled smsNotifyEnabled AND the
         //    order has a valid customer phone.
         if (SettingsService::bool('smsNotifyEnabled') && ! empty($order->customer_phone)) {
             try {
                 $eventType = $this->eventTypeForType($type);
-                $vars = $this->patternVarsForOrder($order, $payload);
-                $fallbackText = ($payload['title'] ?? '').' — '.($payload['body'] ?? '');
+                $data = self::orderDataPool($order, $payload);
                 SmsService::sendOrderNotification(
                     $order->customer_phone,
                     $eventType,
-                    $vars,
-                    $fallbackText
+                    $data
                 );
             } catch (\Throwable $e) {
                 Log::error('NotificationDispatcher: SMS send failed', [
@@ -175,31 +172,36 @@ class NotificationDispatcherService implements NotificationDispatcherServiceInte
     }
 
     /**
-     * Build the pattern variables map for an order notification. The keys
-     * here are the variable names the admin must declare in the ippanel
-     * pattern template (e.g. %order_number%, %customer_name%, %eta%).
+     * Build the data pool for an order notification. The keys here match
+     * the field names in SmsService::PATTERN_DATA_FIELDS. The admin's
+     * variable mapping JSON references these keys.
      */
-    private function patternVarsForOrder(Order $order, array $payload): array
+    private static function orderDataPool(Order $order, array $payload): array
     {
-        $vars = [
-            'order_number'   => $order->order_number,
-            'customer_name'  => $order->customer_name,
-            'service_title'  => $order->service_title,
-            'status'         => $order->status,
-            'eta_minutes'    => (string) ($order->estimated_wait_minutes ?? ''),
-            'start_time'     => (string) ($order->estimated_start_at ?? ''),
-            'end_time'       => (string) ($order->estimated_end_at ?? ''),
-            'queue_position' => (string) ($order->queue_position ?? ''),
-            'tracking_url'   => $order->track_token
+        $data = [
+            'order_number'     => $order->order_number,
+            'customer_name'    => $order->customer_name,
+            'customer_phone'   => $order->customer_phone,
+            'service_title'    => $order->service_title,
+            'status'           => $order->status,
+            'status_title'     => \App\Models\Order::STATUS_TITLES[$order->status] ?? $order->status,
+            'eta_minutes'      => (string) ($order->estimated_wait_minutes ?? ''),
+            'duration_minutes' => (string) ($order->estimated_duration_minutes ?? ''),
+            'start_time'       => (string) ($order->estimated_start_at ?? ''),
+            'end_time'         => (string) ($order->estimated_end_at ?? ''),
+            'queue_position'   => (string) ($order->queue_position ?? ''),
+            'tracking_url'     => $order->track_token
                 ? url('/api/orders/track/'.$order->track_token)
                 : '',
+            'payment_method'   => $order->payment_method,
+            'site_title'       => SettingsService::get('siteTitle', 'کافی‌نت احسان'),
         ];
         // Merge any extra payload fields (e.g. minutes_before for reminders).
         foreach ($payload as $k => $v) {
-            if (is_scalar($v) && ! isset($vars[$k])) {
-                $vars[$k] = (string) $v;
+            if (is_scalar($v) && ! isset($data[$k])) {
+                $data[$k] = (string) $v;
             }
         }
-        return $vars;
+        return $data;
     }
 }

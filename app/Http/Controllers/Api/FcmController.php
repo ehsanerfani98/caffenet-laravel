@@ -172,8 +172,7 @@ class FcmController extends Controller
                 \App\Services\SmsService::sendOrderNotification(
                     $target->phone,
                     'broadcast',
-                    ['title' => $title, 'body' => $body],
-                    $title.' — '.$body
+                    ['title' => $title, 'body' => $body]
                 );
                 $smsSent = true;
             } catch (\Throwable $e) {
@@ -239,14 +238,11 @@ class FcmController extends Controller
             $phones = array_filter(array_map('trim', explode(',', $smsRecipients)));
             foreach ($phones as $phone) {
                 if ($phone === '') continue;
-                $sent = \App\Services\SmsService::sendOrderNotification(
+                \App\Services\SmsService::sendOrderNotification(
                     $phone,
                     'broadcast',
-                    ['title' => $title, 'body' => $body],
-                    $title.' — '.$body
+                    ['title' => $title, 'body' => $body]
                 );
-                // sendOrderNotification returns void; we can't easily get the
-                // per-send status without changing the API, so just count.
                 $smsSent++;
             }
         }

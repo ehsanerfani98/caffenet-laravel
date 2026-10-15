@@ -315,10 +315,16 @@ class OrderController extends Controller
             throw $e;
         }
 
-        SmsService::sendNotification(
+        // SMS: pattern-based — uses smsPatternPaid + smsPatternPaidVars from settings.
+        SmsService::sendOrderNotification(
             $order->customer_phone,
-            "کافی‌نت احسان: پرداخت سفارش {$order->order_number} از کیف پول انجام شد.",
-            'order_status'
+            'paid',
+            [
+                'order_number'   => $order->order_number,
+                'customer_name'  => $order->customer_name,
+                'amount'         => (string) $order->paid_amount,
+                'payment_method' => $order->payment_method,
+            ]
         );
 
         // ── Smart queue: enqueue the now-submitted order ──
@@ -364,10 +370,16 @@ class OrderController extends Controller
             ]);
         });
 
-        SmsService::sendNotification(
+        // SMS: pattern-based — uses smsPatternStatusChange + smsPatternStatusChangeVars.
+        SmsService::sendOrderNotification(
             $order->customer_phone,
-            "کافی‌نت احسان: وضعیت سفارش {$order->order_number} به «{$title}» تغییر یافت.",
-            'order_status'
+            'status_change',
+            [
+                'order_number'  => $order->order_number,
+                'customer_name' => $order->customer_name,
+                'status'        => $order->status,
+                'status_title'  => $title,
+            ]
         );
 
         return response()->json(Formatter::order($order->fresh()));
