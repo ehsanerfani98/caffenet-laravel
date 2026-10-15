@@ -120,10 +120,18 @@
       this.state.currentUser = user;
       this.notify('auth');
       await this.syncWithBackend();
+      // Initialize Firebase Cloud Messaging for the logged-in user.
+      if (window.FCM && typeof window.FCM.init === 'function') {
+        window.FCM.init();
+      }
       return user;
     }
 
     async logout() {
+      // Deactivate FCM tokens before the session is invalidated.
+      if (window.FCM && typeof window.FCM.unregister === 'function') {
+        try { await window.FCM.unregister(); } catch (e) { /* ignore */ }
+      }
       try {
         const r = await this.request('POST', '/api/auth/logout', {});
         // Laravel invalidates the session and rotates the CSRF token on logout
@@ -141,6 +149,11 @@
     async getCurrentUser() {
       try {
         this.state.currentUser = await this.request('GET', '/api/auth/me');
+        // If the session was restored (page reload while logged in), boot
+        // FCM so push notifications keep working.
+        if (this.state.currentUser && window.FCM && typeof window.FCM.init === 'function') {
+          window.FCM.init();
+        }
       } catch (e) {
         this.state.currentUser = null;
       }

@@ -65,6 +65,7 @@
     <script defer src="/js/ui.js?v={{ filemtime(public_path('js/ui.js')) }}"></script>
     <script defer src="/js/pwa.js?v={{ filemtime(public_path('js/pwa.js')) }}"></script>
     <script defer src="/js/queue.js?v={{ filemtime(public_path('js/queue.js')) }}"></script>
+    <script defer src="/js/fcm.js?v={{ filemtime(public_path('js/fcm.js')) }}"></script>
     <script defer src="/js/datepicker.js?v={{ filemtime(public_path('js/datepicker.js')) }}"></script>
     <script defer src="/js/app.js?v={{ filemtime(public_path('js/app.js')) }}"></script>
     <script defer src="/js/screens/auth.js?v={{ filemtime(public_path('js/screens/auth.js')) }}"></script>

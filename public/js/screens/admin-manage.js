@@ -236,9 +236,20 @@
         opts = opts || {};
         rendered[key] = true;
         const isSecret = byKey[key] && byKey[key].type === 'secret';
-        return '<label class="field-label">' + esc(label) + (isSecret ? ' (ماسک‌شده)' : '') + (opts.req ? ' <span class="req">*</span>' : '') + '</label>' +
-          '<input class="input" data-set="' + key + '" type="text" dir="ltr" autocomplete="off" placeholder="' + esc(opts.placeholder || '') + '" value="' + esc(val(key)) + '">' +
-          (opts.help ? '<div class="help-text">' + esc(opts.help) + '</div>' : '');
+        const currentValue = isSecret ? '' : val(key); // secrets start blank so the mask doesn't get re-saved
+        const placeholderAttr = ' placeholder="' + esc(opts.placeholder || '') + '"';
+        const helpHtml = opts.help ? '<div class="help-text">' + esc(opts.help) + '</div>' : '';
+        const labelHtml = '<label class="field-label">' + esc(label) + (isSecret ? ' (ماسک‌شده — خالی = بدون تغییر)' : '') + (opts.req ? ' <span class="req">*</span>' : '') + '</label>';
+
+        if (opts.textarea) {
+          // Textarea for long values (e.g. the FCM service-account JSON).
+          return labelHtml +
+            '<textarea class="textarea" data-set="' + key + '" dir="ltr" autocomplete="off" rows="6"' + placeholderAttr + '>' + esc(isSecret ? '' : currentValue) + '</textarea>' +
+            helpHtml;
+        }
+        return labelHtml +
+          '<input class="input" data-set="' + key + '" type="text" dir="ltr" autocomplete="off"' + placeholderAttr + ' value="' + esc(currentValue) + '">' +
+          helpHtml;
       }
 
       function switchRow(key, label, help) {
@@ -325,6 +336,22 @@
           '«سندباکس» به محیط آزمایشی زرین‌پال وصل می‌شود؛ «تست آفلاین» برای زرین‌پال خودکار به سندباکس و برای کافه‌بازار به شبیه‌ساز تبدیل می‌شود. فیلدهای اعتبارنامه فقط در حالت «واقعی» نمایش داده می‌شوند.') +
         zarinpalBlock + bazaarBlock;
 
+      /* ---- پوش نوتیفیکیشن (Firebase) ---- */
+      const firebaseHtml =
+        '<div class="section-title">' + icon('bell') + 'پوش نوتیفیکیشن (Firebase)</div>' +
+        switchRow('fcmEnabled', 'پوش نوتیفیکیشن فعال') +
+        '<div id="fcm-fields">' +
+          textField('fcmProjectId', 'Firebase Project ID', { placeholder: 'caffenet-12345', help: 'از Project Settings → General در Firebase Console.' }) +
+          textField('fcmApiKey', 'Web API Key (apiKey)', { placeholder: 'AIza...', help: 'از Project Settings → General → Web apps.' }) +
+          textField('fcmAuthDomain', 'Auth Domain', { placeholder: 'caffenet-12345.firebaseapp.com' }) +
+          textField('fcmMessagingSenderId', 'Messaging Sender ID', { placeholder: '123456789012' }) +
+          textField('fcmAppId', 'App ID', { placeholder: '1:1234:web:abcd' }) +
+          textField('fcmVapidKey', 'VAPID Key', { placeholder: 'BNbx...', help: 'Project Settings → Cloud Messaging → Web Push certificates.' }) +
+          textField('fcmServiceAccount', 'JSON کلید حساب سرویس', { textarea: true, placeholder: 'محتوای فایل service-account.json', help: 'از Project Settings → Service Accounts → Generate New Private Key دانلود کنید و کل محتوای JSON را اینجا بچسبانید.' }) +
+          '<div class="warn-box" style="margin-top:8px">این کلید امنیتی است؛ فقط در پنل مدیر قابل مشاهده و ویرایش. هرگز در کد فرانت‌اند قرار ندهید.</div>' +
+          '<button type="button" class="btn ghost block sm" id="fcm-test-btn" style="margin-top:10px">' + icon('bell') + 'تست ارسال پوش به دستگاه من</button>' +
+        '</div>';
+
       /* ---- fallback: any system key the layout above did not claim ---- */
       const leftoverItems = settings.filter((s) => !s.readOnly && !rendered[s.key]);
       const leftoversHtml = leftoverItems.length
@@ -335,8 +362,29 @@
 
       sheet.body.html(
         '<div class="status-line" id="sys-status"><span class="dot"></span><span id="sys-status-text"></span></div>' +
-        generalHtml + smsHtml + paymentHtml + leftoversHtml
+        generalHtml + smsHtml + paymentHtml + firebaseHtml + leftoversHtml
       );
+
+      // Show/hide FCM fields based on the master toggle.
+      function updateFcmVisibility() {
+        sheet.body.find('#fcm-fields').toggle(on('fcmEnabled'));
+      }
+      updateFcmVisibility();
+      // Re-run when the toggle changes — listen on any change inside the sheet.
+      sheet.body.on('change', '[data-key="fcmEnabled"]', updateFcmVisibility);
+
+      // "تست ارسال پوش" button → POST /api/fcm/test
+      sheet.body.find('#fcm-test-btn').on('click', async function () {
+        const $btn = $(this).prop('disabled', true).text('در حال ارسال...');
+        try {
+          const r = await api.request('POST', '/api/fcm/test', {});
+          UI.toast(r.message || 'پوش ارسال شد.', 'success');
+        } catch (e) {
+          UI.toast(e.message || 'ارسال ناموفق بود.', 'error');
+        } finally {
+          $btn.prop('disabled', false).html(icon('bell') + 'تست ارسال پوش به دستگاه من');
+        }
+      });
 
       /* ---- behaviour ---- */
       function chipOn(key) { return sheet.body.find('[data-gw="' + key + '"]').hasClass('active'); }

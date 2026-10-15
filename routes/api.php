@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\CapacityController;
 use App\Http\Controllers\Api\QueueController;
 use App\Http\Controllers\Api\QueueOrderController;
 use App\Http\Controllers\Api\TrackController;
+// Firebase Cloud Messaging (push notifications):
+use App\Http\Controllers\Api\FcmController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -173,3 +175,18 @@ Route::middleware(['auth.session', 'permission:orders.view|orders.manage'])
 // Disable by setting ARTISAN_RUNNER_TOKEN=disabled in production.
 Route::any('/_artisan/run/{command}', [ArtisanRunnerController::class, 'run'])
     ->where('command', '[a-z0-9:_-]+');
+
+// =========================================================================
+// Firebase Cloud Messaging (push notifications)
+// =========================================================================
+
+// Public web config — read by the SPA to initialize firebase-messaging.
+Route::get('/fcm/config', [FcmController::class, 'config']);
+
+// Token registration (auth required — needs the current user's id).
+Route::middleware('auth.session')->group(function () {
+    Route::post('/fcm/token', [FcmController::class, 'registerToken']);
+    Route::delete('/fcm/token', [FcmController::class, 'unregister']);
+    Route::post('/fcm/test', [FcmController::class, 'test'])
+        ->middleware('permission:settings.edit|settings.manage');
+});

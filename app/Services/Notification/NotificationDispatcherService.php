@@ -5,15 +5,18 @@ namespace App\Services\Notification;
 use App\Contracts\NotificationDispatcherServiceInterface;
 use App\Models\NotificationLog;
 use App\Models\Order;
+use App\Services\FirebasePushService;
+use App\Services\SettingsService;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Writes rows to notification_logs (the single source of truth for
- * in-app notifications) and is the audit trail for every queue event.
+ * in-app notifications) AND dispatches a Firebase Cloud Messaging push
+ * notification when FCM is enabled in the system settings.
  *
  * The frontend polls /api/orders/{id}/updates and surfaces these as
- * toasts / browser notifications. No third-party channels are wired up
- * (per spec: no SMS, no Telegram, no Firebase).
+ * toasts / browser notifications. FCM adds real push notifications that
+ * arrive even when the browser tab is closed.
  */
 class NotificationDispatcherService implements NotificationDispatcherServiceInterface
 {
@@ -86,6 +89,8 @@ class NotificationDispatcherService implements NotificationDispatcherServiceInte
 
     private function write(Order $order, string $type, array $payload): void
     {
+        // 1) Always write the in-app notification log row (audit trail +
+        //    source for the polling endpoint).
         try {
             NotificationLog::create([
                 'order_id' => $order->id,
@@ -103,6 +108,29 @@ class NotificationDispatcherService implements NotificationDispatcherServiceInte
                 'type' => $type,
                 'error' => $e->getMessage(),
             ]);
+        }
+
+        // 2) Fire a Firebase Cloud Messaging push notification when enabled.
+        //    Wrapped in try/catch so a FCM outage never breaks the order flow.
+        if (SettingsService::bool('fcmEnabled') && ! empty($order->customer_id)) {
+            try {
+                FirebasePushService::sendToUser($order->customer_id, [
+                    'title' => $payload['title'] ?? '',
+                    'body' => $payload['body'] ?? '',
+                    'data' => [
+                        'order_id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'type' => $type,
+                    ],
+                    'url' => '/?order=' . $order->id,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('NotificationDispatcher: FCM push failed', [
+                    'order_id' => $order->id,
+                    'type' => $type,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
     }
 }

@@ -198,6 +198,32 @@ TEXT;
             'label' => 'حالت آزمایشی درگاه', 'default' => '0'],
         ['key' => 'bazaarTestMode', 'category' => 'test', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'حالت آزمایشی درگاه کافه‌بازار', 'default' => '0'],
+
+        // ---- Firebase Cloud Messaging (push notifications) — system ----
+        // The admin pastes these values from the Firebase Console. The app
+        // uses them to (a) request a browser/device token on the client side
+        // and (b) send push notifications from the server via the FCM HTTP v1
+        // API. No third-party PHP package is required — we call Google's
+        // oauth2 token endpoint + fcm.googleapis.com directly with the
+        // service-account JSON credentials.
+        ['key' => 'fcmEnabled', 'category' => 'firebase', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'فعال بودن پوش نوتیفیکیشن (Firebase)', 'default' => '0'],
+        ['key' => 'fcmProjectId', 'category' => 'firebase', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'Firebase Project ID', 'default' => ''],
+        ['key' => 'fcmApiKey', 'category' => 'firebase', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'Firebase Web API Key (apiKey در firebaseConfig)', 'default' => ''],
+        ['key' => 'fcmAuthDomain', 'category' => 'firebase', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'Firebase Auth Domain (authDomain در firebaseConfig)', 'default' => ''],
+        ['key' => 'fcmMessagingSenderId', 'category' => 'firebase', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'Firebase Sender ID (messagingSenderId)', 'default' => ''],
+        ['key' => 'fcmAppId', 'category' => 'firebase', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'Firebase App ID (appId در firebaseConfig)', 'default' => ''],
+        ['key' => 'fcmVapidKey', 'category' => 'firebase', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'VAPID Key (برای Web Push)', 'default' => ''],
+        ['key' => 'fcmServiceAccount', 'category' => 'firebase', 'type' => 'secret', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'JSON کلید حساب سرویس Firebase (Service Account)', 'default' => ''],
+        ['key' => 'fcmTestMode', 'category' => 'test', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'حالت آزمایشی پوش (فقط لاگ، ارسال واقعی نمی‌شود)', 'default' => '0'],
     ];
 
     /**

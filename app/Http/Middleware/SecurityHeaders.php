@@ -18,11 +18,16 @@ class SecurityHeaders
 
         $csp = implode('; ', [
             "default-src 'self'",
-            "script-src 'self'",
+            // Firebase SDK is loaded dynamically from gstatic.com only when
+            // FCM is enabled. The 'unsafe-inline' is required for inline
+            // styles used throughout the SPA (sheets, swatches, positioning).
+            "script-src 'self' 'unsafe-inline' https://www.gstatic.com",
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob:",
             "font-src 'self' data:",
-            "connect-src 'self'",
+            // FCM needs connect-src to: firebaseinstallations.googleapis.com
+            // (token registration) + fcm.googleapis.com (message delivery).
+            "connect-src 'self' https://fcm.googleapis.com https://firebaseinstallations.googleapis.com https://www.gstatic.com",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
