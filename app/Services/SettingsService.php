@@ -142,7 +142,7 @@ TEXT;
         // ---- sms — system ----
         ['key' => 'smsEnabled', 'category' => 'sms', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'فعال بودن سامانه پیامک', 'default' => '0'],
-        ['key' => 'smsApiKey', 'category' => 'sms', 'type' => 'secret', 'scope' => self::SCOPE_SYSTEM,
+        ['key' => 'smsApiKey', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'کلید دسترسی ippanel', 'default' => ''],
         ['key' => 'smsSender', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'شماره فرستنده', 'default' => ''],
