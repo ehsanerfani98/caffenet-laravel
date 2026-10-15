@@ -341,7 +341,7 @@
           textField('smsPatternBroadcastVars', 'متغیرها (JSON)', { placeholder: '{"title":"title","body":"body"}' }) +
 
           switchRow('smsNotifyEnabled', 'ارسال پیامک اطلاع‌رسانی سفارش (در کنار پوش)') +
-          advBox('تنظیمات پیشرفته', textField('smsBaseUrl', 'آدرس پایه ippanel', { placeholder: 'https://edge.ippanel.com/v1' })) +
+          advBox('تنظیمات پیشرفته', textField('smsBaseUrl', 'آدرس پایه Edge API', { placeholder: 'https://edge.ippanel.com/v1', help: 'پیش‌فرض: https://edge.ippanel.com/v1 — فقط در صورت نیاز به تغییر آدرس را ویرایش کنید.' })) +
         '</div>';
 
       /* ---- پرداخت ---- */

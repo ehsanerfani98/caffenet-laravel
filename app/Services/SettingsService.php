@@ -215,7 +215,7 @@ TEXT;
         ['key' => 'smsNotifyEnabled', 'category' => 'sms', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'ارسال پیامک اطلاع‌رسانی سفارش (در کنار پوش)', 'default' => '0'],
         ['key' => 'smsBaseUrl', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
-            'label' => 'آدرس پایه ippanel (قدیمی — فقط برای رفرنس)', 'default' => 'https://edge.ippanel.com/v1'],
+            'label' => 'آدرس پایه ippanel Edge API', 'default' => 'https://edge.ippanel.com/v1'],
 
         // ---- payment — system ----
         ['key' => 'paymentEnabled', 'category' => 'payment', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,

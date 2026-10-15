@@ -23,7 +23,20 @@ use Illuminate\Support\Facades\Http;
 class SmsService
 {
     private const TIMEOUT = 15;
-    private const EDGE_API_URL = 'https://edge.ippanel.com/v1/api/send';
+    private const DEFAULT_EDGE_BASE_URL = 'https://edge.ippanel.com/v1';
+
+    /**
+     * The Edge API send endpoint. Built from the admin-configurable
+     * smsBaseUrl setting + the fixed /api/send path.
+     */
+    private static function edgeApiUrl(): string
+    {
+        $base = rtrim((string) SettingsService::raw('smsBaseUrl'), '/');
+        if ($base === '') {
+            $base = self::DEFAULT_EDGE_BASE_URL;
+        }
+        return $base.'/api/send';
+    }
 
     /**
      * The complete pool of data fields that can be passed to patterns.
@@ -184,7 +197,7 @@ class SmsService
                     'Authorization' => $s['apiKey'],
                     'Content-Type'  => 'application/json',
                 ])
-                ->post(self::EDGE_API_URL, $body);
+                ->post(self::edgeApiUrl(), $body);
 
             $respJson = $response->json();
             $ok = $response->successful() && (bool) ($respJson['meta']['status'] ?? false);
