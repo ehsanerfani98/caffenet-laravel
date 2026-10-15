@@ -71,14 +71,33 @@ class SmsService
 
     /**
      * Send the OTP pattern message.
+     *
+     * The admin may have named the OTP variable anything in ippanel
+     * (e.g. "verification-code", "code", "otp"). We pass the code under
+     * multiple possible names so whatever the admin named it, it resolves.
      */
     public static function sendOtp(string $phone, string $code): void
     {
+        // Read the admin's variable names from the DB for the 'otp' pattern.
+        // The admin entered e.g. "verification-code" — we need to pass
+        // the OTP code value under that exact key.
+        $vars = SmsPatternVar::where('pattern_key', 'otp')->get();
+        $data = [];
+        foreach ($vars as $v) {
+            // Every OTP variable gets the code value — ippanel will use
+            // whichever one matches the pattern template.
+            $data[$v->var_name] = $code;
+        }
+        // Also pass 'code' as a fallback in case the admin named it that.
+        if (! isset($data['code'])) {
+            $data['code'] = $code;
+        }
+
         self::sendPattern(
             phone: $phone,
             patternKey: 'otp',
             patternCode: (string) SettingsService::raw('smsPatternOtp'),
-            data: ['code' => $code],
+            data: $data,
             type: 'otp',
             logText: 'کد تایید ورود'
         );
