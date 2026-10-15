@@ -138,7 +138,6 @@
       html += '<section class="cat-icon-grid">' + popular.map(serviceTile).join('') + '</section>';
     }
 
-    html += '<div class="section-title">' + icon('grid') + 'همه خدمات</div>';
     state.categories.forEach((cat) => {
       const items = state.services.filter((s) => s.categoryId === cat.id && s.isActive);
       if (!items.length) return;
