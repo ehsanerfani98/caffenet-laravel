@@ -255,13 +255,26 @@
         const it = LIB.find((x) => x.key === key);
         return it ? it.label : key;
       }
+
+      // Standalone preview tile (mirrors the category form's previewBox):
+      // 72×72 rounded tile, white bg when a color is set, sky-soft otherwise.
+      // The .iconpick-preview host provides the outer frame; this tile fills
+      // it so the icon + color render the SAME way as the category picker.
+      function svcPreviewBox() {
+        return '<div style="width:72px;height:72px;display:grid;place-items:center;' +
+          'background:' + (svcIconColor ? '#fff' : 'var(--sky-soft)') + ';' +
+          'border:1px solid var(--line);border-radius:18px;' +
+          'box-shadow:0 2px 10px rgba(24,34,48,.07);">' +
+          window.renderCategoryIcon(svcIconKey, { color: svcIconColor || null, size: '2x' }) +
+          '</div>';
+      }
+
       function svcIconFieldHtml() {
-        // Preview shows the icon with the current color (or default).
+        // Mirrors the category form's iconFieldHtml() exactly — same classes,
+        // same structure, same ids (just prefixed svc- instead of cat-).
         return (
           '<div class="iconpick-field" id="svc-icon-trigger">' +
-            '<div class="iconpick-preview" id="svc-icon-preview" style="' + (svcIconColor ? 'background:transparent;color:' + PU.escapeHtml(svcIconColor) + ';' : '') + '">' +
-              window.renderCategoryIcon(svcIconKey, { color: svcIconColor || null, size: '2x' }) +
-            '</div>' +
+            '<div class="iconpick-preview" id="svc-icon-preview">' + svcPreviewBox() + '</div>' +
             '<div class="iconpick-meta">' +
               '<div class="iconpick-meta-title" id="svc-icon-label">' + PU.escapeHtml(lookupLabel(svcIconKey)) + '</div>' +
               '<div class="iconpick-meta-sub">برای تغییر ضربه بزنید</div>' +
@@ -373,21 +386,22 @@
             title: 'انتخاب آیکن خدمت',
             onPick: function (key, fa, label) {
               svcIconKey = key;
+              // Refresh the WHOLE field so the label updates too.
               sheet.body.find('#svc-icon-host').html(svcIconFieldHtml());
             },
           });
         });
 
-        // Color swatch click → fill the input + refresh preview.
+        // Color swatch click → fill the input + refresh preview tile only.
         sheet.body.find('.svc-color-swatch').off('click').on('click', function () {
           svcIconColor = $(this).data('color');
           sheet.body.find('#svc-color').val(svcIconColor);
-          sheet.body.find('#svc-icon-host').html(svcIconFieldHtml());
+          sheet.body.find('#svc-icon-preview').html(svcPreviewBox());
         });
-        // Live preview when typing a hex color.
+        // Live preview when typing a hex color — only refresh the preview tile.
         sheet.body.find('#svc-color').off('input').on('input', PU.debounce(function () {
           svcIconColor = ($(this).val() || '').trim();
-          sheet.body.find('#svc-icon-host').html(svcIconFieldHtml());
+          sheet.body.find('#svc-icon-preview').html(svcPreviewBox());
         }, 220));
 
         sheet.body.find('#add-field').off('click').on('click', () => {

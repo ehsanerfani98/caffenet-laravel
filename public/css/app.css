@@ -640,21 +640,26 @@ svg.i.i-lg { width: 30px; height: 30px; }
     padding: 24px 8px;
 }
 
-/* ─── FA tile in admin forms (icon picker button) ─── */
+/* ─── FA tile in admin forms (icon picker button) ───
+ * The .iconpick-preview host stays at 44×44 (small icon next to the label);
+ * the inner 72×72 .previewBox tile (declared inline in admin.js) overflows
+ * it on purpose so the tile looks like a real home-page tile, not a tiny
+ * chip. The host's background + border are overridden by the inline styles
+ * on the inner tile. */
 .iconpick-field {
     display: flex; align-items: center; gap: 10px;
-    padding: 8px 10px; border: 1px solid var(--line);
+    padding: 10px; border: 1px solid var(--line);
     border-radius: var(--radius); background: var(--card);
     cursor: pointer;
 }
 .iconpick-field:active { transform: scale(.99); }
 .iconpick-preview {
-    width: 44px; height: 44px; flex: none;
+    width: 72px; height: 72px; flex: none;
     display: grid; place-items: center;
-    border-radius: 12px; background: var(--sky-soft);
-    color: var(--sky-deep); font-size: 22px;
+    overflow: hidden;
+    /* background + color set inline by the inner previewBox tile */
 }
-.iconpick-preview i { font-size: 22px; }
+.iconpick-preview i { font-size: 28px; }
 .iconpick-meta { flex: 1; min-width: 0; }
 .iconpick-meta-title { font-size: 12px; font-weight: 700; color: var(--ink); }
 .iconpick-meta-sub { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
