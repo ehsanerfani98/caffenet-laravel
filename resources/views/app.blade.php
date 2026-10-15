@@ -21,14 +21,11 @@
     <meta name="apple-mobile-web-app-title" content="{{ \App\Services\SettingsService::get('siteTitle', 'کافی‌نت احسان') }}">
 
     <link rel="stylesheet" href="/css/app.css?v={{ filemtime(public_path('css/app.css')) }}">
-    {{-- Font Awesome 6 — load the official CDN kit first (always works),
-        then our curated /css/fa.css on top to guarantee the specific icon
-        aliases the IconPicker uses are available even if the CDN is blocked.
-        The local fa.css re-declares the same .fa-<name>:before { content }
-        aliases, so whichever loads last wins — both point at the same
-        codepoints in the same font files. --}}
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3w6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <link rel="stylesheet" href="/css/fa.css?v={{ filemtime(public_path('css/fa.css')) }}">
+    {{-- Font Awesome 6 — fully self-hosted. fa-all.min.css is the official
+        stylesheet from the Font Awesome 6.5.2 release, with @font-face
+        paths rewritten to /fonts/*.woff2 (and *.ttf as a legacy fallback).
+        No CDN, no external requests. --}}
+    <link rel="stylesheet" href="/css/fa-all.min.css?v={{ filemtime(public_path('css/fa-all.min.css')) }}">
     {{-- Self-hosted Jalali (shamsi) date picker — powers every input[data-jdp]. --}}
     <link rel="stylesheet" href="/JalaliDatePicker-main/dist/jalalidatepicker.min.css?v={{ filemtime(public_path('JalaliDatePicker-main/dist/jalalidatepicker.min.css')) }}">
     <script defer src="/js/jquery.min.js?v={{ filemtime(public_path('js/jquery.min.js')) }}"></script>

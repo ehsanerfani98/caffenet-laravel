@@ -3,113 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تست آیکن Font Awesome</title>
-    <!-- CDN first -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <!-- Local fallback -->
-    <link rel="stylesheet" href="/css/fa.css">
+    <title>تست آیکن Font Awesome (محلی)</title>
+    <!-- Fully self-hosted — no CDN -->
+    <link rel="stylesheet" href="/css/fa-all.min.css">
     <style>
-        body { font-family: Tahoma, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
-        h1 { font-size: 18px; }
-        .test-row {
-            display: flex; align-items: center; gap: 12px;
-            padding: 12px; border-bottom: 1px solid #eee;
+        body { font-family: Tahoma, sans-serif; padding: 20px; max-width: 700px; margin: 0 auto; background: #f7f8fa; }
+        h1 { font-size: 18px; color: #1559de; }
+        h2 { font-size: 15px; margin-top: 24px; color: #475d93; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+        .cell {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 8px; padding: 14px 6px; background: #fff; border-radius: 12px;
+            border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,.04);
         }
-        .test-row i { font-size: 24px; color: #1559de; width: 32px; text-align: center; }
-        .test-row span { font-size: 14px; }
-        .ok { color: #16a34a; font-weight: bold; }
-        .fail { color: #dc2626; font-weight: bold; }
-        .note { background: #fef3c7; padding: 10px; border-radius: 8px; font-size: 13px; margin: 15px 0; }
+        .cell i { font-size: 28px; color: #1559de; }
+        .cell span { font-size: 11px; color: #475569; text-align: center; }
+        .note { background: #fef3c7; padding: 12px; border-radius: 8px; font-size: 13px; margin: 15px 0; line-height: 1.8; }
+        .ok { background: #dcfce7; padding: 12px; border-radius: 8px; color: #15803d; font-weight: 700; margin: 15px 0; }
+        .status-bar { background: #1e293b; color: #fff; padding: 10px; border-radius: 8px; font-size: 12px; font-family: monospace; margin: 10px 0; }
     </style>
 </head>
 <body>
-    <h1>تست لود شدن Font Awesome</h1>
+    <h1>تست لود شدن Font Awesome (نسخه محلی)</h1>
+
+    <div class="ok" id="ok-msg" style="display:none">
+        ✓ فونت با موفقیت لود شد! همه آیکن‌ها باید زیر نمایش داده بشن.
+    </div>
 
     <div class="note">
-        اگر آیکن‌ها زیر نشان داده می‌شوند، فونت درست لود شده. اگر جای خالی یا مربع می‌بینید، مشکل از لود فونت است.
+        این صفحه فقط از فایل محلی <code>/css/fa-all.min.css</code> و <code>/fonts/*.woff2</code> استفاده می‌کنه.
+        هیچ CDN خارجی استفاده نشده. اگه آیکن‌ها زیر نمایش داده شد، یعنی همه‌چیز درسته.
     </div>
 
-    <div class="test-row">
-        <i class="fa-solid fa-print"></i>
-        <span>fa-print (پرینت)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-graduation-cap"></i>
-        <span>fa-graduation-cap (دانشجویی)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-landmark"></i>
-        <span>fa-landmark (دولتی)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-wallet"></i>
-        <span>fa-wallet (کیف پول)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-car"></i>
-        <span>fa-car (خودرو)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-shield"></i>
-        <span>fa-shield (بیمه)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-heart"></i>
-        <span>fa-heart (درمانی)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-globe"></i>
-        <span>fa-globe (اینترنت)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-bolt"></i>
-        <span>fa-bolt (فوری)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-users"></i>
-        <span>fa-users (ارتباطات)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-ticket"></i>
-        <span>fa-ticket (بلیط)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-receipt"></i>
-        <span>fa-receipt (قبض)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-building-columns"></i>
-        <span>fa-building-columns (بانک)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-chart-column"></i>
-        <span>fa-chart-column (مالیاتی)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-stamp"></i>
-        <span>fa-stamp (قضایی)</span>
+    <div class="status-bar">
+        منبع: <span id="src-info">در حال بررسی...</span>
     </div>
 
-    <h2 style="margin-top: 30px;">تست آیکن‌های پیکر (admin)</h2>
-    <div class="test-row">
-        <i class="fa-solid fa-mug-saucer"></i>
-        <span>fa-mug-saucer (کافی‌نت)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-bell"></i>
-        <span>fa-bell (اطلاعیه)</span>
-    </div>
-    <div class="test-row">
-        <i class="fa-solid fa-comment"></i>
-        <span>fa-comment (نظر)</span>
+    <h2>آیکن‌های دسته‌بندی‌ها (صفحه اصلی)</h2>
+    <div class="grid">
+        <div class="cell"><i class="fa-solid fa-print"></i><span>پرینت</span></div>
+        <div class="cell"><i class="fa-solid fa-graduation-cap"></i><span>دانشجویی</span></div>
+        <div class="cell"><i class="fa-solid fa-building"></i><span>اداری</span></div>
+        <div class="cell"><i class="fa-solid fa-landmark"></i><span>دولتی</span></div>
+        <div class="cell"><i class="fa-solid fa-car"></i><span>خودرویی</span></div>
+        <div class="cell"><i class="fa-solid fa-grip"></i><span>عمومی</span></div>
+        <div class="cell"><i class="fa-solid fa-folder"></i><span>آرشیو</span></div>
+        <div class="cell"><i class="fa-solid fa-wallet"></i><span>مالی</span></div>
+        <div class="cell"><i class="fa-solid fa-receipt"></i><span>قبض</span></div>
+        <div class="cell"><i class="fa-solid fa-building-columns"></i><span>بانکی</span></div>
+        <div class="cell"><i class="fa-solid fa-shield"></i><span>بیمه</span></div>
+        <div class="cell"><i class="fa-solid fa-ticket"></i><span>بلیط</span></div>
+        <div class="cell"><i class="fa-solid fa-pen"></i><span>طراحی</span></div>
+        <div class="cell"><i class="fa-solid fa-heart"></i><span>درمانی</span></div>
+        <div class="cell"><i class="fa-solid fa-passport"></i><span>passport</span></div>
+        <div class="cell"><i class="fa-solid fa-chart-column"></i><span>مالیاتی</span></div>
+        <div class="cell"><i class="fa-solid fa-bolt"></i><span>فوری</span></div>
+        <div class="cell"><i class="fa-solid fa-users"></i><span>ارتباطات</span></div>
+        <div class="cell"><i class="fa-solid fa-globe"></i><span>اینترنت</span></div>
+        <div class="cell"><i class="fa-solid fa-stamp"></i><span>قضایی</span></div>
+        <div class="cell"><i class="fa-solid fa-ellipsis"></i><span>سایر</span></div>
     </div>
 
-    <div class="note" style="margin-top: 20px;">
+    <h2>آیکن‌های پنل مدیریت</h2>
+    <div class="grid">
+        <div class="cell"><i class="fa-solid fa-mug-saucer"></i><span>کافی‌نت</span></div>
+        <div class="cell"><i class="fa-solid fa-bell"></i><span>اطلاعیه</span></div>
+        <div class="cell"><i class="fa-solid fa-comment"></i><span>نظر</span></div>
+        <div class="cell"><i class="fa-solid fa-comments"></i><span>گفتگو</span></div>
+        <div class="cell"><i class="fa-solid fa-headset"></i><span>پشتیبانی</span></div>
+        <div class="cell"><i class="fa-solid fa-cart-shopping"></i><span>خرید</span></div>
+        <div class="cell"><i class="fa-solid fa-store"></i><span>فروشگاه</span></div>
+        <div class="cell"><i class="fa-solid fa-truck-fast"></i><span>ارسال</span></div>
+        <div class="cell"><i class="fa-solid fa-box"></i><span>بسته</span></div>
+        <div class="cell"><i class="fa-solid fa-warehouse"></i><span>انبار</span></div>
+        <div class="cell"><i class="fa-solid fa-screwdriver-wrench"></i><span>ابزار</span></div>
+        <div class="cell"><i class="fa-solid fa-wrench"></i><span>تعمیر</span></div>
+        <div class="cell"><i class="fa-solid fa-hammer"></i><span>نجاری</span></div>
+        <div class="cell"><i class="fa-solid fa-paintbrush"></i><span>رنگ</span></div>
+        <div class="cell"><i class="fa-solid fa-palette"></i><span>هنری</span></div>
+        <div class="cell"><i class="fa-solid fa-camera"></i><span>عکاسی</span></div>
+        <div class="cell"><i class="fa-solid fa-video"></i><span>ویدیو</span></div>
+        <div class="cell"><i class="fa-solid fa-music"></i><span>موسیقی</span></div>
+        <div class="cell"><i class="fa-solid fa-headphones"></i><span>صوتی</span></div>
+        <div class="cell"><i class="fa-solid fa-book"></i><span>کتاب</span></div>
+        <div class="cell"><i class="fa-solid fa-clipboard"></i><span>فرم</span></div>
+        <div class="cell"><i class="fa-solid fa-file-lines"></i><span>متن</span></div>
+        <div class="cell"><i class="fa-solid fa-file-pdf"></i><span>PDF</span></div>
+        <div class="cell"><i class="fa-solid fa-file-word"></i><span>Word</span></div>
+        <div class="cell"><i class="fa-solid fa-file-excel"></i><span>Excel</span></div>
+        <div class="cell"><i class="fa-solid fa-file-image"></i><span>تصویر</span></div>
+        <div class="cell"><i class="fa-solid fa-file-zipper"></i><span>فشرده</span></div>
+        <div class="cell"><i class="fa-solid fa-calendar"></i><span>تقویم</span></div>
+        <div class="cell"><i class="fa-solid fa-clock"></i><span>ساعت</span></div>
+        <div class="cell"><i class="fa-solid fa-stopwatch"></i><span>کرنومتر</span></div>
+        <div class="cell"><i class="fa-solid fa-hourglass-half"></i><span>انتظار</span></div>
+    </div>
+
+    <h2>آیکن‌های صف و سفارش</h2>
+    <div class="grid">
+        <div class="cell"><i class="fa-solid fa-play"></i><span>شروع</span></div>
+        <div class="cell"><i class="fa-solid fa-flag"></i><span>تکمیل</span></div>
+        <div class="cell"><i class="fa-solid fa-gear"></i><span>انجام</span></div>
+        <div class="cell"><i class="fa-solid fa-check"></i><span>آماده</span></div>
+        <div class="cell"><i class="fa-solid fa-share"></i><span>اشتراک</span></div>
+        <div class="cell"><i class="fa-solid fa-paper-plane"></i><span>ارسال</span></div>
+        <div class="cell"><i class="fa-solid fa-magnifying-glass"></i><span>جستجو</span></div>
+        <div class="cell"><i class="fa-solid fa-circle-info"></i><span>اطلاعات</span></div>
+        <div class="cell"><i class="fa-solid fa-circle-check"></i><span>تایید</span></div>
+        <div class="cell"><i class="fa-solid fa-circle-xmark"></i><span>رد</span></div>
+        <div class="cell"><i class="fa-solid fa-triangle-exclamation"></i><span>هشدار</span></div>
+    </div>
+
+    <div class="note" style="margin-top: 30px;">
         <strong>راهنمای رفع مشکل:</strong><br>
-        ۱. اگر هیچ آیکنی نشان داده نشد: CDN مسدود است یا اینترنت قطع است.<br>
-        ۲. اگر مربع □ نشان داد: فایل woff2 لود نشد — بررسی کنید <code>/fonts/fa-solid-900.woff2</code> قابل دسترس است.<br>
-        ۳. اگر آیکن ناقص نشان داد: کش مرورگر را پاک کنید (Ctrl+F5).<br>
-        ۴. اگر فقط برخی آیکن‌ها نبودند: نام کلاس اشتباه است یا alias در fa.css تعریف نشده.
+        ۱. اگر <strong>هیچ آیکنی</strong> نشان داده نشد (جای خالی): فایل woff2 لود نشده. کنسول مرورگر (F12 → Network) را باز کنید و بررسی کنید که <code>/fonts/fa-solid-900.woff2</code> با status 200 لود بشه.<br>
+        ۲. اگر <strong>مربع □</strong> دیدید: فایل CSS لود شده ولی فونت نه. مسیر <code>/fonts/</code> را چک کنید.<br>
+        ۳. اگر <strong>کاش مرورگر را پاک کنید</strong> (Ctrl+F5) — اگه فایل‌های قبلی کش شدن.<br>
+        ۴. اگر <strong>403 Forbidden</strong> دیدید: مجوز پوشه <code>/fonts/</code> را روی 755 و فایل‌ها را روی 644 بذارید.<br>
+        ۵. اگر <strong>404</strong> دیدید: فایل‌ها روی سرور آپلود نشدن. سه فایل <code>fa-solid-900.woff2</code>، <code>fa-regular-400.woff2</code>، <code>fa-brands-400.woff2</code> را در <code>/public/fonts/</code> آپلود کنید.
     </div>
+
+    <script>
+        // Show source info from the loaded stylesheet
+        (function () {
+            fetch('/css/fa-all.min.css', { method: 'GET' })
+                .then(r => {
+                    const status = r.status;
+                    const ct = r.headers.get('Content-Type') || 'unknown';
+                    document.getElementById('src-msg')?.remove();
+                    document.getElementById('src-info').textContent =
+                        '/css/fa-all.min.css → HTTP ' + status + ' | Content-Type: ' + ct;
+                    if (status === 200) {
+                        document.getElementById('ok-msg').style.display = 'block';
+                    }
+                })
+                .catch(e => {
+                    document.getElementById('src-info').textContent = 'Error: ' + e.message;
+                });
+        })();
+    </script>
 </body>
 </html>

@@ -19,13 +19,9 @@ class SecurityHeaders
         $csp = implode('; ', [
             "default-src 'self'",
             "script-src 'self'",
-            // Style-src allows cdnjs (Font Awesome CSS) + 'unsafe-inline'
-            // (we use inline styles in many places — sheets, color swatches,
-            // dynamic positioning from jQuery).
-            "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+            "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob:",
-            // Font-src allows cdnjs (FA webfonts) + self-hosted /fonts/.
-            "font-src 'self' data: https://cdnjs.cloudflare.com",
+            "font-src 'self' data:",
             "connect-src 'self'",
             "frame-ancestors 'none'",
             "base-uri 'self'",
