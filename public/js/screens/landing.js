@@ -19,6 +19,30 @@
     );
   }
 
+  // Home service tile (icon + title) — deliberately mirrors the category icon
+  // grid that sits directly below the search field: a 4-column grid of rounded
+  // tiles, each showing a large colorful icon and the service title beneath it.
+  // The service's legacy PascalCase icon name (e.g. "Printer") is mapped through
+  // SERVICE_ICONS to the matching colorful category SVG so the tiles match the
+  // look of the category grid; unknown names fall back to the stroke icon.
+  function serviceTile(svc) {
+    const mapped = (window.SERVICE_ICONS && SERVICE_ICONS[svc.icon]) || svc.icon || '';
+    const key = String(mapped).toLowerCase();
+    let svg;
+    if (window.CATEGORY_ICON_KEYS && window.CATEGORY_ICON_KEYS.indexOf(key) !== -1) {
+      svg = window.renderCategoryIcon(key);
+    } else {
+      svg = '<span style="color:var(--sky-deep);display:inline-flex;width:58%;height:58%;align-items:center;justify-content:center;">' +
+        renderServiceIcon(svc.icon) + '</span>';
+    }
+    return (
+      '<button type="button" class="cat-icon-tile" data-service="' + svc.id + '" aria-label="' + PU.escapeHtml(svc.title) + '">' +
+        '<span class="cat-icon-box">' + svg + '</span>' +
+        '<span class="cat-icon-label">' + PU.escapeHtml(svc.title) + '</span>' +
+      '</button>'
+    );
+  }
+
   // The single live "current order" block, shared by the initial render and the
   // in-place refresh so both stay identical without rebuilding the whole screen.
   function activeOrderBlock(state) {
@@ -84,7 +108,7 @@
     let html = '';
     html += '<div class="section-title">' + icon('zap') + 'خدمات پرطرفدار</div>';
     const popular = state.services.filter((s) => s.isActive).slice(0, 4);
-    html += '<div class="svc-grid">' + (popular.map((s) => serviceCard(s, settings)).join('') || '') + '</div>';
+    html += '<section class="cat-icon-grid">' + popular.map(serviceTile).join('') + '</section>';
 
     html += '<div class="section-title">' + icon('grid') + 'همه خدمات</div>';
     state.categories.forEach((cat) => {
@@ -92,7 +116,7 @@
       if (!items.length) return;
       html += '<div class="cat-head" style="margin:12px 2px 8px">' +
         renderServiceIcon(cat.iconName) + ' ' + PU.escapeHtml(cat.title) + '</div>';
-      html += '<div class="svc-grid">' + items.map((s) => serviceCard(s, settings)).join('') + '</div>';
+      html += '<section class="cat-icon-grid">' + items.map(serviceTile).join('') + '</section>';
     });
     return html;
   }
@@ -145,7 +169,7 @@
       }
       $box.html(
         '<div class="section-title">' + icon('search') + 'نتایج جستجو</div>' +
-        '<div class="svc-grid">' + items.map((s) => serviceCard(s)).join('') + '</div>'
+        '<section class="cat-icon-grid">' + items.map(serviceTile).join('') + '</section>'
       );
     }
 
