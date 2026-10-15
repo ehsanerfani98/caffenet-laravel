@@ -151,6 +151,27 @@ TEXT;
         ['key' => 'smsBaseUrl', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'آدرس پایه ippanel', 'default' => 'https://api2.ippanel.com/api/v1'],
 
+        // ---- SMS notification patterns (ippanel Edge API) ----
+        // Each pattern code is created in the ippanel panel. When the matching
+        // event fires (order started, ready, requeued, cancelled, broadcast),
+        // SmsService::sendPattern() sends via POST /api/send with
+        // sending_type=pattern. Empty pattern code → falls back to a plain
+        // text SMS via sendNotification().
+        ['key' => 'smsNotifyEnabled', 'category' => 'sms', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'ارسال پیامک اطلاع‌رسانی سفارش (در کنار پوش)', 'default' => '0'],
+        ['key' => 'smsPatternStarted', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'پترن شروع سفارش (order_started)', 'default' => ''],
+        ['key' => 'smsPatternReady', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'پترن آماده شدن سفارش (order_ready)', 'default' => ''],
+        ['key' => 'smsPatternRequeued', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'پترن انتقال به انتهای صف (requeued)', 'default' => ''],
+        ['key' => 'smsPatternCancelled', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'پترن لغو سفارش (cancelled)', 'default' => ''],
+        ['key' => 'smsPatternReminder', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'پترن یادآوری نزدیک شروع (reminder)', 'default' => ''],
+        ['key' => 'smsPatternBroadcast', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'پترن اطلاع‌رسانی همگانی (broadcast)', 'default' => ''],
+
         // ---- payment — system ----
         ['key' => 'paymentEnabled', 'category' => 'payment', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'فعال بودن درگاه پرداخت', 'default' => '0'],

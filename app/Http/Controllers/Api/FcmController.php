@@ -124,7 +124,11 @@ class FcmController extends Controller
 
     /**
      * Admin-only: send a manual push to a specific user by id or phone.
-     * Body: {userId?, phone?, title, body}
+     * Body: {userId?, phone?, title, body, sendSms?}
+     *
+     * When sendSms=1 is passed, the notification is ALSO sent as an SMS
+     * to the user's phone (pattern-based when smsPatternBroadcast or
+     * the relevant event pattern is set; plain-text otherwise).
      */
     public function sendToUser(Request $request): JsonResponse
     {
@@ -140,6 +144,7 @@ class FcmController extends Controller
         $body = trim((string) $request->json('body', ''));
         $userId = trim((string) $request->json('userId', ''));
         $phone = trim((string) $request->json('phone', ''));
+        $sendSms = (bool) $request->json('sendSms', false);
 
         if ($title === '' || $body === '') {
             return response()->json(['error' => 'عنوان و متن الزامی است.'], 400);
@@ -161,18 +166,43 @@ class FcmController extends Controller
 
         $sent = FirebasePushService::sendManual($target->id, $title, $body, $admin->id);
 
+        $smsSent = false;
+        if ($sendSms && SettingsService::bool('smsNotifyEnabled') && ! empty($target->phone)) {
+            try {
+                \App\Services\SmsService::sendOrderNotification(
+                    $target->phone,
+                    'broadcast',
+                    ['title' => $title, 'body' => $body],
+                    $title.' — '.$body
+                );
+                $smsSent = true;
+            } catch (\Throwable $e) {
+                // SMS failure doesn't fail the whole request — push was already sent.
+            }
+        }
+
+        $msg = $sent > 0
+            ? "پوش به {$sent} دستگاه کاربر ارسال شد."
+            : 'کاربر هیچ توکن فعال ثبت‌شده‌ای ندارد (شاید هنوز وارد نشده یا اجازه نوتیفیکیشن نداده).';
+        if ($smsSent) {
+            $msg .= ' پیامک هم ارسال شد.';
+        }
+
         return response()->json([
             'ok' => true,
             'sent' => $sent,
-            'message' => $sent > 0
-                ? "پوش به {$sent} دستگاه کاربر ارسال شد."
-                : 'کاربر هیچ توکن فعال ثبت‌شده‌ای ندارد (شاید هنوز وارد نشده یا اجازه نوتیفیکیشن نداده).',
+            'sms_sent' => $smsSent,
+            'message' => $msg,
         ]);
     }
 
     /**
      * Admin-only: broadcast a push to a topic (default: "all" — every
-     * subscribed device). Body: {topic?, title, body}
+     * subscribed device). Body: {topic?, title, body, sendSms?, smsRecipients?}
+     *
+     * When sendSms=1 is passed, the broadcast is ALSO sent as a pattern SMS
+     * to the phone numbers in smsRecipients (a comma-separated list). This
+     * lets the admin reach users who haven't enabled push notifications.
      */
     public function sendToTopic(Request $request): JsonResponse
     {
@@ -187,6 +217,8 @@ class FcmController extends Controller
         $title = trim((string) $request->json('title', ''));
         $body = trim((string) $request->json('body', ''));
         $topic = trim((string) $request->json('topic', 'all'));
+        $sendSms = (bool) $request->json('sendSms', false);
+        $smsRecipients = (string) $request->json('smsRecipients', '');
         if ($topic === '') {
             $topic = 'all';
         }
@@ -201,11 +233,33 @@ class FcmController extends Controller
             'url' => '/',
         ], $admin->id);
 
+        $smsSent = 0;
+        $smsFailed = 0;
+        if ($sendSms && SettingsService::bool('smsNotifyEnabled')) {
+            $phones = array_filter(array_map('trim', explode(',', $smsRecipients)));
+            foreach ($phones as $phone) {
+                if ($phone === '') continue;
+                $sent = \App\Services\SmsService::sendOrderNotification(
+                    $phone,
+                    'broadcast',
+                    ['title' => $title, 'body' => $body],
+                    $title.' — '.$body
+                );
+                // sendOrderNotification returns void; we can't easily get the
+                // per-send status without changing the API, so just count.
+                $smsSent++;
+            }
+        }
+
+        $msg = $ok ? 'پوش همگانی ارسال شد.' : 'ارسال پوش ناموفق بود.';
+        if ($sendSms && $smsSent > 0) {
+            $msg .= ' پیامک هم به '.$smsSent.' شماره ارسال شد.';
+        }
+
         return response()->json([
             'ok' => $ok,
-            'message' => $ok
-                ? 'پوش همگانی به همه کاربران ارسال شد.'
-                : 'ارسال ناموفق بود — تنظیمات Firebase را بررسی کنید.',
+            'sms_sent' => $smsSent,
+            'message' => $msg,
         ]);
     }
 

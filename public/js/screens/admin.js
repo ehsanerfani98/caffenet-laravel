@@ -685,48 +685,76 @@
       if (view === 'broadcast') {
         $v.html(
           '<div class="card" style="padding:14px">' +
-            '<div class="section-title" style="margin:0 0 10px">' + icon('bell') + 'ارسال پوش به همه کاربران</div>' +
+            '<div class="section-title" style="margin:0 0 10px">' + icon('bell') + 'ارسال اعلان همگانی (پوش + پیامک)</div>' +
             '<label class="field-label">عنوان <span class="req">*</span></label>' +
             '<input class="input" id="push-bc-title" placeholder="مثلاً: تخفیف ویژه آخر هفته">' +
             '<label class="field-label" style="margin-top:10px">متن <span class="req">*</span></label>' +
             '<textarea class="textarea" id="push-bc-body" rows="3" placeholder="متن اعلان…"></textarea>' +
-            '<label class="field-label" style="margin-top:10px">موضوع (topic)</label>' +
+            '<label class="field-label" style="margin-top:10px">موضوع پوش (topic)</label>' +
             '<input class="input" id="push-bc-topic" value="all" placeholder="all">' +
-            '<div style="font-size:11px;color:var(--ink-soft);margin:4px 0 10px">پیش‌فرض «all» به همه کاربران ارسال می‌شود.</div>' +
-            '<button class="btn block" id="push-bc-send">' + icon('send') + 'ارسال پوش همگانی</button>' +
+            '<div style="font-size:11px;color:var(--ink-soft);margin:4px 0 10px">پیش‌فرض «all» به همه کاربرانی که پوش فعال کرده‌اند ارسال می‌شود.</div>' +
+            '<div class="card" style="padding:10px 12px;margin:8px 0;background:#f0f9ff;border-color:#bae6fd">' +
+              '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:#0c4a6e;cursor:pointer">' +
+                '<input type="checkbox" id="push-bc-sms" style="width:18px;height:18px;accent-color:#0284c7"> ' + icon('sms') + 'ارسال همزمان پیامک</label>' +
+              '<div id="push-bc-sms-row" style="margin-top:8px;display:none">' +
+                '<label class="field-label" style="margin:0 0 4px">شماره‌های موبایل (با کاما جدا کنید)</label>' +
+                '<textarea class="textarea" id="push-bc-sms-phones" rows="2" placeholder="09123456789, 09130000000" dir="ltr"></textarea>' +
+                '<div style="font-size:10.5px;color:var(--ink-soft);margin-top:4px;line-height:1.6">پیامک فقط به این شماره‌ها ارسال می‌شود (پوش به همه می‌رسد). برای ارسال پترن، پترن «broadcast» را در تنظیمات سیستمی پیکربندی کنید.</div>' +
+              '</div>' +
+            '</div>' +
+            '<button class="btn block" id="push-bc-send">' + icon('send') + 'ارسال اعلان</button>' +
           '</div>'
         );
+        $v.find('#push-bc-sms').on('change', function () {
+          $v.find('#push-bc-sms-row').toggle($(this).is(':checked'));
+        });
         $v.find('#push-bc-send').on('click', async function () {
           const $btn = $(this).prop('disabled', true).text('در حال ارسال...');
           const title = $v.find('#push-bc-title').val().trim();
           const body = $v.find('#push-bc-body').val().trim();
           const topic = $v.find('#push-bc-topic').val().trim() || 'all';
+          const sendSms = $v.find('#push-bc-sms').is(':checked');
+          const smsRecipients = $v.find('#push-bc-sms-phones').val().trim();
           if (!title || !body) {
             UI.toast('عنوان و متن الزامی است.', 'error');
-            $btn.prop('disabled', false).html(icon('send') + 'ارسال پوش همگانی');
+            $btn.prop('disabled', false).html(icon('send') + 'ارسال اعلان');
+            return;
+          }
+          if (sendSms && !smsRecipients) {
+            UI.toast('برای ارسال پیامک، حداقل یک شماره وارد کنید.', 'error');
+            $btn.prop('disabled', false).html(icon('send') + 'ارسال اعلان');
             return;
           }
           try {
-            const r = await api.request('POST', '/api/fcm/send-topic', { title, body, topic });
+            const payload = { title, body, topic };
+            if (sendSms) {
+              payload.sendSms = true;
+              payload.smsRecipients = smsRecipients;
+            }
+            const r = await api.request('POST', '/api/fcm/send-topic', payload);
             UI.toast(r.message, r.ok ? 'success' : 'error');
             if (r.ok) {
               $v.find('#push-bc-title').val('');
               $v.find('#push-bc-body').val('');
             }
           } catch (e) { UI.toast(e.message, 'error'); }
-          finally { $btn.prop('disabled', false).html(icon('send') + 'ارسال پوش همگانی'); }
+          finally { $btn.prop('disabled', false).html(icon('send') + 'ارسال اعلان'); }
         });
       } else if (view === 'manual') {
         $v.html(
           '<div class="card" style="padding:14px">' +
-            '<div class="section-title" style="margin:0 0 10px">' + icon('user') + 'ارسال پوش به یک کاربر</div>' +
+            '<div class="section-title" style="margin:0 0 10px">' + icon('user') + 'ارسال اعلان به یک کاربر (پوش + پیامک)</div>' +
             '<label class="field-label">شماره موبایل کاربر <span class="req">*</span></label>' +
             '<input class="input" id="push-mu-phone" inputmode="tel" placeholder="09123456789">' +
             '<label class="field-label" style="margin-top:10px">عنوان <span class="req">*</span></label>' +
             '<input class="input" id="push-mu-title" placeholder="عنوان اعلان">' +
             '<label class="field-label" style="margin-top:10px">متن <span class="req">*</span></label>' +
             '<textarea class="textarea" id="push-mu-body" rows="3" placeholder="متن اعلان…"></textarea>' +
-            '<button class="btn block" id="push-mu-send">' + icon('send') + 'ارسال پوش به این کاربر</button>' +
+            '<div class="card" style="padding:10px 12px;margin:8px 0;background:#f0f9ff;border-color:#bae6fd">' +
+              '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:#0c4a6e;cursor:pointer">' +
+                '<input type="checkbox" id="push-mu-sms" checked style="width:18px;height:18px;accent-color:#0284c7"> ' + icon('sms') + 'ارسال همزمان پیامک به این شماره</label>' +
+            '</div>' +
+            '<button class="btn block" id="push-mu-send">' + icon('send') + 'ارسال اعلان</button>' +
           '</div>'
         );
         $v.find('#push-mu-send').on('click', async function () {
@@ -734,20 +762,23 @@
           const phone = $v.find('#push-mu-phone').val().trim();
           const title = $v.find('#push-mu-title').val().trim();
           const body = $v.find('#push-mu-body').val().trim();
+          const sendSms = $v.find('#push-mu-sms').is(':checked');
           if (!phone || !title || !body) {
             UI.toast('شماره موبایل، عنوان و متن همگی الزامی هستند.', 'error');
-            $btn.prop('disabled', false).html(icon('send') + 'ارسال پوش به این کاربر');
+            $btn.prop('disabled', false).html(icon('send') + 'ارسال اعلان');
             return;
           }
           try {
-            const r = await api.request('POST', '/api/fcm/send-user', { phone, title, body });
-            UI.toast(r.message, r.sent > 0 ? 'success' : 'info');
-            if (r.sent > 0) {
+            const payload = { phone, title, body };
+            if (sendSms) payload.sendSms = true;
+            const r = await api.request('POST', '/api/fcm/send-user', payload);
+            UI.toast(r.message, r.sent > 0 || r.sms_sent ? 'success' : 'info');
+            if (r.sent > 0 || r.sms_sent) {
               $v.find('#push-mu-title').val('');
               $v.find('#push-mu-body').val('');
             }
           } catch (e) { UI.toast(e.message, 'error'); }
-          finally { $btn.prop('disabled', false).html(icon('send') + 'ارسال پوش به این کاربر'); }
+          finally { $btn.prop('disabled', false).html(icon('send') + 'ارسال اعلان'); }
         });
       } else if (view === 'logs') {
         $v.html('<div id="push-logs-list" style="margin-top:4px"><div style="text-align:center;padding:20px;color:var(--ink-soft)">در حال بارگذاری…</div></div>');

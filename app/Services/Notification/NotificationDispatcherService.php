@@ -7,6 +7,7 @@ use App\Models\NotificationLog;
 use App\Models\Order;
 use App\Services\FirebasePushService;
 use App\Services\SettingsService;
+use App\Services\SmsService;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -132,5 +133,73 @@ class NotificationDispatcherService implements NotificationDispatcherServiceInte
                 ]);
             }
         }
+
+        // 3) Send an SMS notification (pattern-based when a pattern code is
+        //    configured for this event type, plain-text fallback otherwise).
+        //    Only fires when the admin has enabled smsNotifyEnabled AND the
+        //    order has a valid customer phone.
+        if (SettingsService::bool('smsNotifyEnabled') && ! empty($order->customer_phone)) {
+            try {
+                $eventType = $this->eventTypeForType($type);
+                $vars = $this->patternVarsForOrder($order, $payload);
+                $fallbackText = ($payload['title'] ?? '').' — '.($payload['body'] ?? '');
+                SmsService::sendOrderNotification(
+                    $order->customer_phone,
+                    $eventType,
+                    $vars,
+                    $fallbackText
+                );
+            } catch (\Throwable $e) {
+                Log::error('NotificationDispatcher: SMS send failed', [
+                    'order_id' => $order->id,
+                    'type' => $type,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Map an internal notification type (NotificationLog::TYPE_*) to the
+     * event-type key used by SmsService::sendOrderNotification.
+     */
+    private function eventTypeForType(string $type): string
+    {
+        return [
+            NotificationLog::TYPE_ORDER_STARTED => 'order_started',
+            NotificationLog::TYPE_ORDER_READY   => 'order_ready',
+            NotificationLog::TYPE_REQUEUED      => 'requeued',
+            NotificationLog::TYPE_CANCELLED     => 'cancelled',
+            NotificationLog::TYPE_REMINDER      => 'reminder',
+        ][$type] ?? 'order_status';
+    }
+
+    /**
+     * Build the pattern variables map for an order notification. The keys
+     * here are the variable names the admin must declare in the ippanel
+     * pattern template (e.g. %order_number%, %customer_name%, %eta%).
+     */
+    private function patternVarsForOrder(Order $order, array $payload): array
+    {
+        $vars = [
+            'order_number'   => $order->order_number,
+            'customer_name'  => $order->customer_name,
+            'service_title'  => $order->service_title,
+            'status'         => $order->status,
+            'eta_minutes'    => (string) ($order->estimated_wait_minutes ?? ''),
+            'start_time'     => (string) ($order->estimated_start_at ?? ''),
+            'end_time'       => (string) ($order->estimated_end_at ?? ''),
+            'queue_position' => (string) ($order->queue_position ?? ''),
+            'tracking_url'   => $order->track_token
+                ? url('/api/orders/track/'.$order->track_token)
+                : '',
+        ];
+        // Merge any extra payload fields (e.g. minutes_before for reminders).
+        foreach ($payload as $k => $v) {
+            if (is_scalar($v) && ! isset($vars[$k])) {
+                $vars[$k] = (string) $v;
+            }
+        }
+        return $vars;
     }
 }

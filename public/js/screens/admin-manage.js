@@ -290,6 +290,22 @@
           textField('smsSender', 'شماره فرستنده', { req: true }) +
           textField('smsOtpPattern', 'کد پترن کد تایید') +
           advBox('تنظیمات پیشرفته پیامک', textField('smsBaseUrl', 'آدرس پایه ippanel', { placeholder: 'https://api2.ippanel.com/api/v1' })) +
+        '</div>' +
+        '<div class="section-title" style="margin-top:16px">' + icon('bell') + 'پیامک اطلاع‌رسانی سفارش (پترن)</div>' +
+        switchRow('smsNotifyEnabled', 'ارسال پیامک اطلاع‌رسانی در تغییر وضعیت سفارش (در کنار پوش)') +
+        '<div id="sms-notify-fields">' +
+          '<div style="font-size:11px;color:var(--ink-soft);margin:6px 2px 10px;line-height:1.7">' +
+            'برای هر رویداد، کد پترن مربوطه را از پنل ippanel وارد کنید. اگه کد پترن خالی باشد، پیامک متن ساده ارسال می‌شود. ' +
+            'متغیرهای قابل استفاده در پترن: <code dir="ltr">%order_number%</code>، <code dir="ltr">%customer_name%</code>، ' +
+            '<code dir="ltr">%service_title%</code>، <code dir="ltr">%eta_minutes%</code>، <code dir="ltr">%start_time%</code>، ' +
+            '<code dir="ltr">%end_time%</code>، <code dir="ltr">%queue_position%</code>، <code dir="ltr">%tracking_url%</code>.' +
+          '</div>' +
+          textField('smsPatternStarted', 'پترن شروع سفارش (order_started)', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternReady', 'پترن آماده شدن سفارش (order_ready)', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternRequeued', 'پترن انتقال به انتهای صف (requeued)', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternCancelled', 'پترن لغو سفارش (cancelled)', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternReminder', 'پترن یادآوری نزدیک شروع (reminder)', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
+          textField('smsPatternBroadcast', 'پترن اطلاع‌رسانی همگانی (broadcast)', { placeholder: 'مثلاً jhaskdab45s6f4sfw' }) +
         '</div>';
 
       /* ---- پرداخت ---- */
@@ -411,6 +427,11 @@
         sheet.body.find('[data-mode="sms"] .seg').prop('disabled', !enabled);
         sheet.body.find('#sms-fields').toggle(enabled && !state.smsSim);
         sheet.body.find('#sms-disabled-note').toggle(!enabled);
+        // Notification pattern fields only make sense when the main SMS
+        // gateway is enabled — hide them otherwise so the admin doesn't
+        // configure patterns that can never fire.
+        const notifyOn = sheet.body.find('[data-set="smsNotifyEnabled"]').is(':checked');
+        sheet.body.find('#sms-notify-fields').toggle(enabled && notifyOn);
       }
 
       function refreshStatus() {
@@ -475,6 +496,7 @@
       });
 
       sheet.body.find('[data-set="smsEnabled"]').on('change', refreshSmsFields);
+      sheet.body.find('[data-set="smsNotifyEnabled"]').on('change', refreshSmsFields);
 
       refreshStatus();
 
