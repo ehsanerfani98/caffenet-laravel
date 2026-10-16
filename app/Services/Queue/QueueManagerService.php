@@ -123,8 +123,17 @@ class QueueManagerService implements QueueManagerServiceInterface
                 $order->save();
 
                 $entry = QueueEntry::where('order_id', $order->id)->first();
-                if ($entry && ! $entry->finished_at) {
-                    $entry->finished_at = $now;
+                if ($entry) {
+                    // Backfill started_at when the order was marked ready
+                    // without ever being started (e.g. submitted → ready jump
+                    // from the admin UI). Otherwise the entry keeps counting
+                    // toward other customers' wait-time estimates forever.
+                    if (! $entry->started_at) {
+                        $entry->started_at = $now;
+                    }
+                    if (! $entry->finished_at) {
+                        $entry->finished_at = $now;
+                    }
                     $entry->save();
                 }
 

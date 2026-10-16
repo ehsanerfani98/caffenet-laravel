@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
  *  - Estimated times are recomputed on enqueue.
  *  - track_token is generated on first enqueue (for public tracking).
  */
-class OrderLifecycleService
+class OrderLifecycleService implements \App\Contracts\OrderLifecycleService
 {
     public function __construct(
         private readonly QueueManagerServiceInterface $queue,

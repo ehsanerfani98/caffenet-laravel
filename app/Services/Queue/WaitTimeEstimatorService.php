@@ -77,4 +77,42 @@ class WaitTimeEstimatorService implements WaitTimeEstimatorServiceInterface
         $total = $this->estimateTotalMinutes($queueType);
         return now()->addMinutes($total)->toIso8601String();
     }
+
+    public function estimateForOrder(Order $order): ?array
+    {
+        $entry = QueueEntry::where('order_id', $order->id)->first();
+        if (! $entry) {
+            return null;
+        }
+
+        // Sum durations of every not-yet-started entry physically ahead of
+        // this order. Entries behind us and our own entry never count.
+        $aheadEntries = QueueEntry::whereNull('started_at')
+            ->where('position', '<', $entry->position)
+            ->get();
+
+        $totalMinutes = 0;
+        foreach ($aheadEntries as $ahead) {
+            $aheadOrder = Order::find($ahead->order_id);
+            if (! $aheadOrder) {
+                continue;
+            }
+            $totalMinutes += $aheadOrder->estimated_duration_minutes
+                ?: $this->estimateDurationMinutes($aheadOrder->queue_type ?: 'normal');
+        }
+
+        $operators = (int) DB::table('operator_profiles')->where('is_active', true)->count();
+        $operators = max(1, $operators);
+
+        $wait = (int) ceil($totalMinutes / $operators);
+        $duration = $order->estimated_duration_minutes
+            ?: $this->estimateDurationMinutes($order->queue_type ?: 'normal');
+
+        return [
+            'wait_minutes' => $wait,
+            'duration_minutes' => $duration,
+            'start_at' => now()->addMinutes($wait)->toIso8601String(),
+            'end_at' => now()->addMinutes($wait + $duration)->toIso8601String(),
+        ];
+    }
 }

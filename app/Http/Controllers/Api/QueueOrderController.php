@@ -15,6 +15,7 @@ use App\Http\Requests\Queue\ReserveOrderRequest;
 use App\Http\Resources\OrderUpdateResource;
 use App\Models\CapacitySlot;
 use App\Models\Order;
+use App\Models\QueueEntry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -158,11 +159,38 @@ class QueueOrderController extends Controller
 
         $notifications = $this->notifications->recentForOrder($order->id, limit: 5);
 
+        $this->applyLiveEstimate($order);
+
         return response()->json([
             'order' => (new OrderUpdateResource($order))->resolve($request),
             'notifications' => $notifications,
             'server_time' => now()->toIso8601String(),
         ]);
+    }
+
+    /**
+     * Recompute the queue position + ETA live (in-memory only, no save) so
+     * the customer's tracker reflects the queue as it is RIGHT NOW — not
+     * the snapshot stamped when the order first enqueued. Without this the
+     * displayed wait never shrinks while operators drain the queue.
+     */
+    private function applyLiveEstimate(Order $order): void
+    {
+        if ($order->status !== Order::STATUS_SUBMITTED) {
+            return;
+        }
+
+        $est = $this->estimator->estimateForOrder($order);
+        if (! $est) {
+            return;
+        }
+
+        $entry = QueueEntry::where('order_id', $order->id)->first();
+        $order->queue_position = $entry?->position;
+        $order->estimated_wait_minutes = $est['wait_minutes'];
+        $order->estimated_duration_minutes = $est['duration_minutes'];
+        $order->estimated_start_at = $est['start_at'];
+        $order->estimated_end_at = $est['end_at'];
     }
 
     /** Cancel + dequeue (customer or staff). */

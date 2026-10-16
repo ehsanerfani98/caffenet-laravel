@@ -19,6 +19,7 @@ use Illuminate\Support\ServiceProvider;
 // Smart queue / capacity bindings:
 use App\Contracts\AutoRequeueServiceInterface;
 use App\Contracts\NotificationDispatcherServiceInterface;
+use App\Contracts\OrderLifecycleService as OrderLifecycleServiceInterface;
 use App\Contracts\QueueLockServiceInterface;
 use App\Contracts\QueueManagerServiceInterface;
 use App\Contracts\SlotReservationServiceInterface;
@@ -71,6 +72,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(AutoRequeueServiceInterface::class, AutoRequeueService::class);
         $this->app->singleton(NotificationDispatcherServiceInterface::class, NotificationDispatcherService::class);
         $this->app->singleton(OrderLifecycleService::class);
+        $this->app->singleton(OrderLifecycleServiceInterface::class, OrderLifecycleService::class);
         $this->app->singleton(OrderTypeClassifierService::class);
     }
 

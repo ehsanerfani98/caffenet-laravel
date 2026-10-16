@@ -7,6 +7,7 @@ use App\Http\Support\Formatter;
 use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\OrderLog;
+use App\Models\OrderStatusHistory;
 use App\Models\Payment;
 use App\Models\Service;
 use App\Models\TicketMessage;
@@ -356,19 +357,62 @@ class OrderController extends Controller
             return response()->json(['error' => 'سفارش یافت نشد'], 404);
         }
 
+        // Idempotent no-op: the order already carries the requested status.
+        // Re-applying it would duplicate history rows for zero effect.
+        if ($order->status === $status) {
+            return response()->json(Formatter::order($order));
+        }
+
         $title = Order::STATUS_TITLES[$status];
         $now = now()->toIso8601String();
 
-        DB::transaction(function () use ($order, $status, $note, $user, $now, $title) {
-            DB::table('orders')->where('id', $order->id)->update(['status' => $status, 'updated_at' => $now]);
-            OrderLog::create([
+        // ── Smart-queue bookkeeping ─────────────────────────────────────
+        // This endpoint is what the operator console (and admin orders UI)
+        // actually call. The queue's queue_entries bookkeeping (started_at /
+        // finished_at / dequeue) MUST follow the status change, otherwise
+        // wait-time estimates keep counting processed orders and displayed
+        // positions never advance. Transitions therefore route through
+        // OrderLifecycleService, which owns queue_entries mutations.
+        $lifecycle = app(\App\Contracts\OrderLifecycleService::class);
+
+        if ($status === Order::STATUS_PROCESSING) {
+            $lifecycle->onStart($order, $user->id);
+        } elseif ($status === Order::STATUS_READY) {
+            $lifecycle->onReady($order);
+        } elseif ($status === Order::STATUS_DELIVERED) {
+            $lifecycle->onDelivered($order);
+        } elseif ($status === Order::STATUS_CANCELLED) {
+            $lifecycle->onCancel($order);
+        } else {
+            // pending_payment / failed / refunded — the order has left the
+            // working queue; release its queue slot.
+            $prevStatus = $order->status;
+
+            $order->status = $status;
+            $order->no_response_deadline = null;
+            $order->updated_at = $now;
+            $order->save();
+
+            app(\App\Contracts\QueueManagerServiceInterface::class)->dequeue($order);
+
+            OrderStatusHistory::create([
                 'order_id' => $order->id,
-                'action' => "تغییر وضعیت به: {$title}",
-                'performed_by' => $user->phone,
-                'note' => $note ? (string) $note : null,
-                'timestamp' => $now,
+                'from_status' => $prevStatus,
+                'to_status' => $status,
+                'changed_by' => $user->id,
+                'changed_at' => $now,
             ]);
-        });
+        }
+
+        $order->refresh();
+
+        OrderLog::create([
+            'order_id' => $order->id,
+            'action' => "تغییر وضعیت به: {$title}",
+            'performed_by' => $user->phone,
+            'note' => $note ? (string) $note : null,
+            'timestamp' => $now,
+        ]);
 
         // SMS: pattern-based — uses smsPatternStatusChange + smsPatternStatusChangeVars.
         SmsService::sendOrderNotification(

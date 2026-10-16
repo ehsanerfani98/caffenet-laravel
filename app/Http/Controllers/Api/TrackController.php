@@ -24,6 +24,21 @@ class TrackController extends Controller
             return response()->json(['error' => 'سفارش یافت نشد.'], 404);
         }
 
+        // Live ETA — same contract as /orders/{id}/updates: the public
+        // tracking page must show the queue as it is now, not the snapshot
+        // from enqueue time.
+        if ($order->status === \App\Models\Order::STATUS_SUBMITTED) {
+            $est = app(\App\Contracts\WaitTimeEstimatorServiceInterface::class)->estimateForOrder($order);
+            if ($est) {
+                $entry = \App\Models\QueueEntry::where('order_id', $order->id)->first();
+                $order->queue_position = $entry?->position;
+                $order->estimated_wait_minutes = $est['wait_minutes'];
+                $order->estimated_duration_minutes = $est['duration_minutes'];
+                $order->estimated_start_at = $est['start_at'];
+                $order->estimated_end_at = $est['end_at'];
+            }
+        }
+
         $notifications = $order->notifications()
             ->orderByDesc('created_at')
             ->limit(10)

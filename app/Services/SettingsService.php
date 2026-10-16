@@ -651,6 +651,12 @@ TEXT;
         ];
     }
 
+    /** Courier delivery cost in toman (OrderController::store passes it to PricingService). */
+    public static function courierCost(): int
+    {
+        return max(0, (int) self::num('courierCost', 0));
+    }
+
     public static function fileRetentionDays(): int
     {
         return max(1, (int) self::num('fileRetentionDays', 14));

@@ -2,6 +2,8 @@
 
 namespace App\Contracts;
 
+use App\Models\Order;
+
 /**
  * Estimates how long a NEW order will wait before work starts, plus the
  * duration of work itself. The two are kept SEPARATE (per the spec) so
@@ -31,4 +33,22 @@ interface WaitTimeEstimatorServiceInterface
 
     /** ISO 8601 timestamp for when work on a new order would FINISH. */
     public function estimateEndAt(?string $queueType = null): string;
+
+    /**
+     * Live estimate for a SPECIFIC order already sitting in the queue.
+     *
+     * Unlike estimateWaitMinutes() (which estimates for a hypothetical new
+     * order that goes behind everyone), this considers only the entries
+     * physically AHEAD of the given order (position < its own, not yet
+     * started) and excludes the order's own entry. This is what the
+     * polling/tracking endpoints recompute so a waiting customer's ETA
+     * shrinks as the queue drains instead of staying frozen at the value
+     * stamped when the order first enqueued.
+     *
+     * Returns null when the order has no active queue entry (not waiting),
+     * otherwise: {wait_minutes, duration_minutes, start_at, end_at}.
+     *
+     * @return array{wait_minutes: int, duration_minutes: int, start_at: string, end_at: string}|null
+     */
+    public function estimateForOrder(Order $order): ?array;
 }
