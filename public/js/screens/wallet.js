@@ -52,13 +52,17 @@
     const settings = api.state.settings || {};
     const presets = walletPresetAmounts(settings.walletTopUpPresets);
 
-    // Cafe Bazaar charges the FIXED price configured for each SKU and its
-    // payment deep link carries no amount, so when Bazaar is the ACTIVE gateway
-    // the wallet page offers only the preset packs (each mapped to a SKU) and
-    // hides the free-form amount field. Zarinpal (free amount) is a mutually
-    // exclusive gateway, so the custom field is rendered only when Bazaar is off.
+    // Gateway priority for the WebView app:
+    //  1) BazaarPay (بازارپی) — a real server-side checkout gateway, so ANY
+    //     amount within bounds is payable (no SKU presets); presets stay as
+    //     quick-picks and the free-form amount field is always available.
+    //  2) Legacy Cafe Bazaar in-app IAP — fixed SKU prices only (deep links
+    //     work solely inside the Bazaar app webview).
+    //  3) Zarinpal — free amount.
+    const bazaarPay = settings.bazaarPay || {};
+    const bazaarPayGateway = !!bazaarPay.enabled;
     const bazaar = settings.bazaar;
-    const bazaarGateway = !!(bazaar && bazaar.enabled);
+    const bazaarGateway = !bazaarPayGateway && !!(bazaar && bazaar.enabled);
 
     const presetsGrid =
       '<div class="svc-grid" id="wallet-presets"' + (bazaarGateway ? ' data-bazaar="1"' : '') + '>' +
@@ -74,7 +78,8 @@
       ? ''
       : '<label class="field-label">مبلغ دلخواه (بین ۱۰ هزار تا ۵۰ میلیون تومان)</label>' +
         '<input class="input" id="wallet-amount" inputmode="numeric" placeholder="مثلاً ۳۰۰۰۰۰">' +
-        '<button class="btn emerald block" id="wallet-topup" style="margin-top:12px">' + icon('wallet') + 'شارژ آنلاین</button>';
+        '<button class="btn emerald block" id="wallet-topup" style="margin-top:12px">' + icon('wallet') +
+        (bazaarPayGateway ? 'شارژ با بازارپی' : 'شارژ آنلاین') + '</button>';
 
     return (
       '<div class="card" style="background:linear-gradient(135deg,var(--sky),var(--sky-deep));color:#fff;border:none">' +
@@ -96,12 +101,13 @@
 
   Screens.bind_wallet = function ($host, ctx) {
     const settings = api.state.settings || {};
+    const bazaarPay = settings.bazaarPay || {};
+    const bazaarPayGateway = !!bazaarPay.enabled;
     const bazaar = settings.bazaar;
-    const bazaarGateway = !!(bazaar && bazaar.enabled);
+    const bazaarGateway = !bazaarPayGateway && !!(bazaar && bazaar.enabled);
 
-    // Single path shared by preset taps and the custom-amount button. When
-    // Bazaar is the active gateway it is always `bazaar` (fixed SKU price);
-    // otherwise it is Zarinpal, which accepts the free-form amount.
+    // Single path shared by preset taps and the custom-amount button.
+    // Gateway priority: BazaarPay → legacy Bazaar IAP → Zarinpal.
     const startTopUp = async (amount, useBazaar) => {
       if (!amount || amount < 10000) {
         UI.toast('حداقل مبلغ شارژ ۱۰٬۰۰۰ تومان است.', 'warning');
@@ -115,7 +121,7 @@
       try {
         const pay = await api.startPayment('wallet', {
           amount,
-          gateway: useBazaar ? 'bazaar' : undefined,
+          gateway: useBazaar ? 'bazaar' : (bazaarPayGateway ? 'bazaarpay' : undefined),
         });
         Screens.openPaymentRedirect(pay);
       } catch (e) {
@@ -128,15 +134,21 @@
     $host.find('[data-amount]').on('click', function () {
       const amount = Number($(this).data('amount'));
       if (bazaarGateway) {
-        // Bazaar has no free amount: tapping a pack charges it right away (the
-        // custom-amount field is not rendered in that mode). The deep link only
-        // works inside the Bazaar app, so guard against creating an orphan
-        // payment when running in a plain browser.
+        // Legacy IAP has no free amount: tapping a pack charges it right away
+        // (the custom-amount field is not rendered in that mode). The deep
+        // link only works inside the Bazaar app, so guard against creating an
+        // orphan payment when running in a plain browser.
         if (!(window.BazaarIap && window.BazaarIap.isInBazaar())) {
           UI.toast('پرداخت کافه‌بازار فقط داخل اپلیکیشن کافه‌بازار امکان‌پذیر است.', 'warning');
           return;
         }
         startTopUp(amount, true);
+        return;
+      }
+      if (bazaarPayGateway) {
+        // BazaarPay is a server-side checkout: tapping a pack charges it right
+        // away with the exact amount — no fixed SKU price involved.
+        startTopUp(amount, false);
         return;
       }
       $host.find('[data-amount]').removeClass('selected');

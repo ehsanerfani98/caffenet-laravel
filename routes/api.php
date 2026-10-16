@@ -88,8 +88,11 @@ Route::middleware('auth.session')->group(function () {
 Route::middleware('auth.session')->group(function () {
     Route::post('/payments/request', [PaymentController::class, 'request']);
     Route::get('/payments/status', [PaymentController::class, 'status']);
+    // BazaarPay Direct Pay (دایرکت‌پی) — automatic order payment.
+    Route::post('/orders/{id}/pay-bazaarpay', [PaymentController::class, 'requestDirectOrder']);
 });
 Route::get('/payments/verify', [PaymentController::class, 'verify']); // gateway callback
+Route::get('/payments/bazaarpay/contract', [PaymentController::class, 'contractCallback']); // direct-pay contract return
 
 // ---------------- Wallet ledger / refunds ----------------
 // The customer's own ledger; staff with wallet.view|wallet.manage may inspect

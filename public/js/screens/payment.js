@@ -7,9 +7,10 @@
   window.Screens = window.Screens || {};
 
   Screens.openPaymentRedirect = function (payResult) {
+    const isBazaarPay = !!(payResult && payResult.gateway === 'bazaarpay');
     const sheet = UI.sheet({
       title: 'انتقال به درگاه پرداخت',
-      subtitle: 'در حال اتصال به درگاه…',
+      subtitle: isBazaarPay ? 'در حال اتصال به درگاه بازارپی…' : 'در حال اتصال به درگاه…',
       icon: 'wallet',
       tone: 'amber',
       onClose: () => { /* redirect already initiated */ },
@@ -20,8 +21,9 @@
     function go() {
       if (redirecting) return;
 
-      // Cafe Bazaar in-app gateway: hand the deep link to the browser helper.
-      // It only works inside the Bazaar webview, so warn otherwise.
+      // Legacy Cafe Bazaar in-app gateway: hand the deep link to the browser
+      // helper. It only works inside the Bazaar webview, so warn otherwise.
+      // (BazaarPay uses the generic redirect path below — it is a plain URL.)
       if (payResult && payResult.gateway === 'bazaar') {
         if (window.BazaarIap && window.BazaarIap.isInBazaar()) {
           redirecting = true;

@@ -262,6 +262,33 @@ TEXT;
         ['key' => 'bazaarTimeout', 'category' => 'payment', 'type' => 'number', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'مهلت ارتباط با کافه‌بازار (ثانیه)', 'default' => '20'],
 
+        // ---- payment (BazaarPay / بازارپی web gateway) — system ----
+        // Server-side gateway for the WebView build of the app (see
+        // docs/bazaarpay-gateway.md). `bazaarPayDestination` is the merchant
+        // destination name Cafe Bazaar issues per package name; the test
+        // token works with any destination, the production token is bound to
+        // the destination created by the BazaarPay team.
+        ['key' => 'bazaarPayEnabled', 'category' => 'payment', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'فعال بودن درگاه بازارپی', 'default' => '0'],
+        ['key' => 'bazaarPayToken', 'category' => 'payment', 'type' => 'secret', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'توکن مرچنت بازارپی', 'default' => ''],
+        ['key' => 'bazaarPayDestination', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'نام مقصد (Destination Name) بازارپی', 'default' => ''],
+        ['key' => 'bazaarPayDirectEnabled', 'category' => 'payment', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'فعال بودن پرداخت مستقیم (دایرکت‌پی)', 'default' => '0'],
+        ['key' => 'bazaarPayDirectType', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'نوع قرارداد دایرکت‌پی (wallet کیف پول / direct_debit دایرکت دبیت)', 'default' => 'wallet'],
+        ['key' => 'bazaarPayDirectPeriod', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'دوره محدودیت قرارداد دایرکت‌پی', 'default' => 'monthly'],
+        ['key' => 'bazaarPayDirectAmountLimit', 'category' => 'payment', 'type' => 'number', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'سقف پرداخت هر دوره قرارداد (تومان)', 'default' => '2000000'],
+        ['key' => 'bazaarPayBaseUrl', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'آدرس پایه بازارپی', 'default' => 'https://api.bazaar-pay.ir'],
+        ['key' => 'bazaarPayCallbackUrl', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'نشانی پایه بازگشت بازارپی (خالی = ساخت خودکار از نشانی سایت)', 'default' => ''],
+        ['key' => 'bazaarPayRialRate', 'category' => 'payment', 'type' => 'number', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'ضریب تبدیل تومان به ریال بازارپی', 'default' => '10'],
+
         // ---- test modes — system ----
         ['key' => 'smsTestMode', 'category' => 'test', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'حالت آزمایشی پیامک', 'default' => '0'],
@@ -562,6 +589,59 @@ TEXT;
         ];
     }
 
+    /**
+     * BazaarPay gateway snapshot — the public shape exposed to the SPA (no
+     * secrets) plus the internal values used by BazaarPayService.
+     */
+    public static function bazaarPaySettings(): array
+    {
+        $enabled = self::bool('bazaarPayEnabled');
+        $token = trim((string) self::raw('bazaarPayToken'));
+        $testMode = self::bool('paymentTestMode');
+
+        $callback = trim((string) self::raw('bazaarPayCallbackUrl'));
+        if ($callback === '') {
+            $appUrl = self::appUrl();
+            // Base of every BazaarPay return URL: /verify (checkout) and
+            // /bazaarpay/contract (direct-pay) are appended by the service.
+            // Absolute when appUrl is configured, otherwise relative so the
+            // test-mode flows still work against the current origin.
+            $callback = $appUrl !== '' ? $appUrl.'/api/payments' : '/api/payments';
+        }
+
+        $directType = strtolower(trim((string) self::raw('bazaarPayDirectType')));
+        if (! in_array($directType, ['wallet', 'direct_debit'], true)) {
+            $directType = 'wallet';
+        }
+
+        $directPeriod = strtolower(trim((string) self::raw('bazaarPayDirectPeriod')));
+        if (! in_array($directPeriod, ['daily', 'weekly', 'monthly', 'quarterly', 'semiannual', 'yearly'], true)) {
+            $directPeriod = 'monthly';
+        }
+
+        $baseUrl = rtrim(trim((string) self::raw('bazaarPayBaseUrl')), '/');
+        if ($baseUrl === '') {
+            $baseUrl = 'https://api.bazaar-pay.ir';
+        }
+
+        return [
+            'enabled' => $enabled,
+            'testMode' => $testMode,
+            // Usable when enabled; in test mode no credentials are required.
+            'available' => $enabled && ($testMode || $token !== ''),
+            'token' => $token,
+            'destination' => trim((string) self::raw('bazaarPayDestination')),
+            'callbackUrl' => rtrim($callback, '/'),
+            'baseUrl' => $baseUrl,
+            'rialRate' => max(1, (int) self::num('bazaarPayRialRate', 10)),
+            // Direct Pay (automatic order payment through a signed contract).
+            'directEnabled' => $enabled && self::bool('bazaarPayDirectEnabled'),
+            'directType' => $directType,
+            'directPeriod' => $directPeriod,
+            'directAmountLimit' => max(10000, (int) self::num('bazaarPayDirectAmountLimit', 2000000)),
+        ];
+    }
+
     public static function urgencyMultipliers(): array
     {
         return [
@@ -569,11 +649,6 @@ TEXT;
             'urgent' => self::num('urgentPriceMultiplier', 1.3),
             'immediate' => self::num('immediatePriceMultiplier', 1.6),
         ];
-    }
-
-    public static function courierCost(): int
-    {
-        return (int) self::num('courierCost', 35000);
     }
 
     public static function fileRetentionDays(): int

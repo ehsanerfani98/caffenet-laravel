@@ -223,13 +223,23 @@
       const on = (k) => { const v = val(k).toLowerCase(); return v === '1' || v === 'true'; };
       const rendered = {};
       /* Derived from the visible selectors — never rendered as raw controls. */
-      ['paymentEnabled', 'paymentSandbox', 'paymentTestMode', 'bazaarEnabled', 'bazaarTestMode', 'smsTestMode', 'bazaarSku', 'paymentCurrency', 'paymentSandboxMerchantId']
+      ['paymentEnabled', 'bazaarPayEnabled', 'paymentSandbox', 'paymentTestMode', 'smsTestMode', 'bazaarTestMode', 'paymentCurrency', 'paymentSandboxMerchantId',
+       'bazaarPayDirectType', 'bazaarPayDirectPeriod']
+        .forEach((k) => { rendered[k] = true; });
+
+      /* Legacy Cafe Bazaar in-app IAP gateway (deep-link based) — replaced by
+         the BazaarPay web gateway. The settings keys stay for backward
+         compatibility but are no longer editable from the panel. */
+      ['bazaarEnabled', 'bazaarSku', 'bazaarPackageName', 'bazaarApiSecret', 'bazaarDealerPackageName',
+       'bazaarPermissionScope', 'bazaarRedirectUrl', 'bazaarConsumeUrl', 'bazaarValidateUrl', 'bazaarTimeout']
         .forEach((k) => { rendered[k] = true; });
 
       const state = {
         paymentMode: (on('paymentTestMode') || on('bazaarTestMode')) ? 'test' : (on('paymentSandbox') ? 'sandbox' : 'real'),
         smsSim: on('smsTestMode'),
         currency: val('paymentCurrency').toUpperCase() === 'IRR' ? 'IRR' : 'IRT',
+        directType: ['wallet', 'direct_debit'].includes(val('bazaarPayDirectType')) ? val('bazaarPayDirectType') : 'wallet',
+        directPeriod: ['daily', 'weekly', 'monthly', 'quarterly', 'semiannual', 'yearly'].includes(val('bazaarPayDirectPeriod')) ? val('bazaarPayDirectPeriod') : 'monthly',
       };
 
       function textField(key, label, opts) {
@@ -318,19 +328,29 @@
           ) +
         '</div>';
 
-      const bazaarBlock =
-        '<div class="gw-block" data-gw-block="bazaarEnabled">' +
-          '<div class="gw-title">' + icon('building') + 'کافه‌بازار</div>' +
-          textField('bazaarPackageName', 'نام پکیج اپلیکیشن', { req: true, placeholder: 'ir.example.app' }) +
-          textField('bazaarApiSecret', 'کلید API سرور', { req: true }) +
-          '<div class="help-text" style="margin:6px 2px">SKU هر مبلغ شارژ همراه با همان مبلغ در «تنظیمات کسب‌وکار» تعریف می‌شود.</div>' +
-          advBox('تنظیمات پیشرفته کافه‌بازار',
-            textField('bazaarDealerPackageName', 'پکیج فروشنده', { placeholder: 'خالی = همان پکیج اپ' }) +
-            textField('bazaarPermissionScope', 'سطح دسترسی لاگین درون‌برنامه‌ای', { placeholder: '1' }) +
-            textField('bazaarRedirectUrl', 'نشانی بازگشت کافه‌بازار', { placeholder: 'خالی = مسیر پیش‌فرض کتابخانه' }) +
-            textField('bazaarConsumeUrl', 'آدرس مصرف خرید') +
-            textField('bazaarValidateUrl', 'آدرس اعتبارسنجی خرید') +
-            textField('bazaarTimeout', 'مهلت ارتباط (ثانیه)', { placeholder: '20' })
+      const bazaarPayBlock =
+        '<div class="gw-block" data-gw-block="bazaarPayEnabled">' +
+          '<div class="gw-title">' + icon('building') + 'بازارپی (کافه‌بازار)</div>' +
+          textField('bazaarPayToken', 'توکن مرچنت بازارپی', { req: true, help: 'توکن تستی از مستندات بازارپی؛ پس از تایید نهایی، توکن اصلی را جایگزین کنید.' }) +
+          textField('bazaarPayDestination', 'نام مقصد (Destination Name)', { req: true, placeholder: 'developers', help: 'برای توکن تستی از مقدار developers استفاده کنید؛ مقصد اصلی توسط تیم بازارپی ساخته می‌شود.' }) +
+          '<div class="info-box" style="margin:10px 0;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:11px;line-height:1.8;color:#1e40af">' +
+            '<b>شارژ کیف پول:</b> کاربر به درگاه بازارپی منتقل و کیف پول شارژ می‌شود (هر مبلغی).<br>' +
+            '<b>پرداخت مستقیم:</b> با امضای قرارداد دایرکت‌پی، سفارش‌ها بدون شارژ کیف پول و به‌صورت خودکار از کیف پول/حساب بانکی کافه‌بازار کاربر پرداخت می‌شود.' +
+          '</div>' +
+          switchRow('bazaarPayDirectEnabled', 'فعال بودن پرداخت مستقیم سفارش (دایرکت‌پی)') +
+          '<div id="bazaarpay-direct-fields">' +
+            segment('directType', state.directType, 'نوع قرارداد',
+              [['wallet', 'کیف پول بازار'], ['direct_debit', 'دایرکت دبیت (بانک)']],
+              'کیف پول: پرداخت از اعتبار کافه‌بازار کاربر؛ دایرکت دبیت: برداشت مستقیم از حساب بانکی.') +
+            segment('directPeriod', state.directPeriod, 'دوره محدودیت',
+              [['daily', 'روزانه'], ['weekly', 'هفتگی'], ['monthly', 'ماهانه'], ['quarterly', 'سه‌ماهه'], ['semiannual', 'شش‌ماهه'], ['yearly', 'سالانه']],
+              'سقف پرداخت در هر دوره ریست می‌شود (مثلاً ماهانه = سقف هر ماه شمسی).') +
+            textField('bazaarPayDirectAmountLimit', 'سقف پرداخت هر دوره (تومان)', { placeholder: '2000000' }) +
+          '</div>' +
+          advBox('تنظیمات پیشرفته بازارپی',
+            textField('bazaarPayBaseUrl', 'آدرس پایه API بازارپی', { placeholder: 'https://api.bazaar-pay.ir' }) +
+            textField('bazaarPayCallbackUrl', 'نشانی پایه بازگشت بازارپی', { placeholder: 'خالی = ساخت خودکار از نشانی سایت' }) +
+            textField('bazaarPayRialRate', 'ضریب تبدیل تومان به ریال', { placeholder: '10', help: 'مبالغ بازارپی ریالی است؛ پیش‌فرض ۱۰ (هر تومان = ۱۰ ریال). فقط در صورت اطلاع تغییر دهید.' })
           ) +
         '</div>';
 
@@ -339,13 +359,13 @@
         '<label class="field-label">نوع درگاه</label>' +
         '<div class="chip-row" id="gw-chips">' +
           '<button type="button" class="chip' + (on('paymentEnabled') ? ' active' : '') + '" data-gw="paymentEnabled">' + icon('landmark') + 'زرین‌پال</button>' +
-          '<button type="button" class="chip' + (on('bazaarEnabled') ? ' active' : '') + '" data-gw="bazaarEnabled">' + icon('building') + 'کافه‌بازار</button>' +
+          '<button type="button" class="chip' + (on('bazaarPayEnabled') ? ' active' : '') + '" data-gw="bazaarPayEnabled">' + icon('building') + 'بازارپی</button>' +
         '</div>' +
-        '<div class="help-text">فقط یک درگاه می‌تواند فعال باشد؛ برای فعال‌کردن درگاه دیگر ابتدا درگاه فعلی را غیرفعال کنید.</div>' +
+        '<div class="help-text">فقط یک درگاه می‌تواند فعال باشد؛ برای فعال‌کردن درگاه دیگر ابتدا درگاه فعلی را غیرفعال کنید. درگاه بازارپی برای نسخه وب‌ویو برنامه (پرداخت سمت سرور) است.</div>' +
         segment('payment', state.paymentMode, 'گزینه درگاه پرداخت',
           [['real', 'واقعی'], ['sandbox', 'سندباکس'], ['test', 'تست آفلاین']],
-          '«سندباکس» به محیط آزمایشی زرین‌پال وصل می‌شود؛ «تست آفلاین» برای زرین‌پال خودکار به سندباکس و برای کافه‌بازار به شبیه‌ساز تبدیل می‌شود. فیلدهای اعتبارنامه فقط در حالت «واقعی» نمایش داده می‌شوند.') +
-        zarinpalBlock + bazaarBlock;
+          '«سندباکس» به محیط آزمایشی زرین‌پال وصل می‌شود؛ «تست آفلاین» هر دو درگاه را شبیه‌سازی می‌کند (بدون اعتبارنامه). فیلدهای اعتبارنامه فقط در حالت «واقعی» نمایش داده می‌شوند.') +
+        zarinpalBlock + bazaarPayBlock;
 
       /* ---- پوش نوتیفیکیشن (Firebase) ---- */
       const firebaseHtml =
@@ -425,7 +445,7 @@
          بی‌معنا هم اصلاح می‌شوند (مثلاً سندباکس بدون زرین‌پال). */
       function normalizePaymentMode() {
         const zOn = chipOn('paymentEnabled');
-        const bOn = chipOn('bazaarEnabled');
+        const bOn = chipOn('bazaarPayEnabled');
         if (state.paymentMode === 'sandbox' && !zOn) state.paymentMode = 'real';
         else if (state.paymentMode === 'test' && zOn && !bOn) state.paymentMode = 'sandbox';
         else if (state.paymentMode === 'test' && !zOn && !bOn) state.paymentMode = 'real';
@@ -448,7 +468,7 @@
       function refreshStatus() {
         const names = [];
         if (chipOn('paymentEnabled')) names.push('زرین‌پال');
-        if (chipOn('bazaarEnabled')) names.push('کافه‌بازار');
+        if (chipOn('bazaarPayEnabled')) names.push('بازارپی');
         const modeLabel = { real: 'واقعی', sandbox: 'سندباکس', test: 'تست آفلاین' }[state.paymentMode];
         const $line = sheet.body.find('#sys-status');
         if (names.length) {
@@ -502,9 +522,20 @@
           refreshSmsFields();
         } else if (group === 'currency') {
           state.currency = $(this).data('mode-val');
+        } else if (group === 'directType') {
+          state.directType = $(this).data('mode-val');
+        } else if (group === 'directPeriod') {
+          state.directPeriod = $(this).data('mode-val');
         }
         refreshStatus();
       });
+
+      // Show/hide Direct Pay contract fields with their master toggle.
+      function updateDirectPayVisibility() {
+        sheet.body.find('#bazaarpay-direct-fields').toggle(on('bazaarPayDirectEnabled'));
+      }
+      updateDirectPayVisibility();
+      sheet.body.on('change', '[data-key="bazaarPayDirectEnabled"], [data-set="bazaarPayDirectEnabled"]', updateDirectPayVisibility);
 
       sheet.body.find('[data-set="smsEnabled"]').on('change', refreshSmsFields);
 
@@ -604,9 +635,17 @@
             && !((payload.paymentCallbackUrl || '').trim() || (payload.appUrl || '').trim())) {
           warnings.push('برای درگاه واقعی، «نشانی پایه سایت» یا «نشانی بازگشت درگاه» الزامی است.');
         }
-        if (payload.bazaarEnabled === '1') {
-          if (!(byKey.bazaarPackageName && byKey.bazaarPackageName.value)) warnings.push('کافه‌بازار فعال است اما نام پکیج ثبت نشده است.');
-          if (payload.bazaarTestMode === '0' && !(byKey.bazaarApiSecret && byKey.bazaarApiSecret.hasValue)) warnings.push('کافه‌بازار در حالت واقعی است اما کلید API ثبت نشده است.');
+        if (payload.bazaarPayEnabled === '1' && state.paymentMode === 'real'
+            && !(byKey.bazaarPayToken && byKey.bazaarPayToken.hasValue)) {
+          warnings.push('بازارپی در حالت واقعی است اما توکن مرچنت ثبت نشده است.');
+        }
+        if (payload.bazaarPayEnabled === '1' && state.paymentMode === 'real'
+            && !((payload.bazaarPayDestination || '').trim())) {
+          warnings.push('بازارپی در حالت واقعی است اما «نام مقصد (Destination Name)» ثبت نشده است.');
+        }
+        if (payload.bazaarPayEnabled === '1' && payload.bazaarPayDirectEnabled === '1'
+            && !((payload.appUrl || '').trim() || (payload.bazaarPayCallbackUrl || '').trim())) {
+          warnings.push('برای پرداخت مستقیم بازارپی، «نشانی پایه سایت» یا «نشانی پایه بازگشت بازارپی» الزامی است.');
         }
 
         try {

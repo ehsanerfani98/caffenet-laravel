@@ -264,6 +264,19 @@
       return order;
     }
 
+    /* BazaarPay Direct Pay (دایرکت‌پی): pays the order from the user's Cafe
+     * Bazaar wallet/bank through a signed contract. Response shapes:
+     *  {status:'paid'} — paid right away
+     *  {status:'pending'} — executed, final state settles via polling
+     *  {status:'contract_pending', contractRedirectUrl} — user must sign the
+     *    contract first; redirect them there, the callback finishes payment.
+     *  {status:'failed', error} */
+    async payOrderDirect(id) {
+      const result = await this.request('POST', '/api/orders/' + id + '/pay-bazaarpay', {});
+      await this.syncWithBackend();
+      return result;
+    }
+
     async updateOrderStatus(id, status, note) {
       const order = await this.request('PATCH', '/api/orders/' + id + '/status', { status, note });
       this._replaceOrder(order);

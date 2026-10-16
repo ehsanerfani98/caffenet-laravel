@@ -19,7 +19,8 @@
 
 احراز هویت با کد یکبارمصرف پیامکی (OTP) از طریق پایپ‌لاین ورود **Laravel Fortify** (نشست بومی لاراول +
 CSRF) و نقش‌ها/مجوزها با **spatie/laravel-permission** انجام می‌شود؛ پرداخت آنلاین
-زرین‌پال و کیف پول داخلی پشتیبانی می‌گردد.
+زرین‌پال، درگاه **بازارپی** (کافه‌بازار برای وب‌ویو: شارژ کیف پول + پرداخت مستقیم دایرکت‌پی) و
+کیف پول داخلی پشتیبانی می‌گردد.
 
 ## فهرست
 
@@ -31,7 +32,7 @@ CSRF) و نقش‌ها/مجوزها با **spatie/laravel-permission** انجا�
 - [چرخه عمر سفارش و پرداخت](#چرخه-عمر-سفارش-و-پرداخت)
 - [سیستم صف هوشمند و مدیریت ظرفیت](#سیستم-صف-هوشمند-و-مدیریت-ظرفیت)
 - [بخش دسته‌بندی رنگی صفحه خانه](#بخش-دستهبندی-رنگی-صفحه-خانه)
-- [پرداخت درون‌برنامه‌ای کافه‌بازار](#پرداخت-درونبرنامهای-کافهبازار)
+- [پرداخت بازارپی (کافه‌بازار)](#پرداخت-بازارپی-کافهبازار)
 - [نقش‌ها و مجوزها](#نقشها-و-مجوزها)
 - [نقشه مسیرهای API](#نقشه-مسیرهای-api)
 - [دستورات artisan](#دستورات-artisan)
@@ -56,8 +57,12 @@ CSRF) و نقش‌ها/مجوزها با **spatie/laravel-permission** انجا�
   سفارش در صورت عدم پاسخ مشتری (قاعده ۱۵ دقیقه).
 - **پرداخت آنلاین زرین‌پال** (REST v4) با تایید idempotent (کدهای 100/101) و درگاه آزمایشی داخلی
   `/test-gateway`.
-- **پرداخت و ورود درون‌برنامه‌ای کافه‌بازار** از طریق دیپ‌لینک‌های `bazaar://` (کتابخانهٔ
-  `caffenet/bazaar-iap`)؛ مصرف خرید idempotent و کاملاً سمت سرور انجام می‌شود.
+- **درگاه بازارپی (کافه‌بازار) برای نسخه وب‌ویو** — پرداخت سمت سرور مطابق مستندات رسمی
+  BazaarPay: شارژ کیف پول با هر مبلغی از طریق چک‌اوت بازارپی و **پرداخت مستقیم سفارش‌ها**
+  با قرارداد دایرکت‌پی (کیف پول بازار یا دایرکت دبیت بانکی)؛ trace/commit خودترمیم و
+  idempotent (مستندات: [`docs/bazaarpay-gateway.md`](docs/bazaarpay-gateway.md)).
+- **پرداخت و ورود درون‌برنامه‌ای کافه‌بازار (لگاسی)** از طریق دیپ‌لینک‌های `bazaar://` (کتابخانهٔ
+  `caffenet/bazaar-iap`)؛ در پنل مدیریت دیگر قابل انتخاب نیست و جای خود را به بازارپی داده است.
 - **کیف پول داخلی** با شارژ آنلاین و پرداخت تراکنشی سفارش + گارد اتمیک ضد برداشت مضاعف.
 - **پیامک ippanel** برای کد تایید و اطلاع‌رسانی‌ها، همراه با «لاگ پیامک‌ها» برای ممیزی.
 - **مجوزهای ریزدانه (RBAC)**: ۳۰ مجوز در قالب «منبع.عمل» با توارث سطوح دسترسی (`<resource>.manage`).
@@ -83,7 +88,7 @@ CSRF) و نقش‌ها/مجوزها با **spatie/laravel-permission** انجا�
 | زمان‌بند | Laravel Scheduler + Cron cPanel (هر دقیقه) |
 | Worker صف | `queue:work --stop-when-empty --max-time=50` (بدون Supervisor) |
 | پیامک | ippanel (REST، هدر apikey، الگوی pattern) |
-| پرداخت | زرین‌پال REST v4 + sandbox + درگاه آزمایشی داخلی + کافه‌بازار (IAP) |
+| پرداخت | زرین‌پال REST v4 + sandbox + درگاه آزمایشی داخلی + بازارپی (وب‌ویو: checkout + دایرکت‌پی) |
 | PWA | manifest + Service Worker سبک دستی (`public/sw.js`) |
 | فونت | Peyda FaNum (self-hosted در `public/fonts`) |
 
@@ -563,20 +568,36 @@ migration `2026_10_15_100000_add_color_and_sort_to_categories.php`:
 
 به‌صورت خودکار در dropdown ادمین و گرید خانه ظاهر می‌شود — بدون تغییر دیگر.
 
-## پرداخت درون‌برنامه‌ای کافه‌بازار
+## پرداخت بازارپی (کافه‌بازار)
 
-کتابخانهٔ مستقل [`caffenet/bazaar-iap`](packages/caffenet/bazaar-iap/README.md) در مسیر
-`packages/caffenet/bazaar-iap` قرار دارد و به‌صورت path repository ثبت شده است. این درگاه با
-دیپ‌لینک‌های `bazaar://inapplogin` و `bazaar://in_app` کار می‌کند و برخلاف نمونهٔ مرجع PWA،
-فراخوانی مصرف خرید و کلید `API_SECRET` را **فقط سمت سرور** نگه می‌دارد.
+درگاه اصلی کافه‌بازار برای نسخهٔ وب‌ویو، **بازارپی (BazaarPay)** است — درگاه پرداخت سمت سرور و
+وب‌سازگار که مطابق مستندات رسمی
+[BazaarPay/Docs](https://github.com/BazaarPay/Docs/tree/main/fa) پیاده شده و دو جریان دارد:
 
-- انتخاب درگاه با پارامتر `gateway` در `POST /api/payments/request` (`online` یا `bazaar`).
-- اعتبارنامه‌ها از پنل تنظیمات سیستمی (`bazaar*` در دستهٔ payment/test) خوانده می‌شوند.
-- مسیر بازگشت: `GET /bazaar-iap/callback` (مصرف + انتشار رویداد `PurchaseConsumed`).
-- اعمال اثر پرداخت (سفارش/کیف پول) از طریق شنوندهٔ `FulfillBazaarPurchase` و اکشن مشترک
-  `PaymentFulfillmentService` انجام می‌شود.
+- **شارژ کیف پول (Checkout):** `checkout/init` → انتقال کاربر به `payment_url` → بازگشت به
+  `GET /api/payments/verify` → تصمیم بر اساس `trace` → `commit` → شارژ کیف پول. هر مبلغی
+  (۱۱۰ هزار تا ۵۰ میلیون تومان) قابل پرداخت است و توکن چک‌اوت داخل `redirect_url` جاسازی
+  می‌شود تا بازگشت درگاه به نام پارامترهای بازارپی وابسته نباشد.
+- **پرداخت مستقیم سفارش (دایرکت‌پی):** بار اول کاربر قرارداد را در صفحهٔ بازارپی امضا می‌کند
+  (`contract/init` → صفحهٔ امضا → `contract/trace`) و از آن پس سفارش‌ها با
+  `checkout/init` + `POST /direct-pay` + `commit` به‌صورت کاملاً خودکار از کیف پول کافه‌بازار
+  یا حساب بانکی (دایرکت دبیت) کاربر پرداخت می‌شوند. نوع/دوره/سقف قرارداد از تنظیمات سیستمی
+  خوانده می‌شود و ردپای قراردادها در جدول `bazaarpay_contracts` نگهداری می‌گردد.
 
-مستندات کامل: [`docs/BAZAAR_IAP_LIBRARY.md`](docs/BAZAAR_IAP_LIBRARY.md).
+- انتخاب درگاه با پارامتر `gateway` در `POST /api/payments/request` (`bazaarpay`) و پرداخت
+  مستقیم سفارش با `POST /api/orders/:id/pay-bazaarpay`.
+- تصمیم موفقیت هرگز از پارامترهای ریدایرکت گرفته نمی‌شود؛ اندپوینت `trace` مرجع است و در
+  صورت گم‌شدن callback، endpoint وضعیت (`/api/payments/status`) خودش trace/commit را تکرار
+  می‌کند (خودترمیم). همهٔ گذارهای وضعیت idempotent هستند.
+- مبالغ سامانه تومان است و بازارپی ریال؛ تبدیل با `bazaarPayRialRate` (پیش‌فرض ۱۰).
+- حالت «تست آفلاین» کل جریان را شبیه‌سازی می‌کند (بدون توکن) و مسیر راه‌اندازی با توکن تستی
+  (`destination=developers`) در مستندات آمده است.
+
+مستندات کامل + راه‌اندازی: [`docs/bazaarpay-gateway.md`](docs/bazaarpay-gateway.md).
+
+> لگاسی: کتابخانهٔ [`caffenet/bazaar-iap`](packages/caffenet/bazaar-iap/README.md) (دیپ‌لینک
+> `bazaar://`، مخصوص اپ کافه‌بازار) همچنان در مخزن است اما از پنل مدیریت قابل انتخاب نیست و
+> در وب‌ویو کاربردی ندارد. مستندات آن: [`docs/BAZAAR_IAP_LIBRARY.md`](docs/BAZAAR_IAP_LIBRARY.md).
 
 ## نقش‌ها و مجوزها
 
@@ -613,10 +634,12 @@ migration `2026_10_15_100000_add_color_and_sort_to_categories.php`:
 | `GET /api/capacity/slots` | ورود |
 | `ANY /api/_artisan/run/:command` | توکن + IP اختیاری |
 | `POST /api/payments/request` | ورود لازم |
-| `GET /api/payments/verify` | callback درگاه |
+| `GET /api/payments/verify` | callback درگاه (زرین‌پال/بازارپی) |
 | `GET /api/payments/status` | مالک تراکنش |
-| `GET /bazaar-iap/callback` | callback کافه‌بازار |
-| `GET /bazaar-iap/status` / `POST /bazaar-iap/start` | وضعیت/شروع بازدید |
+| `POST /api/orders/:id/pay-bazaarpay` | مالک سفارش (پرداخت مستقیم بازارپی) |
+| `GET /api/payments/bazaarpay/contract` | callback قرارداد دایرکت‌پی |
+| `GET /bazaar-iap/callback` | callback کافه‌بازار (لگاسی) |
+| `GET /bazaar-iap/status` / `POST /bazaar-iap/start` | وضعیت/شروع بازدید (لگاسی) |
 | `GET/POST/PATCH/DELETE /api/users/...` | `users.*` |
 | `GET /api/dashboard/stats` | ورود لازم |
 | `GET /api/permissions` | ورود لازم |

@@ -308,7 +308,14 @@
             }
           })
           .catch(() => UI.toast('بررسی وضعیت پرداخت ناموفق بود.', 'error'));
+      } else if (params.status === 'success') {
+        // Return without a checkout token (e.g. BazaarPay direct-pay contract
+        // callback): refresh everything so the paid order / topped-up wallet
+        // shows up; the server has already applied the effects.
+        api.getCurrentUser().catch(() => {}).then(() => api.syncWithBackend());
+        UI.toast('پرداخت با موفقیت انجام شد.', 'success');
       } else if (params.status === 'failed') {
+        api.syncWithBackend().catch(() => {});
         UI.toast('پرداخت ناموفق بود یا لغو شد.', 'error');
       }
     },

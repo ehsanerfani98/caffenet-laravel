@@ -19,6 +19,12 @@ class SettingsController extends Controller
         // Expose the Cafe Bazaar in-app gateway snapshot (no secrets) so the
         // client knows whether to offer that payment method.
         $out['bazaar'] = SettingsService::bazaarIapSettings();
+        // Expose the BazaarPay web gateway snapshot (no secrets) — the
+        // WebView-compatible gateway (wallet top-up + Direct Pay). The
+        // merchant token is stripped: it must never reach the client.
+        $bazaarPay = SettingsService::bazaarPaySettings();
+        unset($bazaarPay['token']);
+        $out['bazaarPay'] = $bazaarPay;
         // Public read-only flag so the client can warn users when SMS is off.
         $out['smsEnabled'] = SettingsService::bool('smsEnabled');
         foreach (SettingsService::businessKeys() as $key) {

@@ -21,12 +21,15 @@ class PaymentFulfillmentService
     /**
      * Mark the payment paid and advance the order / wallet. Idempotent:
      * returns true only when this call performed the transition.
+     *
+     * $paymentMethod records HOW the order was paid on the order row
+     * ('online' = Zarinpal checkout, 'bazaarpay' = BazaarPay Direct Pay).
      */
-    public static function apply(Payment $payment, ?string $refId = null, ?string $cardPan = null): bool
+    public static function apply(Payment $payment, ?string $refId = null, ?string $cardPan = null, string $paymentMethod = 'online'): bool
     {
         $applied = false;
 
-        DB::transaction(function () use ($payment, $refId, $cardPan, &$applied) {
+        DB::transaction(function () use ($payment, $refId, $cardPan, $paymentMethod, &$applied) {
             $now = now()->toIso8601String();
 
             $affected = DB::table('payments')
@@ -50,14 +53,16 @@ class PaymentFulfillmentService
                 if ($order) {
                     DB::table('orders')->where('id', $order->id)->where('paid_amount', 0)->update([
                         'paid_amount' => (int) $payment->amount,
-                        'payment_method' => 'online',
+                        'payment_method' => $paymentMethod,
                         'payment_tracking_code' => $refId ?? '',
                         'status' => Order::STATUS_SUBMITTED,
                         'updated_at' => $now,
                     ]);
                     OrderLog::create([
                         'order_id' => $order->id,
-                        'action' => 'پرداخت آنلاین با موفقیت انجام شد',
+                        'action' => $paymentMethod === 'bazaarpay'
+                            ? 'پرداخت مستقیم با بازارپی با موفقیت انجام شد'
+                            : 'پرداخت آنلاین با موفقیت انجام شد',
                         'performed_by' => $order->customer_name,
                         'timestamp' => $now,
                     ]);
