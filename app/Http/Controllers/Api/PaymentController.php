@@ -142,9 +142,11 @@ class PaymentController extends Controller
         }
 
         // ── BazaarPay branch: the redirect params are never trusted; the
-        // trace endpoint is the single source of truth. ──
+        // trace endpoint is the single source of truth. The Status param only
+        // matters for TEST- tokens (internal /test-gateway uses it for
+        // success/cancel) — real gateway returns are always re-traced. ──
         if ($payment->gateway === 'bazaarpay') {
-            $outcome = $this->verifyBazaarPay($payment);
+            $outcome = $this->verifyBazaarPay($payment, $status);
 
             return redirect()->to($outcome === 'paid' ? $successUrl : $failUrl);
         }
@@ -289,11 +291,16 @@ class PaymentController extends Controller
      * @return string 'paid' | 'failed' (pending keeps the success redirect —
      *                the pollable status endpoint reconciles it later)
      */
-    private function verifyBazaarPay(Payment $payment): string
+    private function verifyBazaarPay(Payment $payment, string $redirectStatus = ''): string
     {
-        // Test-mode checkouts (internal /test-gateway) succeed on Status=OK
-        // which the caller has already checked — mirror the Zarinpal path.
+        // Test-mode checkouts (internal /test-gateway) resolve through the
+        // Status param: OK = paid, anything else = cancelled by the tester.
         if (str_starts_with((string) $payment->authority, 'TEST-')) {
+            if (strtoupper($redirectStatus) !== 'OK') {
+                PaymentFulfillmentService::markFailed($payment, 'انصراف از درگاه آزمایشی.');
+
+                return 'failed';
+            }
             PaymentFulfillmentService::apply($payment, $payment->authority, null, 'bazaarpay');
 
             return 'paid';
