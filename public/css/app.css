@@ -325,23 +325,8 @@ svg.i.i-lg { width: 30px; height: 30px; }
     .cat-icon-carousel { gap: 12px; }
     .cat-icon-carousel .cat-icon-tile { width: calc((100% - 4 * 12px) / 4.5); }
 }
-/* compact category grid: home-page category tiles sized EXACTLY like the
-   carousel tiles (≈86% of the default grid tile) with the same gaps, so the
-   category rows and the service carousels share one visual rhythm. In RTL
-   the leftover half-track space falls at the left edge — the same spot the
-   carousel peek occupies. */
-.cat-icon-grid.compact {
-    grid-template-columns: repeat(4, calc((100% - 4 * 9px) / 4.5));
-    column-gap: 9px;
-}
-@media (min-width: 400px) {
-    .cat-icon-grid.compact {
-        grid-template-columns: repeat(4, calc((100% - 4 * 12px) / 4.5));
-        column-gap: 12px;
-    }
-}
-/* "مشاهده بیشتر" — centered text button below the compact category grid,
-   shown only when there are more categories than the initial 3 rows. */
+/* "مشاهده بیشتر" — centered text button below the full-width category
+   grid, shown only when there are more categories than the initial 3 rows. */
 .cat-more-btn {
     display: flex; align-items: center; justify-content: center; gap: 5px;
     width: calc(100% - 4px);

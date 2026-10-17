@@ -93,7 +93,8 @@
   //
   // Home-specific behavior:
   //  - a "دسته‌بندی خدمات" section title sits above the grid,
-  //  - tiles use the .compact variant (same size as the carousel tiles),
+  //  - tiles keep the original full-width grid size (NOT the smaller
+  //    carousel tile size — user asked to revert the compact variant),
   //  - only the first 3 rows (12 tiles) show initially; a centered
   //    "مشاهده بیشتر" text button reveals the rest when tapped.
   var CATS_ROW_LIMIT = 12; // 3 rows × 4 tiles
@@ -119,7 +120,7 @@
         '</button>'
       );
     }).join('');
-    html += '<section class="cat-icon-grid compact" aria-label="دسته‌بندی خدمات">' + tiles + '</section>';
+    html += '<section class="cat-icon-grid" aria-label="دسته‌بندی خدمات">' + tiles + '</section>';
     if (!expanded && cats.length > CATS_ROW_LIMIT) {
       html += '<button type="button" class="cat-more-btn" id="cat-more">' + icon('chevrondown') + 'مشاهده بیشتر</button>';
     }
