@@ -72,6 +72,9 @@
       $backdrop.find('.sheet-close').on('click', api.close);
       $backdrop.on('click', (e) => { if (e.target === $backdrop[0]) api.close(); });
 
+      // First open arms the overscroll repaint watchdog (binds once, no-op after).
+      this.bindSheetWatchdog();
+
       $host.append($backdrop);
       openSheets.push(api);
       return api;
@@ -83,6 +86,50 @@
       // blocking spinner on screen.
       $('#busy-overlay').addClass('hidden');
       document.body.style.removeProperty('overflow');
+    },
+
+    /* Overscroll repaint watchdog.
+       After a pull-to-refresh / rubber-band overscroll (Bazaar WebView shell,
+       Chrome, iOS Safari) the compositor can lose absolutely-positioned overlay
+       layers: the sheet stays in the DOM but is painted displaced out of the
+       viewport and only reappears after the user scrolls (classic symptom:
+       "the bottom sheet vanishes until I swipe the page once").
+
+       The .sheet-backdrop translateZ(0) GPU layer prevents most of it; this
+       watchdog is the second line of defense — every touch/scroll/resize while
+       a sheet is open nudges each open backdrop with a one-frame transform
+       toggle, which forces the compositor to re-evaluate and re-place the
+       layer. rAF-guarded so a 120Hz touch stream costs at most one style write
+       per frame. */
+    _watchBound: false,
+    _nudgePending: false,
+    bindSheetWatchdog() {
+      if (this._watchBound) return;
+      this._watchBound = true;
+      const self = this;
+      const nudge = () => {
+        if (!openSheets.length || self._nudgePending) return;
+        self._nudgePending = true;
+        requestAnimationFrame(() => {
+          self._nudgePending = false;
+          openSheets.forEach((s) => {
+            const el = s.el && s.el[0];
+            if (!el) return;
+            el.style.transform = 'translateZ(0) translateY(0.001px)';
+            requestAnimationFrame(() => { el.style.transform = ''; });
+          });
+        });
+      };
+      // 'scroll' does not bubble — the capture phase is the only way to also
+      // observe the inner .screen-host scroller from window.
+      window.addEventListener('scroll', nudge, true);
+      window.addEventListener('resize', nudge);
+      window.addEventListener('orientationchange', nudge);
+      // touchend/touchcancel fire exactly when the rubber-band gesture settles
+      // — the precise moment the layers get stuck.
+      window.addEventListener('touchmove', nudge, { passive: true });
+      window.addEventListener('touchend', nudge, { passive: true });
+      window.addEventListener('touchcancel', nudge, { passive: true });
     },
 
     /* ---------- Toast ---------- */

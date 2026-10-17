@@ -137,6 +137,10 @@ svg.i.i-lg { width: 30px; height: 30px; }
        created ~80px of dead space at the end of every screen. */
     padding: 14px 14px 18px;
     -webkit-overflow-scrolling: touch;
+    /* Keep the rubber-band overscroll of this scroller from chaining to the
+       document root — that root-level overscroll is what displaces the sheet
+       layers during a pull-to-refresh gesture. */
+    overscroll-behavior-y: contain;
 }
 .screen { animation: screenIn .28s ease both; }
 
@@ -388,11 +392,18 @@ svg.i.i-lg { width: 30px; height: 30px; }
 .slider-dots .dot.on { width: 18px; background: var(--sky); }
 
 /* ---------- bottom sheet ---------- */
+/* ⚠️ translateZ(0) is NOT decoration: after a pull-to-refresh / rubber-band
+   overscroll (Bazaar WebView shell, Chrome, iOS Safari) the compositor loses
+   absolutely-positioned overlay layers — the sheet stays in the DOM but is
+   painted displaced out of the viewport and only comes back after the next
+   scroll. Giving every overlay its own GPU layer keeps it visible through the
+   snap-back; ui.js additionally re-composites on touch/scroll (watchdog). */
 .sheet-backdrop {
     position: absolute; inset: 0; z-index: 60;
     background: rgba(2, 8, 23, .55);
     display: flex; align-items: flex-end;
     animation: fadeIn .2s ease both;
+    transform: translateZ(0);
 }
 .sheet {
     background: var(--card); width: 100%;
@@ -434,6 +445,7 @@ svg.i.i-lg { width: 30px; height: 30px; }
     position: absolute; inset-inline: 0; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 10px);
     display: flex; flex-direction: column; align-items: center; gap: 8px;
     pointer-events: none; z-index: 90;
+    transform: translateZ(0); /* own layer — same overscroll-repaint guard as .sheet-backdrop */
 }
 .toast {
     display: flex; align-items: center; gap: 8px;
@@ -455,6 +467,7 @@ svg.i.i-lg { width: 30px; height: 30px; }
     position: absolute; inset: 0; z-index: 99;
     background: rgba(248,250,252,.72);
     display: flex; align-items: center; justify-content: center;
+    transform: translateZ(0); /* own layer — same overscroll-repaint guard as .sheet-backdrop */
 }
 .spinner {
     width: 38px; height: 38px; border-radius: 50%;
