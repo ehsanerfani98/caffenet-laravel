@@ -6,6 +6,16 @@
 
   window.Screens = window.Screens || {};
 
+  // Manual display order («ترتیب نمایش در دسته» from the admin service form)
+  // first, then creation order as a tie-breaker — mirrors the backend's
+  // services endpoint ordering so every list stays correct even when state
+  // came from a cached/stale sync.
+  function bySortOrder(a, b) {
+    const d = (a.sortOrder || 0) - (b.sortOrder || 0);
+    if (d !== 0) return d;
+    return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+  }
+
   function serviceCard(svc, settings) {
     const price = svc.basePrice > 0 ? PU.formatToman(svc.basePrice) : 'محاسبه در سفارش';
     // Apply the admin-picked icon color when set; otherwise the .svc-icon
@@ -143,7 +153,7 @@
       });
     return featured.length > 0
       ? featured
-      : state.services.filter((s) => s.isActive).slice(0, 4);
+      : state.services.filter((s) => s.isActive).sort(bySortOrder).slice(0, 4);
   }
 
   // Default home service listing (popular + per-category).
@@ -160,7 +170,7 @@
     }
 
     state.categories.forEach((cat) => {
-      const items = state.services.filter((s) => s.categoryId === cat.id && s.isActive);
+      const items = state.services.filter((s) => s.categoryId === cat.id && s.isActive).sort(bySortOrder);
       if (!items.length) return;
       html += '<div class="cat-head" style="margin:12px 2px 8px">' +
         window.renderCategoryIcon(cat.iconName || 'general', { color: cat.iconColor || null }) +
@@ -259,7 +269,7 @@
           return;
         }
         const items = api.state.services.filter((s) =>
-          s.isActive && (s.title + ' ' + (s.description || '')).toLowerCase().includes(q));
+          s.isActive && (s.title + ' ' + (s.description || '')).toLowerCase().includes(q)).sort(bySortOrder);
         if (!items.length) {
           $results.html(UI.emptyState('خدمتی یافت نشد', 'عبارت دیگری را جستجو کنید', 'search'));
           return;
@@ -372,7 +382,7 @@
         s.isActive &&
         (cat === 'all' || s.categoryId === cat) &&
         (!q || (s.title + ' ' + (s.description || '')).toLowerCase().includes(q))
-      );
+      ).sort(bySortOrder);
       const $list = $host.find('#catalog-list');
       if (!items.length) {
         $list.html(UI.emptyState('خدمتی یافت نشد', 'عبارت دیگری را جستجو کنید', 'search'));

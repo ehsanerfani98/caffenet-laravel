@@ -90,7 +90,10 @@ class CatalogController extends Controller
         if (! $isAdmin) {
             $query->where('is_active', true);
         }
-        $rows = $query->orderBy('created_at')->get();
+        // Manual display order first («ترتیب نمایش در دسته» from the service
+        // form) — mirrors the categories endpoint. created_at only breaks
+        // ties so services with equal sort_order keep a stable order.
+        $rows = $query->orderBy('sort_order')->orderBy('created_at')->get();
 
         return response()->json($rows->map([Formatter::class, 'service'])->values()->all());
     }
