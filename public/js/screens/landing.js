@@ -127,16 +127,13 @@
     return html;
   }
 
-  // Default home service listing (popular + per-category). Kept as a helper so
-  // the search box can restore it verbatim when the query is cleared.
-  function homeServicesHtml(state, settings) {
-    let html = '';
-
-    // ── Popular services ──
-    // Services explicitly marked isFeatured by the admin, sorted by
-    // featuredSort (smaller first), then by created_at as a tie-breaker.
-    // When NO service is featured yet, fall back to the legacy behavior
-    // (first 4 active services by created_at) so the section isn't empty.
+  // Featured/“popular” services for the home screen and the search sheet's
+  // suggestion list. Services explicitly marked isFeatured by the admin,
+  // sorted by featuredSort (smaller first), then by created_at as a
+  // tie-breaker. When NO service is featured yet, falls back to the legacy
+  // behavior (first 4 active services by created_at) so the section isn't
+  // empty.
+  function popularServices(state) {
     const featured = state.services
       .filter((s) => s.isActive && s.isFeatured)
       .sort((a, b) => {
@@ -144,9 +141,17 @@
         if (sa !== 0) return sa;
         return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
       });
-    const popular = featured.length > 0
+    return featured.length > 0
       ? featured
       : state.services.filter((s) => s.isActive).slice(0, 4);
+  }
+
+  // Default home service listing (popular + per-category).
+  function homeServicesHtml(state, settings) {
+    let html = '';
+
+    // ── Popular services ──
+    const popular = popularServices(state);
 
     if (popular.length > 0) {
       html += '<div class="section-title">' + icon('star') + 'خدمات پرطرفدار</div>';
@@ -174,11 +179,17 @@
     const settings = state.settings || {};
     let html = '';
 
-    html += '<div id="hero-slider"></div>';
+    // Modern full-width search trigger — sits ABOVE the hero banner. It is a
+    // fake input (a button): tapping it opens the search bottom sheet where
+    // the user types and sees the live results (see openSearchSheet below).
+    const activeCount = state.services.filter((s) => s.isActive).length;
+    html += '<button type="button" class="home-search" id="home-search-trigger" aria-label="جستجوی خدمات">' +
+      '<span class="hs-icon">' + icon('search') + '</span>' +
+      '<span class="hs-text">جستجوی خدمات…</span>' +
+      (activeCount > 0 ? '<span class="hs-count">' + PU.toPersianDigits(activeCount) + ' خدمت</span>' : '') +
+    '</button>';
 
-    // Search field directly below the slider.
-    html += '<div class="search-box">' + icon('search') +
-      '<input class="input" id="home-search" placeholder="جستجوی خدمات…" autocomplete="off"></div>';
+    html += '<div id="hero-slider"></div>';
 
     // Colorful category icon grid — directly below the search field, before
     // the live order block and the services list. Mirrors the reference design
@@ -210,26 +221,75 @@
     // use native panning). Delegated, so re-renders are covered.
     UI.carouselDrag($host);
 
-    function renderHomeServices() {
-      const q = ($host.find('#home-search').val() || '').trim().toLowerCase();
-      const $box = $host.find('#home-services');
-      if (!q) {
-        $box.html(homeServicesHtml(api.state, api.state.settings || {}));
-        return;
-      }
-      const items = api.state.services.filter((s) =>
-        s.isActive && (s.title + ' ' + (s.description || '')).toLowerCase().includes(q));
-      if (!items.length) {
-        $box.html(UI.emptyState('خدمتی یافت نشد', 'عبارت دیگری را جستجو کنید', 'search'));
-        return;
-      }
-      $box.html(
-        '<div class="section-title">' + icon('search') + 'نتایج جستجو</div>' +
-        '<section class="cat-icon-grid">' + items.map(serviceTile).join('') + '</section>'
+    /* ── Search bottom sheet ──
+       The home search trigger opens a sheet: the user types inside the sheet
+       and the live results render in that same sheet (never replacing the
+       home content). Results tap → the search sheet closes first so the
+       order-form sheet stacks cleanly on its own, then the order form opens.
+       Suggestion list before typing = the same "popular" list as the home
+       screen. */
+    function openSearchSheet() {
+      const sheet = UI.sheet({
+        title: 'جستجوی خدمات',
+        subtitle: 'نام خدمت مورد نظرتان را بنویسید',
+        icon: 'search', tone: 'sky', size: 'tall',
+      });
+
+      const suggestions = popularServices(api.state).slice(0, 8);
+      const suggestionHtml = () =>
+        '<div class="search-sheet-title">' + icon('star') + 'پیشنهاد ما</div>' +
+        '<div class="svc-grid">' + suggestions.map(serviceCard).join('') + '</div>';
+
+      sheet.body.html(
+        '<div class="search-sheet-field">' +
+          '<div class="search-box">' + icon('search') +
+            '<input class="input" id="sheet-search-input" placeholder="مثلاً پرینت، ترجمه، اسکن…" autocomplete="off">' +
+          '</div>' +
+        '</div>' +
+        '<div id="sheet-search-results">' + suggestionHtml() + '</div>'
       );
+
+      const $input = sheet.body.find('#sheet-search-input');
+      const $results = sheet.body.find('#sheet-search-results');
+
+      function renderResults() {
+        const q = ($input.val() || '').trim().toLowerCase();
+        if (!q) {
+          $results.html(suggestionHtml());
+          return;
+        }
+        const items = api.state.services.filter((s) =>
+          s.isActive && (s.title + ' ' + (s.description || '')).toLowerCase().includes(q));
+        if (!items.length) {
+          $results.html(UI.emptyState('خدمتی یافت نشد', 'عبارت دیگری را جستجو کنید', 'search'));
+          return;
+        }
+        $results.html(
+          '<div class="search-sheet-meta">' + PU.toPersianDigits(items.length) +
+            ' نتیجه برای «' + PU.escapeHtml(q) + '»</div>' +
+          '<div class="svc-grid">' + items.map(serviceCard).join('') + '</div>'
+        );
+      }
+
+      $input.on('input', PU.debounce(renderResults, 200));
+
+      // The sheet lives in #sheet-host (a sibling of #screen-host), so the
+      // home screen's delegated [data-service] handler can't see it — bind
+      // the result taps directly on the results container.
+      $results.on('click', '[data-service]', function () {
+        const svc = api.state.services.find((s) => s.id === $(this).data('service'));
+        if (!svc) return;
+        sheet.close();
+        Screens.openOrderForm(svc);
+      });
+
+      // Pop the keyboard immediately on platforms that allow programmatic
+      // focus (Android/WebView). iOS ignores the delayed focus — there the
+      // field is pre-focused so a single extra tap opens the keyboard.
+      setTimeout(function () { $input.trigger('focus'); }, 120);
     }
 
-    $host.on('input', '#home-search', PU.debounce(renderHomeServices, 200));
+    $host.on('click', '#home-search-trigger', openSearchSheet);
 
     // Category icon tile → open catalog and select that category.
     $host.on('click', '[data-cat-tile]', function () {
