@@ -294,8 +294,9 @@ svg.i.i-lg { width: 30px; height: 30px; }
 /* Services under each category on the home page render as a horizontal
    swipeable carousel instead of a 4-column grid: native overflow-x scroll +
    scroll-snap gives real finger dragging (fully RTL-aware) on touch devices
-   with zero JS. Tiles keep the exact .cat-icon-tile look with 4 tiles per
-   viewport; extras are revealed by swiping left/right. */
+   with zero JS. Tiles keep the exact .cat-icon-tile look. Intentional peek:
+   3 full tiles + HALF of the 4th one stay visible at the container edge so
+   users immediately see the row continues and swipe right (RTL) for more. */
 .cat-icon-carousel {
     display: flex;
     gap: 9px;
@@ -313,12 +314,13 @@ svg.i.i-lg { width: 30px; height: 30px; }
 .cat-icon-carousel.dragging { cursor: grabbing; scroll-snap-type: none; }
 .cat-icon-carousel .cat-icon-tile {
     flex: 0 0 auto;
-    width: calc((100% - 3 * 9px) / 4);
+    /* (container − 3 gaps) / 3.5 → three full tiles + a half-tile peek */
+    width: calc((100% - 3 * 9px) / 3.5);
     scroll-snap-align: start;
 }
 @media (min-width: 400px) {
     .cat-icon-carousel { gap: 12px; }
-    .cat-icon-carousel .cat-icon-tile { width: calc((100% - 3 * 12px) / 4); }
+    .cat-icon-carousel .cat-icon-tile { width: calc((100% - 3 * 12px) / 3.5); }
 }
 .cat-icon-empty {
     text-align: center; color: var(--ink-soft); font-size: 12px;
