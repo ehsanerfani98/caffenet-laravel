@@ -81,6 +81,9 @@
 
     function render() {
       const $v = $host.find('#svc-view');
+      // Delete is gated by the same permission pair the backend route uses
+      // (routes/api.php: permission:services.delete|services.manage).
+      const canDelete = api.hasPermission('services.delete') || api.hasPermission('services.manage');
       if (view === 'services') {
         const cats = api.state.categories;
         let html = '<button class="btn block sm" id="new-service" style="margin-bottom:10px">' + icon('plus') + 'خدمت جدید</button>';
@@ -97,6 +100,7 @@
               (s.isFeatured ? ' <span style="display:inline-flex;align-items:center;gap:2px;color:#f59e0b;font-size:10px;font-weight:700;background:#fef3c7;padding:2px 7px;border-radius:8px;vertical-align:middle">' + icon('star') + 'پرطرفدار</span>' : '') +
             '</div>' +
             '<div class="lr-sub">' + PU.toPersianDigits(s.fields.length) + ' فیلد • ' + (s.isActive ? 'فعال' : 'غیرفعال') + (s.iconColor ? ' • <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + PU.escapeHtml(s.iconColor) + ';vertical-align:middle"></span>' : '') + '</div></div>' +
+            (canDelete ? '<button class="icon-btn" style="background:var(--rose-soft);color:var(--rose)" data-del-svc="' + s.id + '" title="حذف">' + icon('trash') + '</button>' : '') +
             '<button class="icon-btn" style="background:var(--slate-soft);color:var(--ink)" data-edit-svc="' + s.id + '">' + icon('edit') + '</button></div>'
           ).join('');
         });
@@ -105,6 +109,18 @@
         $v.find('[data-edit-svc]').on('click', function () {
           const svc = api.state.services.find((s) => s.id === $(this).data('edit-svc'));
           openServiceForm(svc);
+        });
+        $v.find('[data-del-svc]').on('click', async function () {
+          const svc = api.state.services.find((s) => s.id === $(this).data('del-svc'));
+          if (!svc) return;
+          if (!window.confirm('خدمت «' + svc.title + '» حذف شود؟ این عملیات قابل بازگشت نیست.')) return;
+          UI.busy(true);
+          try {
+            await api.deleteService(svc.id);
+            UI.toast('خدمت حذف شد.', 'success');
+            render();
+          } catch (e) { UI.toast(e.message, 'error'); }
+          finally { UI.busy(false); }
         });
       } else {
         let html = '<button class="btn block sm" id="new-category" style="margin-bottom:10px">' + icon('plus') + 'دسته‌بندی جدید</button>';
@@ -119,6 +135,7 @@
             '<div class="list-row"><div class="lr-icon" style="background:transparent;padding:0;width:44px;height:44px;flex:none;overflow:hidden;">' + iconHtml + '</div>' +
             '<div class="lr-main"><div class="lr-title">' + PU.escapeHtml(c.title) + '</div>' +
             '<div class="lr-sub">' + PU.escapeHtml(c.description || '') + orderLabel + '</div></div>' +
+            (canDelete ? '<button class="icon-btn" style="background:var(--rose-soft);color:var(--rose)" data-del-cat="' + c.id + '" title="حذف">' + icon('trash') + '</button>' : '') +
             '<button class="icon-btn" style="background:var(--slate-soft);color:var(--ink)" data-edit-cat="' + c.id + '">' + icon('edit') + '</button></div>'
           );
         }).join('');
@@ -127,6 +144,22 @@
         $v.find('[data-edit-cat]').on('click', function () {
           const cat = api.state.categories.find((c) => c.id === $(this).data('edit-cat'));
           openCategoryForm(cat);
+        });
+        $v.find('[data-del-cat]').on('click', async function () {
+          const cat = api.state.categories.find((c) => c.id === $(this).data('del-cat'));
+          if (!cat) return;
+          // Same guard as the backend (CatalogController::deleteCategory):
+          // a category with services must be emptied first.
+          const linked = api.state.services.filter((s) => s.categoryId === cat.id).length;
+          if (linked > 0) { UI.toast('ابتدا ' + PU.toPersianDigits(linked) + ' خدمت این دسته‌بندی را حذف یا منتقل کنید.', 'warning'); return; }
+          if (!window.confirm('دسته‌بندی «' + cat.title + '» حذف شود؟ این عملیات قابل بازگشت نیست.')) return;
+          UI.busy(true);
+          try {
+            await api.deleteCategory(cat.id);
+            UI.toast('دسته‌بندی حذف شد.', 'success');
+            render();
+          } catch (e) { UI.toast(e.message, 'error'); }
+          finally { UI.busy(false); }
         });
       }
     }
@@ -221,7 +254,30 @@
         updateColorPreview();
       });
 
-      sheet.footer.html('<button class="btn block" id="cat-save">ذخیره</button>');
+      // Same permission pair as the backend delete route; the button is only
+      // offered for an existing category (matches the user-form pattern).
+      const canDeleteCat = !!cat && (api.hasPermission('services.delete') || api.hasPermission('services.manage'));
+      sheet.footer.html(
+        (canDeleteCat ? '<button class="btn rose block" id="cat-delete" style="margin-bottom:8px">' + icon('trash') + 'حذف دسته‌بندی</button>' : '') +
+        '<button class="btn block" id="cat-save">ذخیره</button>'
+      );
+
+      if (canDeleteCat) sheet.footer.find('#cat-delete').on('click', async function () {
+        // Same guard as the backend (CatalogController::deleteCategory):
+        // a category with services must be emptied first.
+        const linked = api.state.services.filter((s) => s.categoryId === cat.id).length;
+        if (linked > 0) { UI.toast('ابتدا ' + PU.toPersianDigits(linked) + ' خدمت این دسته‌بندی را حذف یا منتقل کنید.', 'warning'); return; }
+        if (!window.confirm('دسته‌بندی «' + cat.title + '» حذف شود؟ این عملیات قابل بازگشت نیست.')) return;
+        UI.busy(true);
+        try {
+          await api.deleteCategory(cat.id);
+          UI.toast('دسته‌بندی حذف شد.', 'success');
+          sheet.close();
+          render();
+        } catch (e) { UI.toast(e.message, 'error'); }
+        finally { UI.busy(false); }
+      });
+
       sheet.footer.find('#cat-save').on('click', async function () {
         try {
           await api.saveCategory({
@@ -440,7 +496,26 @@
         });
       }
 
-      sheet.footer.html('<button class="btn emerald block" id="svc-save">ذخیره خدمت</button>');
+      // Same permission pair as the backend delete route; the button is only
+      // offered for an existing service (matches the user-form pattern).
+      const canDeleteSvc = !!svc && (api.hasPermission('services.delete') || api.hasPermission('services.manage'));
+      sheet.footer.html(
+        (canDeleteSvc ? '<button class="btn rose block" id="svc-delete" style="margin-bottom:8px">' + icon('trash') + 'حذف خدمت</button>' : '') +
+        '<button class="btn emerald block" id="svc-save">ذخیره خدمت</button>'
+      );
+
+      if (canDeleteSvc) sheet.footer.find('#svc-delete').on('click', async function () {
+        if (!window.confirm('خدمت «' + svc.title + '» حذف شود؟ این عملیات قابل بازگشت نیست.')) return;
+        UI.busy(true);
+        try {
+          await api.deleteService(svc.id);
+          UI.toast('خدمت حذف شد.', 'success');
+          sheet.close();
+          render();
+        } catch (e) { UI.toast(e.message, 'error'); }
+        finally { UI.busy(false); }
+      });
+
       sheet.footer.find('#svc-save').on('click', async function () {
         collectFields();
         try {
