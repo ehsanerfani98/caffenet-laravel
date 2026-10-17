@@ -86,16 +86,26 @@
   /* ---------------- Home ---------------- */
 
   // The colorful category icon grid directly below the search field.
-  // Mirrors the mobile_services_home.html reference: 4-column grid of
+  // Mirrors the mobile_services_home.html reference: a 4-column grid of
   // large rounded tiles, each tile shows a Font Awesome icon (optionally
   // tinted with the admin-picked color) and the category title. Tapping a
   // tile opens the catalog filtered by that category.
-  function categoryIconGridHtml(state) {
+  //
+  // Home-specific behavior:
+  //  - a "دسته‌بندی خدمات" section title sits above the grid,
+  //  - tiles use the .compact variant (same size as the carousel tiles),
+  //  - only the first 3 rows (12 tiles) show initially; a centered
+  //    "مشاهده بیشتر" text button reveals the rest when tapped.
+  var CATS_ROW_LIMIT = 12; // 3 rows × 4 tiles
+
+  function categoryIconGridHtml(state, expanded) {
     const cats = (state.categories || []).slice();
     if (!cats.length) {
       return '<div class="cat-icon-empty">هنوز دسته‌بندی ثبت نشده است.</div>';
     }
-    const tiles = cats.map(function (cat) {
+    let html = '<div class="section-title">' + icon('grid') + 'دسته‌بندی خدمات</div>';
+    const visible = expanded ? cats : cats.slice(0, CATS_ROW_LIMIT);
+    const tiles = visible.map(function (cat) {
       // Font Awesome icon — renderCategoryIcon handles new keys, raw FA
       // class names, and legacy PascalCase names alike.
       const iconHtml = window.renderCategoryIcon(cat.iconName || 'general', {
@@ -109,7 +119,11 @@
         '</button>'
       );
     }).join('');
-    return '<section class="cat-icon-grid" aria-label="دسته‌بندی خدمات">' + tiles + '</section>';
+    html += '<section class="cat-icon-grid compact" aria-label="دسته‌بندی خدمات">' + tiles + '</section>';
+    if (!expanded && cats.length > CATS_ROW_LIMIT) {
+      html += '<button type="button" class="cat-more-btn" id="cat-more">' + icon('chevrondown') + 'مشاهده بیشتر</button>';
+    }
+    return html;
   }
 
   // Default home service listing (popular + per-category). Kept as a helper so
@@ -135,7 +149,8 @@
 
     if (popular.length > 0) {
       html += '<div class="section-title">' + icon('star') + 'خدمات پرطرفدار</div>';
-      html += '<section class="cat-icon-grid">' + popular.map(serviceTile).join('') + '</section>';
+      // Same swipeable carousel + tile size as the per-category rows below.
+      html += '<section class="cat-icon-carousel">' + popular.map(serviceTile).join('') + '</section>';
     }
 
     state.categories.forEach((cat) => {
@@ -174,9 +189,14 @@
     // GET /api/orders (see OrderController::index) and can never own one, so
     // showing this block to them would label an arbitrary customer's order as
     // their own "current order".
-    if (ctx.user && ctx.user.role === 'customer') {
-      html += '<div id="home-order-live">' + activeOrderBlock(state) + '</div>';
-    }
+    //
+    // ── «سفارش جاری شما» — TEMPORARILY DISABLED (per request, 2026-10-18) ──
+    // To re-enable, uncomment the block below. Screens.refresh_home already
+    // guards against the missing #home-order-live element, so nothing else
+    // needs to change.
+    // if (ctx.user && ctx.user.role === 'customer') {
+    //   html += '<div id="home-order-live">' + activeOrderBlock(state) + '</div>';
+    // }
 
     html += '<div id="home-services">' + homeServicesHtml(state, settings) + '</div>';
 
@@ -231,6 +251,14 @@
       }
     });
 
+    // «مشاهده بیشتر» — reveal the categories hidden beyond the first 3 rows.
+    // The expanded flag lives on $host so background-sync repaints
+    // (Screens.refresh_home) keep showing all categories after the tap.
+    $host.on('click', '#cat-more', function () {
+      $host.data('catsExpanded', true);
+      $host.find('#home-category-grid').html(categoryIconGridHtml(api.state, true));
+    });
+
     // Delegated so the handlers survive the #home-order-live / #home-services
     // innerHTML refreshes.
     $host.on('click', '[data-service]', function () {
@@ -249,11 +277,15 @@
   Screens.refresh_home = function ($host) {
     const user = api.state.currentUser;
     // The category grid is always refreshed (cheap, and admin edits need to
-    // propagate to staff/customer views alike).
+    // propagate to staff/customer views alike). Keep the user's expanded
+    // state if they already tapped "مشاهده بیشتر".
     const $grid = $host.find('#home-category-grid');
-    if ($grid.length) $grid.html(categoryIconGridHtml(api.state));
+    if ($grid.length) $grid.html(categoryIconGridHtml(api.state, $host.data('catsExpanded') === true));
     if (!user || user.role !== 'customer') return;
-    $host.find('#home-order-live').html(activeOrderBlock(api.state));
+    // The current-order block is temporarily disabled on the home screen;
+    // refresh it only if its host element exists again (re-enabled build).
+    const $live = $host.find('#home-order-live');
+    if ($live.length) $live.html(activeOrderBlock(api.state));
   };
 
   /* ---------------- Catalog (guest/customer) ---------------- */
