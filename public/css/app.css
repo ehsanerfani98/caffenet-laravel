@@ -290,6 +290,36 @@ svg.i.i-lg { width: 30px; height: 30px; }
     .cat-icon-box { border-radius: 20px; }
     .cat-icon-label { font-size: 10px; }
 }
+/* ---------- home per-category carousel ---------- */
+/* Services under each category on the home page render as a horizontal
+   swipeable carousel instead of a 4-column grid: native overflow-x scroll +
+   scroll-snap gives real finger dragging (fully RTL-aware) on touch devices
+   with zero JS. Tiles keep the exact .cat-icon-tile look with 4 tiles per
+   viewport; extras are revealed by swiping left/right. */
+.cat-icon-carousel {
+    display: flex;
+    gap: 9px;
+    margin: 4px 2px 18px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 2px;
+    -webkit-overflow-scrolling: touch; /* momentum on older iOS */
+    overscroll-behavior-x: contain;    /* don't trigger back-navigation at the edges */
+    scrollbar-width: none;             /* Firefox: hide the scrollbar */
+    padding: 2px 2px 4px;
+    cursor: grab;
+}
+.cat-icon-carousel::-webkit-scrollbar { display: none; }
+.cat-icon-carousel.dragging { cursor: grabbing; scroll-snap-type: none; }
+.cat-icon-carousel .cat-icon-tile {
+    flex: 0 0 auto;
+    width: calc((100% - 3 * 9px) / 4);
+    scroll-snap-align: start;
+}
+@media (min-width: 400px) {
+    .cat-icon-carousel { gap: 12px; }
+    .cat-icon-carousel .cat-icon-tile { width: calc((100% - 3 * 12px) / 4); }
+}
 .cat-icon-empty {
     text-align: center; color: var(--ink-soft); font-size: 12px;
     padding: 20px; background: var(--card); border-radius: var(--radius);

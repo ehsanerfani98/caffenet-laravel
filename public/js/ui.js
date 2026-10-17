@@ -231,6 +231,60 @@
       if (sliderTimer) { clearInterval(sliderTimer); sliderTimer = null; }
     },
 
+    /* ─── Carousel mouse drag-to-scroll ─────────────────────────
+     * Touch devices already get native momentum panning on the
+     * .cat-icon-carousel rows (CSS overflow-x + scroll-snap). This helper
+     * adds the missing desktop affordance: drag the row with the mouse.
+     * It is fully delegated on $root, so it keeps working after the home
+     * screen re-renders its innerHTML (search typing, category refresh).
+     * RTL note: we scroll with scrollBy(delta) — positive = same direction
+     * as the pointer — so no browser-specific scrollLeft math is needed.
+     */
+    carouselDrag($root) {
+      if (!$root || !$root.length) return;
+      $root.on('pointerdown', '.cat-icon-carousel', function (e) {
+        const oe = e.originalEvent || e;
+        if (oe.pointerType !== 'mouse' || oe.button !== 0) return;
+        const el = this;
+        const startX = e.clientX; // displacement threshold anchor
+        let lastX = e.clientX;    // per-move scroll delta anchor
+        let moved = false;
+
+        function onMove(ev) {
+          const step = ev.clientX - lastX;
+          lastX = ev.clientX;
+          if (!moved && Math.abs(ev.clientX - startX) > 4) {
+            moved = true;
+            el.classList.add('dragging');
+            el.style.userSelect = 'none';
+          }
+          if (moved) el.scrollBy({ left: step, top: 0 });
+        }
+
+        function onUp() {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('pointercancel', onUp);
+          el.classList.remove('dragging');
+          el.style.userSelect = '';
+          if (moved) {
+            // Swallow the click that follows a real drag (capture phase fires
+            // before every bubble handler, incl. jQuery delegation) so a
+            // mouse-drag scroll never opens the order form.
+            function killClick(ev) {
+              ev.stopPropagation();
+              el.removeEventListener('click', killClick, true);
+            }
+            el.addEventListener('click', killClick, true);
+          }
+        }
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onUp);
+      });
+    },
+
     busy(on) {
       $('#busy-overlay').toggleClass('hidden', !on);
     },

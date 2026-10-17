@@ -144,7 +144,11 @@
       html += '<div class="cat-head" style="margin:12px 2px 8px">' +
         window.renderCategoryIcon(cat.iconName || 'general', { color: cat.iconColor || null }) +
         ' ' + PU.escapeHtml(cat.title) + '</div>';
-      html += '<section class="cat-icon-grid">' + items.map(serviceTile).join('') + '</section>';
+      // Horizontal swipeable carousel (native overflow-x + scroll-snap):
+      // users drag left/right with their finger to reveal the rest of the
+      // category's services. Falls back to a static row when the category
+      // fits in one viewport. Search results + popular stay a 4-col grid.
+      html += '<section class="cat-icon-carousel">' + items.map(serviceTile).join('') + '</section>';
     });
     return html;
   }
@@ -181,6 +185,9 @@
 
   Screens.bind_home = function ($host) {
     UI.imageSlider($host.find('#hero-slider'), api.state.slides.filter((s) => s.isActive));
+    // Desktop drag-to-scroll for the per-category carousels (touch devices
+    // use native panning). Delegated, so re-renders are covered.
+    UI.carouselDrag($host);
 
     function renderHomeServices() {
       const q = ($host.find('#home-search').val() || '').trim().toLowerCase();
