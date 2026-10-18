@@ -268,21 +268,25 @@ svg.i.i-lg { width: 30px; height: 30px; }
 .search-sheet-field {
     position: sticky; top: 0; z-index: 2;
     background: var(--card);
-    margin: -14px -16px 12px;      /* cancel the sheet-body padding so the
-                                      sticky cover reaches the sheet edges */
-    padding: 12px 16px;
+    margin: -14px -16px 0;         /* cancel the sheet-body top/side padding
+                                      so the sticky cover reaches the edges */
+    padding: 12px 16px 14px;       /* bottom air lives INSIDE the sticky bar */
     border-bottom: 1px solid var(--line);
     box-shadow: 0 12px 18px -16px rgba(15, 23, 42, .40);
 }
 .search-sheet-field .search-box { margin-bottom: 0; }
+/* Explicit, non-collapsing gap: the section title («پیشنهاد ما» / result
+   count meta) must never hug the sticky field's bottom border. Padding on
+   the results container cannot be swallowed by margin-collapse. */
+#sheet-search-results { padding-top: 14px; }
 .search-sheet-title {
     display: flex; align-items: center; gap: 6px;
-    font-size: 13px; font-weight: 700; margin: 2px 2px 10px;
+    font-size: 13px; font-weight: 700; margin: 0 2px 10px;
 }
 .search-sheet-title svg { width: 16px; height: 16px; color: var(--sky); }
 .search-sheet-meta {
     font-size: 11px; font-weight: 600; color: var(--ink-soft);
-    margin: 2px 2px 10px;
+    margin: 0 2px 10px;
 }
 
 /* ---------- service cards ---------- */
@@ -471,6 +475,13 @@ svg.i.i-lg { width: 30px; height: 30px; }
 }
 .sheet.tall { max-height: 92%; }
 .sheet.full { max-height: 97%; }
+/* Fullscreen "page" sheet (search popup): FIXED height — it covers the whole
+   frame and never grows/shrinks with its content; .sheet-body scrolls. */
+.sheet.page {
+    height: 100%; max-height: 100%;
+    border-radius: 0;
+}
+.sheet.page .sheet-handle { display: none; } /* nothing above it to drag */
 .sheet .sheet-handle { width: 42px; height: 4px; border-radius: 3px; background: #cbd5e1; margin: 9px auto 0; }
 .sheet .sheet-head {
     display: flex; align-items: center; gap: 10px;

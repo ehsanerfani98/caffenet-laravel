@@ -232,17 +232,19 @@
     UI.carouselDrag($host);
 
     /* ── Search bottom sheet ──
-       The home search trigger opens a sheet: the user types inside the sheet
-       and the live results render in that same sheet (never replacing the
-       home content). Results tap → the search sheet closes first so the
-       order-form sheet stacks cleanly on its own, then the order form opens.
-       Suggestion list before typing = the same "popular" list as the home
-       screen. */
+       The home search trigger opens a FULLSCREEN page-style sheet (size
+       'page'): its height is constant — it never grows or shrinks when the
+       result count changes, the body (.sheet-body) scrolls instead. The user
+       types inside the sheet and the live results render in that same sheet
+       (never replacing the home content). Results tap → the search sheet
+       closes first so the order-form sheet stacks cleanly on its own, then
+       the order form opens. Suggestion list before typing = the same
+       "popular" list as the home screen. */
     function openSearchSheet() {
       const sheet = UI.sheet({
         title: 'جستجوی خدمات',
         subtitle: 'نام خدمت مورد نظرتان را بنویسید',
-        icon: 'search', tone: 'sky', size: 'tall',
+        icon: 'search', tone: 'sky', size: 'page',
       });
 
       const suggestions = popularServices(api.state).slice(0, 8);
