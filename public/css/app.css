@@ -277,10 +277,10 @@ svg.i.i-lg { width: 30px; height: 30px; }
 .search-sheet-field .search-box { margin-bottom: 0; }
 /* Generous, multi-layer gap below the sticky field card — the section
    title («پیشنهاد ما» / result-count meta) must clearly breathe:
-   14px inside the sticky bar + 20px container padding + 4px title margin
-   ≈ 39px from the field card (4px added per user request).
+   14px inside the sticky bar + 30px container padding + 4px title margin
+   ≈ 49px from the field card (10px more added per user request).
    Padding/margin here cannot margin-collapse. */
-#sheet-search-results { padding-top: 20px; }
+#sheet-search-results { padding-top: 30px; }
 .search-sheet-title {
     display: flex; align-items: center; gap: 6px;
     font-size: 13px; font-weight: 700; margin: 4px 2px 10px;
