@@ -275,18 +275,19 @@ svg.i.i-lg { width: 30px; height: 30px; }
     box-shadow: 0 12px 18px -16px rgba(15, 23, 42, .40);
 }
 .search-sheet-field .search-box { margin-bottom: 0; }
-/* Explicit, non-collapsing gap: the section title («پیشنهاد ما» / result
-   count meta) must never hug the sticky field's bottom border. Padding on
-   the results container cannot be swallowed by margin-collapse. */
-#sheet-search-results { padding-top: 14px; }
+/* Generous, multi-layer gap below the sticky field card — the section
+   title («پیشنهاد ما» / result-count meta) must clearly breathe:
+   14px inside the sticky bar + 16px container padding + 4px title margin
+   ≈ 35px from the field card. Padding/margin here cannot margin-collapse. */
+#sheet-search-results { padding-top: 16px; }
 .search-sheet-title {
     display: flex; align-items: center; gap: 6px;
-    font-size: 13px; font-weight: 700; margin: 0 2px 10px;
+    font-size: 13px; font-weight: 700; margin: 4px 2px 10px;
 }
 .search-sheet-title svg { width: 16px; height: 16px; color: var(--sky); }
 .search-sheet-meta {
     font-size: 11px; font-weight: 600; color: var(--ink-soft);
-    margin: 0 2px 10px;
+    margin: 4px 2px 10px;
 }
 
 /* ---------- service cards ---------- */

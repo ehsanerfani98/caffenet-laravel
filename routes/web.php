@@ -13,8 +13,12 @@ use Illuminate\Support\Facades\Storage;
 */
 
 // The jQuery SPA shell (same role as index.html + Vite in the original).
+// The asset URLs inside it are versioned with filemtime (?v=…), so a cached
+// shell document would pin OLD css/js for the whole session. no-cache (NOT
+// no-store) still lets browsers revalidate cheaply via ETag/Last-Modified.
 Route::get('/', function () {
-    return view('app');
+    return response()->view('app')
+        ->header('Cache-Control', 'no-cache, must-revalidate');
 })->name('home');
 
 // Order uploads physically live in public/uploads (no storage:link symlink

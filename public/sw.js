@@ -1,7 +1,7 @@
 /* Caffenet Lite — service worker (hand-written, autoUpdate semantics).
  * cache-first for static assets; network-only for /api, /uploads, /media
  * (they are never served the SPA fallback). */
-const CACHE = 'caffenet-v10';
+const CACHE = 'caffenet-v11'; // bump purges every stale v10 entry on activate
 const SHELL = ['/', '/manifest.webmanifest', '/pwa-192x192.png', '/pwa-512x512.png',
   '/maskable-192x192.png', '/maskable-512x512.png', '/apple-touch-icon.png',
   '/favicon.ico', '/favicon-16x16.png', '/favicon-32x32.png', '/favicon-48x48.png',
@@ -33,6 +33,28 @@ self.addEventListener('fetch', (e) => {
   const NEVER = url.pathname.startsWith('/api/') || url.pathname.startsWith('/uploads/') ||
     url.pathname.startsWith('/media/') || url.pathname.startsWith('/test-gateway');
   if (e.request.method !== 'GET' || NEVER) return; // network only
+
+  /* Documents (the SPA shell): NETWORK-FIRST. The HTML embeds the
+   * filemtime-versioned asset URLs (?v=…); serving it cache-first made every
+   * deployment lag a whole session behind — the user kept seeing the previous
+   * design (e.g. the old search-sheet spacing) no matter what was deployed.
+   * The cache entry is still refreshed in the background and only serves as
+   * the offline fallback. */
+  if (e.request.mode === 'navigate' ||
+      (e.request.headers.get('accept') || '').indexOf('text/html') !== -1) {
+    e.respondWith(
+      fetch(e.request).then((res) => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy));
+        }
+        return res;
+      }).catch(() =>
+        caches.match(e.request).then((cached) => cached || caches.match('/'))
+      )
+    );
+    return;
+  }
 
   e.respondWith(
     caches.match(e.request).then((cached) => {
