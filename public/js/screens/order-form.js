@@ -111,6 +111,18 @@
       }
     });
 
+    // Restore a saved draft (پیش‌نویس سفارش): the snapshot taken when the
+    // wallet shortage led the customer away to top up. The draft overrides
+    // the configured defaults so the customer resumes exactly where they
+    // left off — same service, all fields, files and coupon intact.
+    try {
+      const draft = window.OrderDraft && OrderDraft.load(service.id, user.id);
+      if (draft && draft.state) {
+        Object.assign(state, draft.state);
+        UI.toast('اطلاعات قبلی این سفارش بازیابی شد.', 'info');
+      }
+    } catch (e) { /* draft is best-effort — never block the form */ }
+
     const sheet = UI.sheet({
       title: 'ثبت سفارش',
       subtitle: service.title,
@@ -369,7 +381,17 @@
       // balance check is skipped for it.
       const balance = Number((api.state.currentUser && api.state.currentUser.walletBalance) || 0);
       if (state.paymentMethod === 'wallet' && balance < p.payable) {
-        Screens.openWalletShortage(p.payable, balance);
+        // Snapshot the filled form BEFORE leading the customer to the top-up:
+        // the gateway round-trip is a full page reload, and without this draft
+        // every field would have to be re-entered from scratch. The draft is
+        // restored automatically when this service's form reopens (after the
+        // payment return or a manual reopen) and is dropped once the order is
+        // actually created.
+        let draftSaved = false;
+        try {
+          draftSaved = !!(window.OrderDraft && OrderDraft.save(service.id, user.id, state));
+        } catch (e) { /* storage unavailable — flow continues as before */ }
+        Screens.openWalletShortage(p.payable, balance, { draftSaved: draftSaved });
         return;
       }
 
@@ -393,6 +415,9 @@
       UI.busy(true);
       try {
         const order = await api.createOrder(payload);
+
+        // A real order now exists — the saved draft has served its purpose.
+        if (window.OrderDraft) OrderDraft.clear(service.id);
 
         // ── BazaarPay Direct Pay ──
         if (state.paymentMethod === 'bazaarpay') {

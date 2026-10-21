@@ -297,10 +297,19 @@
           .then((st) => {
             // Refresh the wallet balance too — syncWithBackend() does not
             // re-read /api/auth/me, so a top-up return would otherwise show a
-            // stale balance in the header and the order form.
-            api.getCurrentUser().catch(() => {}).then(() => api.syncWithBackend());
+            // stale balance in the header and the order form. The resume below
+            // runs only AFTER this refresh so the reopened order form sees the
+            // topped-up balance instead of the pre-payment one.
+            return api.getCurrentUser().catch(() => {})
+              .then(() => api.syncWithBackend()).catch(() => {})
+              .then(() => st);
+          })
+          .then((st) => {
             if (st.status === 'paid') {
               UI.toast('پرداخت با موفقیت انجام شد.', 'success');
+              // The top-up succeeded → reopen the order form that led the
+              // customer here, with everything they had filled restored.
+              this.resumeOrderDraft();
             } else if (st.status === 'pending') {
               UI.toast('پرداخت در حال بررسی است.', 'info');
             } else {
@@ -312,12 +321,31 @@
         // Return without a checkout token (e.g. BazaarPay direct-pay contract
         // callback): refresh everything so the paid order / topped-up wallet
         // shows up; the server has already applied the effects.
-        api.getCurrentUser().catch(() => {}).then(() => api.syncWithBackend());
+        api.getCurrentUser().catch(() => {}).then(() => api.syncWithBackend()).catch(() => {})
+          .then(() => this.resumeOrderDraft());
         UI.toast('پرداخت با موفقیت انجام شد.', 'success');
       } else if (params.status === 'failed') {
         api.syncWithBackend().catch(() => {});
         UI.toast('پرداخت ناموفق بود یا لغو شد.', 'error');
       }
+    },
+
+    /* After a successful top-up return, reopen the order form whose snapshot
+     * led the customer to the wallet page (see order-draft.js). Best-effort:
+     * a missing/expired draft, another account's draft or a since-deleted
+     * service is silently dropped — the boot must never break here. */
+    resumeOrderDraft() {
+      try {
+        if (!window.OrderDraft) return;
+        const user = api.state.currentUser;
+        if (!user) return;
+        const draft = OrderDraft.latestForUser(user.id);
+        if (!draft) return;
+        const service = (api.state.services || []).find((s) => String(s.id) === String(draft.serviceId));
+        if (!service) { OrderDraft.clear(draft.serviceId); return; } // removed meanwhile
+        // openOrderForm itself restores the draft state and toasts about it.
+        Screens.openOrderForm(service);
+      } catch (e) { /* best-effort — never break the boot */ }
     },
   };
 

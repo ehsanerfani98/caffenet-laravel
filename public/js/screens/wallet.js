@@ -180,8 +180,11 @@
 
   /* Shared wallet-shortage prompt. Used by the order form and the order tracker
    * when the wallet cannot cover a service payment; it explains the shortfall
-   * and guides the customer to the wallet page to top up. */
-  Screens.openWalletShortage = function (required, balance) {
+   * and guides the customer to the wallet page to top up. When the caller has
+   * saved an order draft first (order-form.js → OrderDraft), the customer is
+   * told the form will be restored automatically after the top-up. */
+  Screens.openWalletShortage = function (required, balance, opts) {
+    opts = opts || {};
     const need = Number(required || 0);
     const have = Number(balance || 0);
     const shortfall = Math.max(0, need - have);
@@ -195,6 +198,9 @@
 
     sheet.body.html(
       '<div class="warn-box" style="margin-bottom:12px">برای ثبت و پرداخت این سفارش، ابتدا کیف پول خود را شارژ کنید.</div>' +
+      (opts.draftSaved
+        ? '<div class="info-box" style="margin-bottom:12px">' + icon('check') + ' <b>اطلاعات سفارش شما ذخیره شد.</b> پس از شارژ کیف پول، به‌صورت خودکار به همین سفارش برمی‌گردید و نیازی به وارد کردن مجدد اطلاعات نیست.</div>'
+        : '') +
       '<div class="price-summary">' +
         '<div class="ps-row"><span>مبلغ قابل پرداخت</span><span>' + PU.formatToman(need) + '</span></div>' +
         '<div class="ps-row"><span>موجودی فعلی کیف پول</span><span>' + PU.formatToman(have) + '</span></div>' +

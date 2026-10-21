@@ -60,6 +60,7 @@
     <script defer src="/js/icons.js?v={{ filemtime(public_path('js/icons.js')) }}"></script>
     <script defer src="/js/permissions.js?v={{ filemtime(public_path('js/permissions.js')) }}"></script>
     <script defer src="/js/pricing.js?v={{ filemtime(public_path('js/pricing.js')) }}"></script>
+    <script defer src="/js/order-draft.js?v={{ filemtime(public_path('js/order-draft.js')) }}"></script>
     <script defer src="/js/bazaar-iap.js?v={{ filemtime(public_path('js/bazaar-iap.js')) }}"></script>
     <script defer src="/js/api.js?v={{ filemtime(public_path('js/api.js')) }}"></script>
     <script defer src="/js/ui.js?v={{ filemtime(public_path('js/ui.js')) }}"></script>
