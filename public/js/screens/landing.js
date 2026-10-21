@@ -184,6 +184,70 @@
     return html;
   }
 
+  /* ---------------- Order drafts («پیش‌نویس سفارش‌ها») ---------------- */
+
+  // Compact relative label for a draft's saved time — «لحظاتی پیش»,
+  // «۱۲ دقیقه پیش», «۳ ساعت پیش», falling back to a short Jalali date for
+  // older snapshots.
+  function relativeAgo(ts) {
+    const diff = Date.now() - Number(ts || 0);
+    if (!(diff >= 0)) return '—';
+    if (diff < 60 * 1000) return 'لحظاتی پیش';
+    if (diff < 60 * 60 * 1000) return PU.toPersianDigits(Math.floor(diff / 60000)) + ' دقیقه پیش';
+    if (diff < 24 * 60 * 60 * 1000) return PU.toPersianDigits(Math.floor(diff / 3600000)) + ' ساعت پیش';
+    return PU.toJalaliDateShort(new Date(ts).toISOString());
+  }
+
+  // The «پیش‌نویس سفارش‌ها» block on the home screen, directly above the
+  // category grid. Rendered ONLY when the signed-in customer actually has at
+  // least one draft (order-form.js snapshots the filled form before the
+  // wallet-shortage top-up; it lives in localStorage until the order is
+  // created, the customer deletes it, or 24h pass). Drafts whose service was
+  // deleted meanwhile can never be resumed again and are pruned here — the
+  // same policy App.resumeOrderDraft applies. Everything is localStorage-only,
+  // so the section renders instantly and never hits the network.
+  function draftsSectionHtml(state) {
+    if (!window.OrderDraft) return '';
+    const user = state.currentUser;
+    if (!user || user.role !== 'customer') return '';
+
+    let drafts;
+    try { drafts = OrderDraft.listForUser(user.id); } catch (e) { return ''; }
+    if (!drafts.length) return '';
+
+    const services = state.services || [];
+    const cards = [];
+    drafts.forEach((d) => {
+      const svc = services.find((s) => String(s.id) === String(d.serviceId));
+      if (!svc) { OrderDraft.clear(d.serviceId); return; } // service removed meanwhile
+
+      const st = d.state || {};
+      const fileCount = Array.isArray(st.files) ? st.files.length : 0;
+      const metaHtml =
+        '<span>' + icon('clock') + relativeAgo(d.savedAt) + '</span>' +
+        (fileCount > 0
+          ? '<span>' + icon('files') + PU.toPersianDigits(fileCount) + ' فایل پیوست</span>'
+          : '');
+
+      cards.push(
+        '<div class="draft-card" data-draft-resume="' + PU.escapeHtml(String(d.serviceId)) + '">' +
+          '<div class="dc-head">' +
+            '<span class="dc-icon">' + window.renderCategoryIcon(svc.icon || 'printer', { color: svc.iconColor || null }) + '</span>' +
+            '<div class="dc-titles">' +
+              '<div class="dc-title">' + PU.escapeHtml(svc.title) + '</div>' +
+              '<div class="dc-meta">' + metaHtml + '</div>' +
+            '</div>' +
+            '<button type="button" class="icon-btn dc-delete" data-draft-delete="' + PU.escapeHtml(String(d.serviceId)) + '" aria-label="حذف پیش‌نویس">' + icon('trash') + '</button>' +
+          '</div>' +
+          '<div class="dc-foot"><span>ادامه سفارش</span>' + icon('arrowleft') + '</div>' +
+        '</div>'
+      );
+    });
+
+    if (!cards.length) return '';
+    return '<div class="section-title">' + icon('edit') + 'پیش‌نویس سفارش‌ها</div>' + cards.join('');
+  }
+
   Screens.home = function (ctx) {
     const state = api.state;
     const settings = state.settings || {};
@@ -200,6 +264,14 @@
     '</button>';
 
     html += '<div id="hero-slider"></div>';
+
+    // «پیش‌نویس سفارش‌ها» — sits directly above the category grid (per
+    // request) and renders only when this customer actually has a draft.
+    // The wrapper div lets Screens.refresh_home repaint the section in place
+    // (draft created / resumed / cleared) without rebuilding the whole screen.
+    if (ctx.user && ctx.user.role === 'customer') {
+      html += '<div id="home-drafts">' + draftsSectionHtml(state) + '</div>';
+    }
 
     // Colorful category icon grid — directly below the search field, before
     // the live order block and the services list. Mirrors the reference design
@@ -332,6 +404,25 @@
       $host.find('#home-category-grid').html(categoryIconGridHtml(api.state, true));
     });
 
+    // ── «پیش‌نویس سفارش‌ها» cards ──
+    // Tapping a card reopens that service's order form; openOrderForm itself
+    // restores the saved snapshot (and toasts about it), so the customer
+    // continues exactly where they left off. The trash button inside the card
+    // deletes the draft — the resume handler must ignore that click.
+    $host.on('click', '[data-draft-resume]', function (e) {
+      if ($(e.target).closest('[data-draft-delete]').length) return;
+      const svcId = $(this).data('draft-resume');
+      const svc = api.state.services.find((s) => String(s.id) === String(svcId));
+      if (svc) Screens.openOrderForm(svc);
+    });
+    $host.on('click', '[data-draft-delete]', function () {
+      const svcId = String($(this).data('draft-delete'));
+      if (window.OrderDraft) OrderDraft.clear(svcId);
+      UI.toast('پیش‌نویس سفارش حذف شد.', 'info');
+      // Repaint the section in place — an emptied list removes it entirely.
+      Screens.refresh_home($host);
+    });
+
     // Delegated so the handlers survive the #home-order-live / #home-services
     // innerHTML refreshes.
     $host.on('click', '[data-service]', function () {
@@ -344,9 +435,10 @@
     });
   };
 
-  // Live refresh on background sync: update only the active-order region and
-  // the category icon grid (in case the admin added/edited categories), so the
-  // hero slider and its autoplay timer are left untouched (no flicker, no leak).
+  // Live refresh on background sync: update only the drafts section, the
+  // active-order region and the category icon grid (in case the admin
+  // added/edited categories), so the hero slider and its autoplay timer are
+  // left untouched (no flicker, no leak).
   Screens.refresh_home = function ($host) {
     const user = api.state.currentUser;
     // The category grid is always refreshed (cheap, and admin edits need to
@@ -355,6 +447,12 @@
     const $grid = $host.find('#home-category-grid');
     if ($grid.length) $grid.html(categoryIconGridHtml(api.state, $host.data('catsExpanded') === true));
     if (!user || user.role !== 'customer') return;
+    // The drafts section repaints on every sync tick too — it is cheap
+    // (localStorage-only) and must react to drafts created/cleared while the
+    // home screen stays mounted (e.g. the order sheet just closed and the
+    // draft was consumed).
+    const $drafts = $host.find('#home-drafts');
+    if ($drafts.length) $drafts.html(draftsSectionHtml(api.state));
     // The current-order block is temporarily disabled on the home screen;
     // refresh it only if its host element exists again (re-enabled build).
     const $live = $host.find('#home-order-live');

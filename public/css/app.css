@@ -438,6 +438,27 @@ svg.i.i-lg { width: 30px; height: 30px; }
    (the following .section-title is :first-child so its top margin collapses). */
 .home-order-block { margin-bottom: 16px; }
 
+/* ---------- order drafts («پیش‌نویس سفارش‌ها») on home ---------- */
+/* Cards mirror .order-card: white, 1px line border, --radius, 13px padding.
+   The amber icon box signals "unfinished/edit me" vs the sky used for real
+   orders; #home-drafts collapses entirely when no draft exists. */
+#home-drafts { margin-bottom: 16px; }
+#home-drafts:empty { margin-bottom: 0; }
+.draft-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 13px; cursor: pointer; }
+.draft-card:active { transform: scale(.98); }
+.draft-card + .draft-card { margin-top: 8px; }
+.draft-card .dc-head { display: flex; align-items: center; gap: 10px; }
+.draft-card .dc-icon { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 12px; background: var(--amber-soft); color: var(--amber); }
+.draft-card .dc-titles { flex: 1; min-width: 0; }
+.draft-card .dc-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.draft-card .dc-meta { display: flex; align-items: center; gap: 12px; margin-top: 3px; font-size: 11px; color: var(--ink-soft); }
+.draft-card .dc-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.draft-card .dc-meta svg { width: 12px; height: 12px; }
+.draft-card .dc-delete { width: 30px; height: 30px; border-radius: 10px; background: transparent; color: var(--ink-soft); }
+.draft-card .dc-delete:active { background: var(--rose-soft); color: var(--rose); }
+.draft-card .dc-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding-top: 9px; border-top: 1px dashed var(--line); font-size: 12px; font-weight: 700; color: var(--sky-deep); }
+.draft-card .dc-foot svg { width: 15px; height: 15px; }
+
 /* ---------- slider ---------- */
 #hero-slider { margin-top: 8px; margin-bottom: 16px; }
 .hero-slider { position: relative; border-radius: 18px; overflow: hidden; margin-bottom: 14px; background: #eef2f7; }

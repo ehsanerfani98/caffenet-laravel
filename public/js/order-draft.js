@@ -26,6 +26,9 @@
  *  - load()   when the same service's form reopens — manually, or
  *             automatically after a successful payment return
  *             (App.resumeOrderDraft → Screens.openOrderForm).
+ *  - list()   every draft of the signed-in customer, newest first —
+ *             feeds the «پیش‌نویس سفارش‌ها» section on the home screen
+ *             (screens/landing.js), so a saved order is never forgotten.
  *  - clear()  once the order is actually created, or all drafts via
  *             clear() without arguments.
  */
@@ -139,6 +142,26 @@
         return bestId === null ? null : { serviceId: bestId, state: data.drafts[bestId].state, savedAt: bestAt };
       } catch (e) {
         return null;
+      }
+    },
+
+    /**
+     * Every valid draft belonging to this user, newest first — the data
+     * behind the home screen's «پیش‌نویس سفارش‌ها» section. Returns
+     * [{serviceId, state, savedAt}] (possibly empty). Never throws.
+     */
+    listForUser(userKey) {
+      const store = safeStorage();
+      if (!store) return [];
+      try {
+        const data = readStore(store);
+        const wanted = String(userKey == null ? '' : userKey);
+        return Object.keys(data.drafts)
+          .filter((id) => String(data.drafts[id].userKey) === wanted)
+          .map((id) => ({ serviceId: id, state: data.drafts[id].state, savedAt: data.drafts[id].savedAt }))
+          .sort((a, b) => b.savedAt - a.savedAt);
+      } catch (e) {
+        return [];
       }
     },
 
