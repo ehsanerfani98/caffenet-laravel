@@ -79,13 +79,13 @@
     }
 
     const settings = api.state.settings || {};
-    // BazaarPay gateway (بازارپی) — when available the customer picks the
-    // payment method: in-app wallet balance, or the BazaarPay gateway page
-    // (checkout redirect — same pipeline as a wallet top-up). Direct Pay
-    // (silent, contract-based) is resolved automatically inside the gateway
-    // option by the server when its contract is active.
+    // BazaarPay gateway (بازارپی) — when available the footer shows two
+    // explicit pay buttons: «پرداخت آنلاین» goes to the BazaarPay gateway
+    // page (checkout redirect — same pipeline as a wallet top-up) and
+    // «پرداخت از کیف پول» debits the in-app balance. Direct Pay (silent,
+    // contract-based) is resolved automatically inside the gateway button
+    // by the server when its contract is active.
     const bazaarPayAvailable = !!(settings.bazaarPay && settings.bazaarPay.available);
-    const directPayEnabled = !!(settings.bazaarPay && settings.bazaarPay.directEnabled);
     const state = {
       formData: {},
       urgency: 'normal',
@@ -98,7 +98,6 @@
       couponCode: '',
       couponDiscount: 0,
       couponError: null,
-      paymentMethod: 'wallet',
     };
 
     // Pre-populate formData from each field's configured default value. Without
@@ -238,20 +237,6 @@
       const p = livePricing();
       const balance = Number((api.state.currentUser && api.state.currentUser.walletBalance) || 0);
       const shortfall = Math.max(0, p.payable - balance);
-      const methodRow = bazaarPayAvailable
-        ? '<label class="field-label" style="margin-top:14px">روش پرداخت</label>' +
-          '<div class="segmented" id="pay-method-seg">' +
-            '<button class="seg ' + (state.paymentMethod === 'wallet' ? 'on' : '') + '" data-pay-method="wallet">' + icon('wallet') + ' کیف پول برنامه</button>' +
-            '<button class="seg ' + (state.paymentMethod === 'bazaarpay' ? 'on' : '') + '" data-pay-method="bazaarpay">' + icon('zap') + ' درگاه پرداخت</button>' +
-          '</div>' +
-          (state.paymentMethod === 'bazaarpay'
-            ? '<div class="help-text" style="margin-top:6px">به صفحه امن پرداخت بازارپی منتقل می‌شوید' +
-              (directPayEnabled
-                ? '؛ اگر قرارداد پرداخت مستقیم فعال باشد، پرداخت بدون خروج از برنامه انجام می‌شود.'
-                : ' و با کارت بانکی یا کیف پول کافه‌بازار پرداخت می‌کنید؛ نیازی به شارژ کیف پول برنامه نیست.') +
-              '</div>'
-            : '')
-        : '';
       sheet.body.find('#price-summary').html(
         '<div class="price-summary">' +
           '<div class="ps-row"><span>جمع خدمات</span><span>' + PU.formatToman(p.subtotal) + '</span></div>' +
@@ -260,17 +245,11 @@
           (p.discountAmount > 0 ? '<div class="ps-row" style="color:var(--emerald)"><span>تخفیف</span><span>−' + PU.formatToman(p.discountAmount) + '</span></div>' : '') +
           '<div class="ps-row total"><span>مبلغ قابل پرداخت</span><span class="val">' + PU.formatToman(p.payable) + '</span></div>' +
         '</div>' +
-        methodRow +
-        (shortfall > 0 && state.paymentMethod === 'wallet'
-          ? '<div class="warn-box" style="margin-top:10px">موجودی کیف پول کافی نیست؛ <b>' + PU.formatToman(shortfall) + '</b> کسری دارید. ابتدا کیف پول را شارژ کنید' +
-            (bazaarPayAvailable ? ' یا روش «درگاه پرداخت» را انتخاب کنید.' : '.') + '</div>'
+        (shortfall > 0
+          ? '<div class="warn-box" style="margin-top:10px">موجودی کیف پول کافی نیست؛ <b>' + PU.formatToman(shortfall) + '</b> کسری دارید' +
+            (bazaarPayAvailable ? ' — دکمه «پرداخت آنلاین» بدون نیاز به موجودی کار می‌کند.' : '. ابتدا کیف پول را شارژ کنید.') + '</div>'
           : '')
       );
-
-      sheet.body.find('[data-pay-method]').on('click', function () {
-        state.paymentMethod = $(this).data('pay-method');
-        renderPrice();
-      });
     }
 
     /* ---- events (delegated on sheet body) ---- */
@@ -359,10 +338,16 @@
       renderPrice();
     });
 
-    /* ---- footer: submit ---- */
-    sheet.footer.html('<button class="btn emerald block" id="order-submit">' + icon('check') + 'ثبت و ادامه به پرداخت</button>');
+    /* ---- footer: two explicit pay buttons — gateway first (primary) ---- */
+    sheet.footer.html(bazaarPayAvailable ?
+      '<button class="btn emerald block" id="order-pay-gateway" style="margin-bottom:8px">' + icon('zap') + 'پرداخت آنلاین</button>' +
+      '<button class="btn slate block" id="order-pay-wallet">' + icon('wallet') + 'پرداخت از کیف پول</button>'
+      :
+      '<button class="btn emerald block" id="order-pay-wallet">' + icon('check') + 'ثبت و پرداخت از کیف پول</button>');
 
-    sheet.footer.find('#order-submit').on('click', async function () {
+    const $footerButtons = sheet.footer.find('button');
+
+    async function submitOrder(method) {
       const p = livePricing();
 
       // client-side validation mirrors the server
@@ -389,7 +374,7 @@
       // requirement (money comes from the gateway page or the user's Bazaar
       // wallet/bank), so the balance check is skipped for it.
       const balance = Number((api.state.currentUser && api.state.currentUser.walletBalance) || 0);
-      if (state.paymentMethod === 'wallet' && balance < p.payable) {
+      if (method === 'wallet' && balance < p.payable) {
         // Snapshot the filled form BEFORE leading the customer to the top-up:
         // the gateway round-trip is a full page reload, and without this draft
         // every field would have to be re-entered from scratch. The draft is
@@ -417,10 +402,10 @@
         couponCode: state.couponCode || undefined,
         // Payment intent — the server only skips its wallet-balance guard for
         // 'bazaarpay' when the BazaarPay gateway is actually available.
-        paymentMethod: state.paymentMethod,
+        paymentMethod: method,
       };
 
-      const $btn = $(this).prop('disabled', true);
+      $footerButtons.prop('disabled', true);
       UI.busy(true);
       try {
         const order = await api.createOrder(payload);
@@ -429,7 +414,7 @@
         if (window.OrderDraft) OrderDraft.clear(service.id);
 
         // ── BazaarPay gateway (checkout redirect + optional direct pay) ──
-        if (state.paymentMethod === 'bazaarpay') {
+        if (method === 'bazaarpay') {
           sheet.close();
           try {
             const r = await api.payOrderWithBazaarPay(order.id);
@@ -482,10 +467,13 @@
         }
         UI.toast(e.message, 'error');
       } finally {
-        $btn.prop('disabled', false);
+        $footerButtons.prop('disabled', false);
         UI.busy(false);
       }
-    });
+    }
+
+    sheet.footer.find('#order-pay-wallet').on('click', function () { submitOrder('wallet'); });
+    sheet.footer.find('#order-pay-gateway').on('click', function () { submitOrder('bazaarpay'); });
 
     // keep address/note in sync
     sheet.body.on('input', '#delivery-address', function () { state.deliveryAddress = this.value; });

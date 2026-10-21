@@ -210,7 +210,7 @@
         '<div class="ps-row total"><span>مبلغ کسری</span><span class="val">' + PU.formatToman(shortfall) + '</span></div>' +
       '</div>' +
       (gatewayAvailable
-        ? '<div class="info-box" style="margin-top:12px">' + icon('zap', 'i-sm') + ' راه دیگر: به فرم سفارش برگردید و روش «<b>درگاه پرداخت</b>» را انتخاب کنید تا بدون شارژ کیف پول، مستقیم در صفحه بازارپی پرداخت کنید.</div>'
+        ? '<div class="info-box" style="margin-top:12px">' + icon('zap', 'i-sm') + ' راه دیگر: به فرم سفارش برگردید و دکمه «<b>پرداخت آنلاین</b>» را بزنید تا بدون شارژ کیف پول، مستقیم در صفحه بازارپی پرداخت کنید.</div>'
         : '')
     );
 
