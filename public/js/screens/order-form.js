@@ -418,26 +418,37 @@
           sheet.close();
           try {
             const r = await api.payOrderWithBazaarPay(order.id);
-            if (r.status === 'paid') {
-              UI.toast('پرداخت با بازارپی انجام شد و سفارش به صف کار اضافه شد.', 'success');
-            } else if (r.status === 'contract_pending') {
+            // Navigating outcomes: open the redirect interstitial and let the
+            // browser leave — nothing else may render underneath (an order
+            // tracker opened here used to flash until the BazaarPay page
+            // loaded). On return from the gateway the payment callback
+            // (App.handlePaymentReturn) lands on the order tracker itself.
+            if (r.status === 'redirect') {
+              Screens.openPaymentRedirect({ gateway: 'bazaarpay', redirectUrl: r.redirectUrl });
+              return;
+            }
+            if (r.status === 'contract_pending') {
               // First use of direct pay: the user must sign the contract on
               // BazaarPay; the callback finishes the payment after signing.
               UI.toast('برای فعال‌سازی پرداخت مستقیم، قرارداد را در بازارپی تایید کنید.', 'info');
               Screens.openPaymentRedirect({ gateway: 'bazaarpay', redirectUrl: r.contractRedirectUrl });
-            } else if (r.status === 'redirect') {
-              // Standard checkout: pay on the BazaarPay gateway page like a
-              // wallet top-up; the /verify callback fulfils the order.
-              Screens.openPaymentRedirect({ gateway: 'bazaarpay', redirectUrl: r.redirectUrl });
+              return;
+            }
+            // Non-navigating outcomes — show the live status on the tracker.
+            if (r.status === 'paid') {
+              UI.toast('پرداخت با بازارپی انجام شد و سفارش به صف کار اضافه شد.', 'success');
             } else if (r.status === 'pending') {
               UI.toast(r.message || 'پرداخت در حال بررسی است؛ وضعیت سفارش به‌صورت خودکار به‌روز می‌شود.', 'info');
             } else {
               UI.toast(r.error || 'پرداخت ناموفق بود — از صفحه سفارش دوباره تلاش کنید.', 'error');
             }
+            Screens.openOrderTracker(order.id);
           } catch (e) {
+            // Order exists but its payment could not start — the tracker is
+            // where the retry buttons live.
             UI.toast(e.message + ' — می‌توانید از صفحه سفارش‌ها دوباره تلاش کنید.', 'error');
+            Screens.openOrderTracker(order.id);
           }
-          Screens.openOrderTracker(order.id);
           return;
         }
 
