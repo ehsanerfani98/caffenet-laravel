@@ -21,18 +21,22 @@ use Illuminate\Support\Str;
  * Payments — gateway entry points.
  *
  * Wallet top-ups (purpose=wallet) go through the online gateways; services are
- * paid from the wallet (OrderController::payWithWallet) or — when the BazaarPay
- * Direct Pay contract flow is enabled — directly through BazaarPay
- * (requestDirectOrder). Amounts are validated against MIN/MAX bounds and never
+ * paid from the wallet (OrderController::payWithWallet) or through BazaarPay
+ * (payBazaarPay). Amounts are validated against MIN/MAX bounds and never
  * trusted from the client.
  *
  * BazaarPay (بازارپی) flows (docs: github.com/BazaarPay/Docs/tree/main/fa):
  *  - requestBazaarPay:  checkout/init → user pays on app.bazaar-pay.ir →
  *    /verify callback traces + commits → wallet credited.
- *  - requestDirectOrder: active contract → checkout/init + direct-pay +
- *    commit happen server-side in one shot; without an active contract the
- *    user is sent to the signing page and the contract callback resumes the
- *    payment automatically.
+ *  - payBazaarPay: one endpoint, smart resolution for ORDER payments —
+ *      1) Direct Pay contract active → checkout + direct-pay + commit run
+ *         server-side in one shot (no redirect);
+ *      2) direct pay enabled but no contract yet → the user is sent to the
+ *         signing page and the contract callback resumes the payment;
+ *      3) otherwise (or when contract init is rejected by BazaarPay, e.g. the
+ *         merchant's contract types are not activated) → standard checkout
+ *         redirect: the user pays on the BazaarPay gateway page exactly like
+ *         a wallet top-up and /verify fulfils the order.
  *  - verify/status: trace-driven and idempotent — a lost callback self-heals
  *    on the next status poll.
  */
@@ -44,12 +48,12 @@ class PaymentController extends Controller
         $body = (array) $request->json()->all();
         $now = now()->toIso8601String();
 
-        // Services are paid from the wallet (or BazaarPay Direct Pay for
-        // orders). This endpoint exists solely for wallet top-ups, so any
-        // other purpose is rejected outright.
+        // This endpoint exists solely for wallet top-ups; orders are paid
+        // through payWithWallet or payBazaarPay (wallet choice or gateway
+        // redirect inside the order flow), so any other purpose is rejected.
         if (($body['purpose'] ?? 'wallet') !== 'wallet') {
             return response()->json([
-                'error' => 'پرداخت سفارش فقط از طریق کیف پول انجام می‌شود؛ ابتدا کیف پول را شارژ کنید.',
+                'error' => 'این مسیر فقط برای شارژ کیف پول است؛ پرداخت سفارش از داخل فرم سفارش (کیف پول یا درگاه پرداخت) انجام می‌شود.',
                 'code' => 'WALLET_ONLY',
             ], 400);
         }
@@ -361,15 +365,22 @@ class PaymentController extends Controller
     // ─────────────────────────────────────────── BazaarPay: direct pay ──
 
     /**
-     * Direct Pay for an order (POST /orders/{id}/pay-bazaarpay).
+     * Pay an ORDER through BazaarPay (POST /orders/{id}/pay-bazaarpay).
      *
-     *  - Active contract  → checkout + direct-pay + commit run server-side in
-     *    one shot and the response carries the final status.
-     *  - No active contract → a contract is created and
-     *    `contract_pending` + the signing URL are returned; the contract
-     *    callback finishes the payment once the user signs.
+     * One endpoint with smart resolution:
+     *  1) Direct Pay enabled + ACTIVE contract → checkout + direct-pay + commit
+     *     run server-side in one shot; the response carries the final status.
+     *  2) Direct Pay enabled but no active contract → a contract is created and
+     *     `contract_pending` + the signing URL are returned; the contract
+     *     callback finishes the payment once the user signs.
+     *  3) Direct Pay off — OR the contract cannot even be created (BazaarPay
+     *     rejects contract init while the merchant's contract types are not
+     *     activated) → standard checkout redirect: a pending payment row is
+     *     linked to the order and `redirect` + the gateway URL are returned.
+     *     The user pays on the BazaarPay page (card or Cafe Bazaar wallet) and
+     *     the /verify callback fulfils the order — same pipeline as a top-up.
      */
-    public function requestDirectOrder(Request $request, string $id): JsonResponse
+    public function payBazaarPay(Request $request, string $id): JsonResponse
     {
         $user = $request->attributes->get('authUser');
         $order = Order::find($id);
@@ -389,11 +400,14 @@ class PaymentController extends Controller
         }
 
         $cfg = SettingsService::bazaarPaySettings();
-        if (! $cfg['directEnabled']) {
-            return response()->json(['error' => 'پرداخت مستقیم بازارپی فعال نیست.'], 400);
+        // The base gateway (checkout redirect) is the floor requirement; Direct
+        // Pay is only an optimization on top of it.
+        if (! $cfg['available']) {
+            return response()->json(['error' => 'درگاه پرداخت بازارپی فعال نیست.'], 400);
         }
 
         $now = now()->toIso8601String();
+        $serviceName = 'پرداخت سفارش '.$order->order_number;
 
         // Reuse the pending row created by an earlier attempt (idempotent
         // restarts), otherwise create it.
@@ -415,64 +429,109 @@ class PaymentController extends Controller
             ]);
         }
 
-        // Active contract? (state is refreshed from the gateway trace)
-        $contract = $this->activeContractFor($user->id);
+        // ── 1) Direct Pay: silent server-side payment with a signed contract ──
+        if ($cfg['directEnabled']) {
+            $contract = $this->activeContractFor($user->id);
 
-        if ($contract) {
-            $result = $this->executeDirectPay($payment, $contract);
+            if ($contract) {
+                $result = $this->executeDirectPay($payment, $contract);
 
-            return match ($result['status']) {
-                'paid' => response()->json([
-                    'status' => 'paid',
-                    'message' => 'پرداخت مستقیم با موفقیت انجام شد.',
+                return match ($result['status']) {
+                    'paid' => response()->json([
+                        'status' => 'paid',
+                        'message' => 'پرداخت مستقیم با موفقیت انجام شد.',
+                        'orderId' => $order->id,
+                    ]),
+                    'pending' => response()->json([
+                        'status' => 'pending',
+                        'message' => 'پرداخت در حال بررسی است؛ وضعیت سفارش به‌صورت خودکار به‌روز می‌شود.',
+                        'orderId' => $order->id,
+                    ]),
+                    default => response()->json([
+                        'status' => 'failed',
+                        'error' => $result['error'] ?? 'پرداخت مستقیم ناموفق بود.',
+                    ], 400),
+                };
+            }
+
+            // No active contract → try to start the signing flow. When
+            // BazaarPay rejects it (e.g. "Contract type not found" — the
+            // merchant's direct-pay is not activated yet), fall through to the
+            // standard checkout redirect below instead of failing.
+            $init = BazaarPayService::initContract($cfg['directType'], $cfg['directPeriod'], $cfg['directAmountLimit']);
+            if ($init['ok']) {
+                $contract = BazaarPayContract::create([
+                    'user_id' => $user->id,
+                    'contract_token' => $init['contractToken'],
+                    'type' => $cfg['directType'],
+                    'period' => $cfg['directPeriod'],
+                    'amount_limit' => $cfg['directAmountLimit'],
+                    'state' => BazaarPayContract::STATE_NEW,
+                    'created_at' => $now,
+                ]);
+
+                // Link the pending payment to this contract so the callback can resume.
+                DB::table('payments')->where('id', $payment->id)->update([
+                    'contract_token' => $init['contractToken'],
+                    'amount' => $payable,
+                ]);
+
+                $signUrl = BazaarPayService::contractPageUrl(
+                    $init['contractToken'],
+                    (string) $user->phone,
+                    'امضای قرارداد پرداخت مستقیم کافی‌نت احسان'
+                );
+
+                return response()->json([
+                    'status' => 'contract_pending',
+                    'message' => 'برای فعال‌سازی پرداخت مستقیم، قرارداد را در صفحه بازارپی تایید کنید.',
+                    'contractRedirectUrl' => $signUrl,
+                    'paymentId' => $payment->id,
                     'orderId' => $order->id,
-                ]),
-                'pending' => response()->json([
-                    'status' => 'pending',
-                    'message' => 'پرداخت در حال بررسی است؛ وضعیت سفارش به‌صورت خودکار به‌روز می‌شود.',
-                    'orderId' => $order->id,
-                ]),
-                default => response()->json([
-                    'status' => 'failed',
-                    'error' => $result['error'] ?? 'پرداخت مستقیم ناموفق بود.',
-                ], 400),
-            };
+                ]);
+            }
         }
 
-        // No active contract → create one and send the user to sign it.
-        $init = BazaarPayService::initContract($cfg['directType'], $cfg['directPeriod'], $cfg['directAmountLimit']);
+        // ── 2) Checkout redirect — the standard gateway page, like a top-up ──
+        return $this->startOrderCheckout($payment, $user, $serviceName);
+    }
+
+    /**
+     * Checkout-redirect branch of payBazaarPay: creates the checkout token for
+     * the order amount and returns the gateway URL the SPA redirects to. The
+     * pending payment row carries order_id + purpose=order, so the shared
+     * /verify callback and the pollable /status endpoint already know how to
+     * fulfil the order once the trace reports paid.
+     */
+    private function startOrderCheckout(Payment $payment, $user, string $serviceName): JsonResponse
+    {
+        $init = BazaarPayService::initCheckout((int) $payment->amount, $serviceName);
         if (! $init['ok']) {
             return response()->json(['error' => $init['error']], 400);
         }
 
-        $contract = BazaarPayContract::create([
-            'user_id' => $user->id,
-            'contract_token' => $init['contractToken'],
-            'type' => $cfg['directType'],
-            'period' => $cfg['directPeriod'],
-            'amount_limit' => $cfg['directAmountLimit'],
-            'state' => BazaarPayContract::STATE_NEW,
-            'created_at' => $now,
-        ]);
-
-        // Link the pending payment to this contract so the callback can resume.
+        // A stale direct-pay contract link must not survive a switch to the
+        // checkout flow (the contract callback would otherwise grab this row).
         DB::table('payments')->where('id', $payment->id)->update([
-            'contract_token' => $init['contractToken'],
-            'amount' => $payable,
+            'authority' => $init['checkoutToken'],
+            'contract_token' => null,
         ]);
+        $payment->authority = $init['checkoutToken'];
 
-        $signUrl = BazaarPayService::contractPageUrl(
-            $init['contractToken'],
-            (string) $user->phone,
-            'امضای قرارداد پرداخت مستقیم کافی‌نت احسان'
-        );
+        $cfg = SettingsService::bazaarPaySettings();
+
+        // Test mode points straight at the internal test gateway page.
+        $redirectUrl = $cfg['testMode']
+            ? $init['paymentUrl']
+            : BazaarPayService::gatewayRedirectUrl($init['paymentUrl'], $init['checkoutToken'], (string) $user->phone);
 
         return response()->json([
-            'status' => 'contract_pending',
-            'message' => 'برای فعال‌سازی پرداخت مستقیم، قرارداد را در صفحه بازارپی تایید کنید.',
-            'contractRedirectUrl' => $signUrl,
+            'status' => 'redirect',
+            'gateway' => 'bazaarpay',
             'paymentId' => $payment->id,
-            'orderId' => $order->id,
+            'orderId' => $payment->order_id,
+            'authority' => $init['checkoutToken'],
+            'redirectUrl' => $redirectUrl,
         ]);
     }
 

@@ -306,13 +306,15 @@
         icon('sms') + 'گفتگو با پشتیبانی</button>';
 
       if (retryable) {
-        // BazaarPay Direct Pay adds a second way to settle an unpaid order.
-        const directPayEnabled = !!(api.state.settings && api.state.settings.bazaarPay && api.state.settings.bazaarPay.directEnabled);
+        // BazaarPay adds a second way to settle an unpaid order: the gateway
+        // page (checkout redirect — same pipeline as a top-up). Direct Pay is
+        // resolved automatically server-side when a contract is active.
+        const bazaarPayAvailable = !!(api.state.settings && api.state.settings.bazaarPay && api.state.settings.bazaarPay.available);
         body +=
           '<div class="warn-box" style="margin-bottom:12px">این سفارش پرداخت نشده است. برای ورود به صف کار، پرداخت را انجام دهید.</div>' +
           '<button class="btn emerald block" id="retry-pay" style="margin-bottom:12px">' + icon('wallet') + 'پرداخت از کیف پول</button>' +
-          (directPayEnabled
-            ? '<button class="btn block" id="retry-pay-direct" style="margin-bottom:12px">' + icon('zap') + 'پرداخت مستقیم با بازارپی</button>'
+          (bazaarPayAvailable
+            ? '<button class="btn block" id="retry-pay-direct" style="margin-bottom:12px">' + icon('zap') + 'پرداخت از درگاه بازارپی</button>'
             : '');
       }
 
@@ -435,23 +437,27 @@
         } finally { $btn.prop('disabled', false); }
       });
 
-      // BazaarPay Direct Pay retry — pays through the user's signed contract
-      // or (first use) redirects to the contract signing page.
+      // BazaarPay retry — smart resolution: silent direct pay through the
+      // user's signed contract, the contract signing page (first use), or the
+      // standard checkout gateway page (status=redirect).
       if (retryable) sheet.body.find('#retry-pay-direct').on('click', async function () {
         const $btn = $(this).prop('disabled', true);
         try {
-          const r = await api.payOrderDirect(o.id);
+          const r = await api.payOrderWithBazaarPay(o.id);
           if (r.status === 'paid') {
-            UI.toast('پرداخت مستقیم با بازارپی انجام شد.', 'success');
+            UI.toast('پرداخت با بازارپی انجام شد.', 'success');
             refresh(true);
           } else if (r.status === 'contract_pending') {
             UI.toast('برای فعال‌سازی پرداخت مستقیم، قرارداد را در بازارپی تایید کنید.', 'info');
             Screens.openPaymentRedirect({ gateway: 'bazaarpay', redirectUrl: r.contractRedirectUrl });
+          } else if (r.status === 'redirect') {
+            // Pay on the BazaarPay gateway page; /verify fulfils the order.
+            Screens.openPaymentRedirect({ gateway: 'bazaarpay', redirectUrl: r.redirectUrl });
           } else if (r.status === 'pending') {
             UI.toast(r.message || 'پرداخت در حال بررسی است.', 'info');
             refresh(true);
           } else {
-            UI.toast(r.error || 'پرداخت مستقیم ناموفق بود.', 'error');
+            UI.toast(r.error || 'پرداخت ناموفق بود.', 'error');
           }
         } catch (e) {
           UI.toast(e.message, 'error');

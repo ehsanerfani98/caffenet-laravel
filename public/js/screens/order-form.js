@@ -79,8 +79,12 @@
     }
 
     const settings = api.state.settings || {};
-    // BazaarPay Direct Pay (دایرکت‌پی) — when enabled the customer picks the
-    // payment method: wallet balance or direct payment through BazaarPay.
+    // BazaarPay gateway (بازارپی) — when available the customer picks the
+    // payment method: in-app wallet balance, or the BazaarPay gateway page
+    // (checkout redirect — same pipeline as a wallet top-up). Direct Pay
+    // (silent, contract-based) is resolved automatically inside the gateway
+    // option by the server when its contract is active.
+    const bazaarPayAvailable = !!(settings.bazaarPay && settings.bazaarPay.available);
     const directPayEnabled = !!(settings.bazaarPay && settings.bazaarPay.directEnabled);
     const state = {
       formData: {},
@@ -234,14 +238,18 @@
       const p = livePricing();
       const balance = Number((api.state.currentUser && api.state.currentUser.walletBalance) || 0);
       const shortfall = Math.max(0, p.payable - balance);
-      const methodRow = directPayEnabled
+      const methodRow = bazaarPayAvailable
         ? '<label class="field-label" style="margin-top:14px">روش پرداخت</label>' +
           '<div class="segmented" id="pay-method-seg">' +
-            '<button class="seg ' + (state.paymentMethod === 'wallet' ? 'on' : '') + '" data-pay-method="wallet">' + icon('wallet') + ' کیف پول</button>' +
-            '<button class="seg ' + (state.paymentMethod === 'bazaarpay' ? 'on' : '') + '" data-pay-method="bazaarpay">' + icon('zap') + ' پرداخت مستقیم بازارپی</button>' +
+            '<button class="seg ' + (state.paymentMethod === 'wallet' ? 'on' : '') + '" data-pay-method="wallet">' + icon('wallet') + ' کیف پول برنامه</button>' +
+            '<button class="seg ' + (state.paymentMethod === 'bazaarpay' ? 'on' : '') + '" data-pay-method="bazaarpay">' + icon('zap') + ' درگاه پرداخت</button>' +
           '</div>' +
           (state.paymentMethod === 'bazaarpay'
-            ? '<div class="help-text" style="margin-top:6px">پرداخت از کیف پول/حساب بانکی کافه‌بازار شما؛ در اولین استفاده، تایید قرارداد از شما خواسته می‌شود.</div>'
+            ? '<div class="help-text" style="margin-top:6px">به صفحه امن پرداخت بازارپی منتقل می‌شوید' +
+              (directPayEnabled
+                ? '؛ اگر قرارداد پرداخت مستقیم فعال باشد، پرداخت بدون خروج از برنامه انجام می‌شود.'
+                : ' و با کارت بانکی یا کیف پول کافه‌بازار پرداخت می‌کنید؛ نیازی به شارژ کیف پول برنامه نیست.') +
+              '</div>'
             : '')
         : '';
       sheet.body.find('#price-summary').html(
@@ -254,7 +262,8 @@
         '</div>' +
         methodRow +
         (shortfall > 0 && state.paymentMethod === 'wallet'
-          ? '<div class="warn-box" style="margin-top:10px">موجودی کیف پول کافی نیست؛ <b>' + PU.formatToman(shortfall) + '</b> کسری دارید. ابتدا کیف پول را شارژ کنید' + (directPayEnabled ? ' یا «پرداخت مستقیم بازارپی» را انتخاب کنید.' : '.') + '</div>'
+          ? '<div class="warn-box" style="margin-top:10px">موجودی کیف پول کافی نیست؛ <b>' + PU.formatToman(shortfall) + '</b> کسری دارید. ابتدا کیف پول را شارژ کنید' +
+            (bazaarPayAvailable ? ' یا روش «درگاه پرداخت» را انتخاب کنید.' : '.') + '</div>'
           : '')
       );
 
@@ -376,9 +385,9 @@
       }
 
       // Wallet payments require sufficient balance up-front — never persist an
-      // order the customer cannot pay for. BazaarPay Direct Pay has no such
-      // requirement (money comes from the user's Bazaar wallet/bank), so the
-      // balance check is skipped for it.
+      // order the customer cannot pay for. The BazaarPay gateway has no such
+      // requirement (money comes from the gateway page or the user's Bazaar
+      // wallet/bank), so the balance check is skipped for it.
       const balance = Number((api.state.currentUser && api.state.currentUser.walletBalance) || 0);
       if (state.paymentMethod === 'wallet' && balance < p.payable) {
         // Snapshot the filled form BEFORE leading the customer to the top-up:
@@ -407,7 +416,7 @@
         customerFiles: state.files,
         couponCode: state.couponCode || undefined,
         // Payment intent — the server only skips its wallet-balance guard for
-        // 'bazaarpay' when Direct Pay is actually enabled in the settings.
+        // 'bazaarpay' when the BazaarPay gateway is actually available.
         paymentMethod: state.paymentMethod,
       };
 
@@ -419,22 +428,26 @@
         // A real order now exists — the saved draft has served its purpose.
         if (window.OrderDraft) OrderDraft.clear(service.id);
 
-        // ── BazaarPay Direct Pay ──
+        // ── BazaarPay gateway (checkout redirect + optional direct pay) ──
         if (state.paymentMethod === 'bazaarpay') {
           sheet.close();
           try {
-            const r = await api.payOrderDirect(order.id);
+            const r = await api.payOrderWithBazaarPay(order.id);
             if (r.status === 'paid') {
-              UI.toast('پرداخت مستقیم با بازارپی انجام شد و سفارش به صف کار اضافه شد.', 'success');
+              UI.toast('پرداخت با بازارپی انجام شد و سفارش به صف کار اضافه شد.', 'success');
             } else if (r.status === 'contract_pending') {
-              // First use: the user must sign the contract on BazaarPay; the
-              // callback finishes the payment automatically after signing.
+              // First use of direct pay: the user must sign the contract on
+              // BazaarPay; the callback finishes the payment after signing.
               UI.toast('برای فعال‌سازی پرداخت مستقیم، قرارداد را در بازارپی تایید کنید.', 'info');
               Screens.openPaymentRedirect({ gateway: 'bazaarpay', redirectUrl: r.contractRedirectUrl });
+            } else if (r.status === 'redirect') {
+              // Standard checkout: pay on the BazaarPay gateway page like a
+              // wallet top-up; the /verify callback fulfils the order.
+              Screens.openPaymentRedirect({ gateway: 'bazaarpay', redirectUrl: r.redirectUrl });
             } else if (r.status === 'pending') {
               UI.toast(r.message || 'پرداخت در حال بررسی است؛ وضعیت سفارش به‌صورت خودکار به‌روز می‌شود.', 'info');
             } else {
-              UI.toast(r.error || 'پرداخت مستقیم ناموفق بود — از صفحه سفارش دوباره تلاش کنید.', 'error');
+              UI.toast(r.error || 'پرداخت ناموفق بود — از صفحه سفارش دوباره تلاش کنید.', 'error');
             }
           } catch (e) {
             UI.toast(e.message + ' — می‌توانید از صفحه سفارش‌ها دوباره تلاش کنید.', 'error');

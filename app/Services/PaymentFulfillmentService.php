@@ -60,8 +60,10 @@ class PaymentFulfillmentService
                     ]);
                     OrderLog::create([
                         'order_id' => $order->id,
+                        // Covers both BazaarPay flows (checkout redirect and
+                        // silent direct pay) — the recorded method is the same.
                         'action' => $paymentMethod === 'bazaarpay'
-                            ? 'پرداخت مستقیم با بازارپی با موفقیت انجام شد'
+                            ? 'پرداخت با درگاه بازارپی با موفقیت انجام شد'
                             : 'پرداخت آنلاین با موفقیت انجام شد',
                         'performed_by' => $order->customer_name,
                         'timestamp' => $now,

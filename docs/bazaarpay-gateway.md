@@ -8,7 +8,8 @@
 | جریان | مستند | کاربرد | وضعیت کاربر |
 |---|---|---|---|
 | **شارژ کیف پول** (Checkout) | [payment.md](https://github.com/BazaarPay/Docs/blob/main/fa/payment.md) | شارژ کیف پول با هر مبلغی | انتقال به درگاه بازارپی و پرداخت با کیف پول/کارت بانکی |
-| **پرداخت مستقیم** (Direct Pay / دایرکت‌پی) | [direct-pay.md](https://github.com/BazaarPay/Docs/blob/main/fa/direct-pay.md) | پرداخت خودکار سفارش‌ها بدون شارژ کیف پول | فقط بار اول: امضای قرارداد؛ دفعات بعد کاملاً خودکار |
+| **پرداخت سفارش از درگاه** (Checkout) | [payment.md](https://github.com/BazaarPay/Docs/blob/main/fa/payment.md) | پرداخت سفارش بدون شارژ کیف پول | همان انتقال به درگاه؛ سفارش پس از بازگشت خودکار ثبت می‌شود |
+| **پرداخت مستقیم** (Direct Pay / دایرکت‌پی) | [direct-pay.md](https://github.com/BazaarPay/Docs/blob/main/fa/direct-pay.md) | پرداخت خودکار سفارش‌ها بدون خروج از برنامه | فقط بار اول: امضای قرارداد؛ دفعات بعد کاملاً خودکار |
 
 ## ۱. شارژ کیف پول (Checkout)
 
@@ -40,9 +41,34 @@
   سیستمی خودترمیم.
 - مبالغ سامانه تومان است و بازارپی ریال؛ تبدیل با `bazaarPayRialRate` (پیش‌فرض ۱۰).
 
+## ۱-۲. پرداخت سفارش از درگاه (Checkout برای سفارش)
+
+مشتری در فرم سفارش بین «کیف پول برنامه» و «درگاه پرداخت» انتخاب می‌کند. با گزینه
+«درگاه پرداخت»:
+
+1. سفارش با `paymentMethod=bazaarpay` ساخته می‌شود (بدون گارد موجودی — پول از
+   درگاه می‌آید، نه کیف پول برنامه).
+2. کلاینت `POST /api/orders/{id}/pay-bazaarpay` را صدا می‌زند؛ سرور با منطق
+   هوشمند تصمیم می‌گیرد:
+   - **قرارداد دایرکت‌پی فعال** → پرداخت سرور-به-سرور، پاسخ `paid` (بدون ریدایرکت).
+   - **دایرکت‌پی فعال ولی قرارداد ندارد** → پاسخ `contract_pending` + صفحه امضا.
+   - **دایرکت‌پی خاموش، یا قرارداد قابل ساخت نیست** (مثلاً «Contract type not
+     found» برای مرچنت غیرفعال‌شده) → پاسخ `redirect`: ردیف پرداخت
+     `purpose=order` به سفارش لینک می‌شود و `redirectUrl` صفحه پرداخت بازارپی
+     برگردانده می‌شود — دقیقاً مثل شارژ کیف پول.
+3. پس از پرداخت، همان callback `/verify` سفارش را `submitted` می‌کند
+   (`PaymentFulfillmentService::apply` هدف پرداخت را تشخیص می‌دهد) و `status`
+   هم `orderId` را برمی‌گرداند تا کلاینت کاربر را به رهگیر سفارش ببرد.
+
+نکته: سفارش‌های `pending_payment` بعد از ۳۰ دقیقه به `failed` می‌روند؛ اگر
+کاربر دیرتر از درگاه برگردد و پرداختش موفق باشد، همان callback سفارش را زنده
+و `submitted` می‌کند (گارد `paid_amount=0`).
+
 ## ۲. پرداخت مستقیم سفارش (Direct Pay)
 
-- کاربر در فرم سفارش یا رهگیر سفارش، «پرداخت مستقیم با بازارپی» را انتخاب می‌کند.
+- امروزه به‌صورت یک بهینه‌سازی داخل گزینه «درگاه پرداخت» حل می‌شود (بخش ۱-۲)؛
+  اگر قرارداد فعال باشد پرداخت بی‌صدا انجام می‌شود وگرنه به checkout ریدایرکت
+  فالبک می‌شود.
 - سرور قرارداد فعال کاربر را چک می‌کند:
   - **قرارداد فعال موجود:** `checkout/init` + `POST /direct-pay` + `commit` در یک
     درخواست اجرا و سفارش ثبت می‌شود — بدون هیچ ریدایرکتی.
@@ -91,20 +117,20 @@
 | فایل | نقش |
 |---|---|
 | `app/Services/BazaarPayService.php` | کلاینت API بازارپی (checkout/trace/commit/refund + contract/trace/pay/payable) |
-| `app/Http/Controllers/Api/PaymentController.php` | `request` (شارژ)، `verify`، `status`، `requestDirectOrder`، `contractCallback` |
+| `app/Http/Controllers/Api/PaymentController.php` | `request` (شارژ)، `verify`، `status`، `payBazaarPay`، `contractCallback` |
 | `app/Models/BazaarPayContract.php` | مدل قرارداد دایرکت‌پی |
 | `database/migrations/2026_10_16_000001_create_bazaarpay_contracts_table.php` | جدول قراردادها |
 | `database/migrations/2026_10_16_000002_add_contract_token_to_payments_table.php` | ستون `payments.contract_token` |
 | `public/js/screens/wallet.js` | UI شارژ کیف پول (بازارپی = مبلغ دلخواه مجاز) |
 | `public/js/screens/order-form.js` | انتخاب روش پرداخت سفارش |
-| `public/js/screens/order-tracker.js` | پرداخت مجدد (کیف پول / مستقیم) |
+| `public/js/screens/order-tracker.js` | پرداخت مجدد (کیف پول / درگاه بازارپی) |
 | `public/js/screens/admin-manage.js` | تب «بازارپی» در تنظیمات سیستمی |
 
 ## ۵. API های جدید
 
 | متد | مسیر | توضیح |
 |---|---|---|
-| POST | `/api/orders/{id}/pay-bazaarpay` | پرداخت مستقیم سفارش (اتنتیک‌شده) |
+| POST | `/api/orders/{id}/pay-bazaarpay` | پرداخت سفارش با بازارپی — پاسخ‌ها: `paid` / `pending` / `contract_pending` / `redirect` (اتنتیک‌شده) |
 | GET | `/api/payments/bazaarpay/contract` | بازگشت از صفحه امضای قرارداد (عمومی، توکن در URL) |
 | GET | `/api/settings` | شامل `bazaarPay` (بدون توکن مرچنت) |
 

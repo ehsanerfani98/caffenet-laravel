@@ -305,15 +305,23 @@
               .then(() => st);
           })
           .then((st) => {
+            // An ORDER payment (BazaarPay checkout) returned: the tracker is
+            // the meaningful landing spot — the draft was already consumed
+            // when the order was created, so there is nothing to resume.
+            const isOrder = st.purpose === 'order' && st.orderId;
             if (st.status === 'paid') {
-              UI.toast('پرداخت با موفقیت انجام شد.', 'success');
+              UI.toast(isOrder ? 'پرداخت سفارش با موفقیت انجام شد و به صف کار اضافه شد.' : 'پرداخت با موفقیت انجام شد.', 'success');
+              if (isOrder) Screens.openOrderTracker(st.orderId);
               // The top-up succeeded → reopen the order form that led the
               // customer here, with everything they had filled restored.
-              this.resumeOrderDraft();
+              else this.resumeOrderDraft();
             } else if (st.status === 'pending') {
               UI.toast('پرداخت در حال بررسی است.', 'info');
+              if (isOrder) Screens.openOrderTracker(st.orderId);
             } else {
               UI.toast('پرداخت ناموفق بود.', 'error');
+              // Failed order payment → the tracker offers the retry buttons.
+              if (isOrder) Screens.openOrderTracker(st.orderId);
             }
           })
           .catch(() => UI.toast('بررسی وضعیت پرداخت ناموفق بود.', 'error'));

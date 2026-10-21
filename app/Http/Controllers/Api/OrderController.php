@@ -132,19 +132,21 @@ class OrderController extends Controller
         $payable = max(0, (int) $pricing['totalBeforeDiscount'] - $discount);
 
         // Payment method declared by the client: 'wallet' (default) or
-        // 'bazaarpay' (Direct Pay). Direct Pay is honored ONLY while the
-        // admin switch (bazaarPayEnabled + bazaarPayDirectEnabled) is on —
-        // a client sending bazaarpay while it is disabled silently falls
-        // back to wallet so the balance guard below still applies.
+        // 'bazaarpay' (the BazaarPay gateway — checkout redirect, upgraded to
+        // silent Direct Pay automatically when a contract is active). The
+        // intent is honored whenever the BazaarPay gateway itself is available
+        // (enabled + token, or test mode) — a client sending bazaarpay while
+        // the whole gateway is disabled silently falls back to wallet so the
+        // balance guard below still applies.
         $bpCfg = \App\Services\SettingsService::bazaarPaySettings();
-        $paymentMethod = (($body['paymentMethod'] ?? null) === 'bazaarpay' && $bpCfg['directEnabled'])
+        $paymentMethod = (($body['paymentMethod'] ?? null) === 'bazaarpay' && $bpCfg['available'])
             ? 'bazaarpay'
             : 'wallet';
 
         // Wallet payments require sufficient balance up-front — never persist
         // an order the customer cannot pay for; the client shows a shortage
-        // warning and sends the user to top up instead. BazaarPay Direct Pay
-        // has no such requirement (money comes from the user's Bazaar
+        // warning and sends the user to top up instead. BazaarPay has no such
+        // requirement (money comes from the gateway page or the user's Bazaar
         // wallet/bank account), so the balance check is skipped for it.
         if ($paymentMethod === 'wallet') {
             $freshUser = User::find($user->id);

@@ -88,8 +88,9 @@ Route::middleware('auth.session')->group(function () {
 Route::middleware('auth.session')->group(function () {
     Route::post('/payments/request', [PaymentController::class, 'request']);
     Route::get('/payments/status', [PaymentController::class, 'status']);
-    // BazaarPay Direct Pay (دایرکت‌پی) — automatic order payment.
-    Route::post('/orders/{id}/pay-bazaarpay', [PaymentController::class, 'requestDirectOrder']);
+    // BazaarPay (بازارپی) — order payment with smart resolution:
+    // active contract → silent direct pay; otherwise checkout redirect.
+    Route::post('/orders/{id}/pay-bazaarpay', [PaymentController::class, 'payBazaarPay']);
 });
 Route::get('/payments/verify', [PaymentController::class, 'verify']); // gateway callback
 Route::get('/payments/bazaarpay/contract', [PaymentController::class, 'contractCallback']); // direct-pay contract return

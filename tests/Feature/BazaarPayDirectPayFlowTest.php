@@ -107,11 +107,33 @@ class BazaarPayDirectPayFlowTest extends TestCase
         $this->assertSame(Order::STATUS_PENDING_PAYMENT, $order->status);
     }
 
-    public function test_bazaarpay_intent_falls_back_to_wallet_guard_when_direct_pay_disabled(): void
+    public function test_bazaarpay_intent_is_honored_while_gateway_on_even_if_direct_pay_off(): void
     {
+        // The gateway (checkout redirect) alone is enough: direct pay is only
+        // an optimization, so the intent must still skip the wallet guard.
         SettingsService::set('bazaarPayDirectEnabled', '0');
 
-        // bazaarpay intent is ignored → wallet rules apply → zero balance blocks.
+        $resp = $this->actingAs($this->customer())
+            ->postJson('/api/orders', [
+                'serviceId' => 'srv-test',
+                'formData' => [],
+                'urgency' => 'normal',
+                'deliveryMethod' => 'download',
+                'contactMethods' => ['app_chat'],
+                'paymentMethod' => 'bazaarpay',
+            ])
+            ->assertStatus(201);
+
+        $order = Order::find($resp->json('id'));
+        $this->assertSame('bazaarpay', $order->payment_method);
+    }
+
+    public function test_bazaarpay_intent_falls_back_to_wallet_guard_when_gateway_disabled(): void
+    {
+        // Whole BazaarPay gateway off → bazaarpay intent is ignored → wallet
+        // rules apply → zero balance blocks.
+        SettingsService::set('bazaarPayEnabled', '0');
+
         $this->actingAs($this->customer())
             ->postJson('/api/orders', [
                 'serviceId' => 'srv-test',

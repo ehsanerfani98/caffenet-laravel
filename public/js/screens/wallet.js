@@ -182,12 +182,15 @@
    * when the wallet cannot cover a service payment; it explains the shortfall
    * and guides the customer to the wallet page to top up. When the caller has
    * saved an order draft first (order-form.js → OrderDraft), the customer is
-   * told the form will be restored automatically after the top-up. */
+   * told the form will be restored automatically after the top-up. When the
+   * BazaarPay gateway is available, the customer is also reminded they can pay
+   * the order directly from the gateway instead of topping up. */
   Screens.openWalletShortage = function (required, balance, opts) {
     opts = opts || {};
     const need = Number(required || 0);
     const have = Number(balance || 0);
     const shortfall = Math.max(0, need - have);
+    const gatewayAvailable = !!(api.state.settings && api.state.settings.bazaarPay && api.state.settings.bazaarPay.available);
 
     const sheet = UI.sheet({
       title: 'موجودی کیف پول کافی نیست',
@@ -205,7 +208,10 @@
         '<div class="ps-row"><span>مبلغ قابل پرداخت</span><span>' + PU.formatToman(need) + '</span></div>' +
         '<div class="ps-row"><span>موجودی فعلی کیف پول</span><span>' + PU.formatToman(have) + '</span></div>' +
         '<div class="ps-row total"><span>مبلغ کسری</span><span class="val">' + PU.formatToman(shortfall) + '</span></div>' +
-      '</div>'
+      '</div>' +
+      (gatewayAvailable
+        ? '<div class="info-box" style="margin-top:12px">' + icon('zap', 'i-sm') + ' راه دیگر: به فرم سفارش برگردید و روش «<b>درگاه پرداخت</b>» را انتخاب کنید تا بدون شارژ کیف پول، مستقیم در صفحه بازارپی پرداخت کنید.</div>'
+        : '')
     );
 
     sheet.footer.html('<button class="btn emerald block" id="go-wallet">' + icon('plus') + 'شارژ کیف پول</button>');
