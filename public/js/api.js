@@ -370,10 +370,26 @@
 
     /* ---------------- settings / sms ---------------- */
 
-    async saveSettings(fields) { return this.request('PUT', '/api/settings', fields); }
+    async saveSettings(fields) {
+      const r = await this.request('PUT', '/api/settings', fields);
+      // Mutate-then-sync — the same contract as saveCategory/saveService.
+      // Without this re-fetch the running client kept serving the PRE-save
+      // values from state.settings: reopening «تنظیمات کسب‌وکار» showed the
+      // old values (it reads the cached state), and worse, the order form's
+      // Direct-Pay gate (bazaarPay.directEnabled) and the wallet page's
+      // gateway choice (bazaarPay.enabled) stayed stale for the whole
+      // session — settings LOOKED unsaved even though the DB had them.
+      await this.syncWithBackend();
+      return r;
+    }
     async fetchSystemSettings() { return this.request('GET', '/api/settings/system'); }
     async updateSystemSettings(settings) {
-      return this.request('PUT', '/api/settings/system', { settings });
+      const r = await this.request('PUT', '/api/settings/system', { settings });
+      // Same mutate-then-sync contract: /api/settings exposes the BazaarPay
+      // snapshot (enabled / directEnabled / type …), so the order form must
+      // see the new gateway state the moment the admin saves it.
+      await this.syncWithBackend();
+      return r;
     }
     async getSmsInbox() { return this.request('GET', '/api/sms'); }
     async deleteSmsLog(id) { return this.request('DELETE', '/api/sms/' + id); }

@@ -159,10 +159,10 @@
       '<label class="field-label">ضریب سفارش آنی</label><input class="input" id="s-immediate" value="' + (s.immediatePriceMultiplier || 1.6) + '">' +
       '<label class="field-label">هزینه پیک (تومان)</label><input class="input" id="s-courier" inputmode="numeric" value="' + (s.courierCost || 35000) + '">' +
       '<div class="section-title">' + icon('wallet') + 'مبالغ آماده شارژ کیف پول</div>' +
-      '<div class="help-text" style="margin:0 2px 8px">برای هر مبلغ، شناسه (SKU) متناظر کافه‌بازار را وارد کنید؛ قیمت همان SKU در پنل کافه‌بازار باید با این مبلغ برابر باشد. داخل اپ کافه‌بازار فقط همین بسته‌ها قابل پرداخت‌اند.</div>' +
+      '<div class="help-text" style="margin:0 2px 8px">با درگاه بازارپی، شارژ با <b>هر مبلغی</b> مستقیم از درگاه انجام می‌شود و به SKU نیازی نیست — فیلد SKU را می‌توانید خالی بگذارید. SKU فقط برای حالت قدیمی پرداخت داخل اپ کافه‌بازار (IAP از طریق deep-link) کاربرد دارد که فقط زمانی استفاده می‌شود که بازارپی فعال نباشد.</div>' +
       '<div id="s-presets">' + presetRowsHtml(s.walletTopUpPresets) + '</div>' +
       '<button type="button" class="btn ghost block sm" id="s-add-preset" style="margin-top:8px">' + icon('plus') + 'افزودن مبلغ</button>' +
-      '<div class="info-box" style="margin:12px 2px">پرداخت خدمات همیشه از طریق <b>کیف پول</b> انجام می‌شود و فعال است.</div>' +
+      '<div class="info-box" style="margin:12px 2px">پرداخت خدمات از طریق <b>کیف پول</b> انجام می‌شود و همیشه فعال است. اگر «پرداخت مستقیم سفارش (دایرکت‌پی)» در تنظیمات سیستمی ← بازارپی فعال باشد، مشتری در فرم سفارش می‌تواند پرداخت مستقیم بازارپی را انتخاب کند و بدون شارژ کیف پول، سفارش او پرداخت می‌شود.</div>' +
       '<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;font-weight:600;margin:12px 2px">' +
       '<input type="checkbox" id="s-coupons"' + (s.enableCoupons !== false ? ' checked' : '') + '> کدهای تخفیف فعال باشند</label>' +
       '<div class="section-title">' + icon('shield') + 'قوانین و حریم خصوصی</div>' +
