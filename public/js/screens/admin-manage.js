@@ -419,11 +419,15 @@
 
       // Show/hide FCM fields based on the master toggle.
       function updateFcmVisibility() {
-        sheet.body.find('#fcm-fields').toggle(on('fcmEnabled'));
+        // Read the LIVE checkbox — switchRow renders data-set (never
+        // data-key), and on() only reflects the loaded values.
+        const $switch = sheet.body.find('[data-set="fcmEnabled"]');
+        const enabled = $switch.length ? $switch.is(':checked') : on('fcmEnabled');
+        sheet.body.find('#fcm-fields').toggle(enabled);
       }
       updateFcmVisibility();
       // Re-run when the toggle changes — listen on any change inside the sheet.
-      sheet.body.on('change', '[data-key="fcmEnabled"]', updateFcmVisibility);
+      sheet.body.on('change', '[data-set="fcmEnabled"]', updateFcmVisibility);
 
       // "تست ارسال پوش" button → POST /api/fcm/test
       sheet.body.find('#fcm-test-btn').on('click', async function () {
@@ -532,10 +536,14 @@
 
       // Show/hide Direct Pay contract fields with their master toggle.
       function updateDirectPayVisibility() {
-        sheet.body.find('#bazaarpay-direct-fields').toggle(on('bazaarPayDirectEnabled'));
+        // Read the LIVE checkbox — on() only reflects the values the sheet
+        // was loaded with, so the fields would never react to the switch.
+        const $switch = sheet.body.find('[data-set="bazaarPayDirectEnabled"]');
+        const enabled = $switch.length ? $switch.is(':checked') : on('bazaarPayDirectEnabled');
+        sheet.body.find('#bazaarpay-direct-fields').toggle(enabled);
       }
       updateDirectPayVisibility();
-      sheet.body.on('change', '[data-key="bazaarPayDirectEnabled"], [data-set="bazaarPayDirectEnabled"]', updateDirectPayVisibility);
+      sheet.body.on('change', '[data-set="bazaarPayDirectEnabled"]', updateDirectPayVisibility);
 
       sheet.body.find('[data-set="smsEnabled"]').on('change', refreshSmsFields);
 
@@ -623,6 +631,12 @@
         payload.paymentSandbox = (payload.paymentEnabled === '1' && state.paymentMode !== 'real') ? '1' : '0';
         payload.paymentTestMode = '0';
         payload.paymentCurrency = state.currency;
+        /* Direct-Pay contract selectors are segmented controls (data-mode),
+           NOT [data-set] inputs — mirror them from state or they never reach
+           the server and the DB silently keeps the defaults (wallet/monthly).
+           Same pattern as paymentCurrency above. */
+        payload.bazaarPayDirectType = state.directType;
+        payload.bazaarPayDirectPeriod = state.directPeriod;
         payload.bazaarTestMode = (payload.bazaarEnabled === '1' && state.paymentMode === 'test') ? '1' : '0';
         payload.smsTestMode = state.smsSim ? '1' : '0';
 

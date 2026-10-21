@@ -384,6 +384,9 @@
         contactMethods: state.contactMethods,
         customerFiles: state.files,
         couponCode: state.couponCode || undefined,
+        // Payment intent — the server only skips its wallet-balance guard for
+        // 'bazaarpay' when Direct Pay is actually enabled in the settings.
+        paymentMethod: state.paymentMethod,
       };
 
       const $btn = $(this).prop('disabled', true);

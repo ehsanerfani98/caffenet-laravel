@@ -129,24 +129,39 @@ class OrderController extends Controller
             }
         }
 
-        // Services are paid from the wallet only. Guard at creation time so an
-        // order is NEVER persisted when the customer cannot pay for it — the
-        // client shows a shortage warning and sends the user to top up instead.
         $payable = max(0, (int) $pricing['totalBeforeDiscount'] - $discount);
-        $freshUser = User::find($user->id);
-        $balance = (int) ($freshUser->wallet_balance ?? 0);
-        if ($balance < $payable) {
-            return response()->json([
-                'error' => 'موجودی کیف پول کافی نیست؛ لطفاً ابتدا کیف پول خود را شارژ کنید.',
-                'code' => 'INSUFFICIENT_WALLET',
-                'required' => $payable,
-                'balance' => $balance,
-                'shortfall' => max(0, $payable - $balance),
-            ], 400);
+
+        // Payment method declared by the client: 'wallet' (default) or
+        // 'bazaarpay' (Direct Pay). Direct Pay is honored ONLY while the
+        // admin switch (bazaarPayEnabled + bazaarPayDirectEnabled) is on —
+        // a client sending bazaarpay while it is disabled silently falls
+        // back to wallet so the balance guard below still applies.
+        $bpCfg = \App\Services\SettingsService::bazaarPaySettings();
+        $paymentMethod = (($body['paymentMethod'] ?? null) === 'bazaarpay' && $bpCfg['directEnabled'])
+            ? 'bazaarpay'
+            : 'wallet';
+
+        // Wallet payments require sufficient balance up-front — never persist
+        // an order the customer cannot pay for; the client shows a shortage
+        // warning and sends the user to top up instead. BazaarPay Direct Pay
+        // has no such requirement (money comes from the user's Bazaar
+        // wallet/bank account), so the balance check is skipped for it.
+        if ($paymentMethod === 'wallet') {
+            $freshUser = User::find($user->id);
+            $balance = (int) ($freshUser->wallet_balance ?? 0);
+            if ($balance < $payable) {
+                return response()->json([
+                    'error' => 'موجودی کیف پول کافی نیست؛ لطفاً ابتدا کیف پول خود را شارژ کنید.',
+                    'code' => 'INSUFFICIENT_WALLET',
+                    'required' => $payable,
+                    'balance' => $balance,
+                    'shortfall' => max(0, $payable - $balance),
+                ], 400);
+            }
         }
 
         $order = null;
-        DB::transaction(function () use (&$order, $user, $service, $body, $formData, $contactMethods, $urgency, $deliveryMethod, $pricing, $discount, $appliedCoupon) {
+        DB::transaction(function () use (&$order, $user, $service, $body, $formData, $contactMethods, $urgency, $deliveryMethod, $pricing, $discount, $appliedCoupon, $paymentMethod) {
             // Smart queue: classify the order type from the service's
             // estimated_time text (or honor an explicit client override).
             $classifier = app(\App\Services\Queue\OrderTypeClassifierService::class);
@@ -178,7 +193,10 @@ class OrderController extends Controller
                 'total_price' => $pricing['totalBeforeDiscount'],
                 'discount_amount' => $discount,
                 'paid_amount' => 0,
-                'payment_method' => 'wallet',
+                // Payment INTENT at creation ('wallet' | 'bazaarpay'); the
+                // final method is recorded on the order row by
+                // PaymentFulfillmentService once the payment verifies.
+                'payment_method' => $paymentMethod,
                 'payment_tracking_code' => '',
                 'customer_note' => isset($body['customerNote']) ? (string) $body['customerNote'] : null,
                 'contact_methods_json' => json_encode($contactMethods, JSON_UNESCAPED_UNICODE),
