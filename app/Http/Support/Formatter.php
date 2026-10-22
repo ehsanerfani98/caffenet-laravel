@@ -31,6 +31,7 @@ class Formatter
             'id' => $row->id,
             'categoryId' => $row->category_id,
             'title' => $row->title,
+            'slug' => (string) ($row->slug ?? ''),
             'description' => (string) ($row->description ?? ''),
             'basePrice' => (int) $row->base_price,
             'estimatedTime' => (string) ($row->estimated_time ?? ''),

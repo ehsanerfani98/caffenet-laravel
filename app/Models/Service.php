@@ -9,7 +9,7 @@ class Service extends CaffenetModel
     protected $table = 'services';
 
     protected $fillable = [
-        'id', 'category_id', 'title', 'description', 'base_price', 'estimated_time',
+        'id', 'category_id', 'title', 'slug', 'description', 'base_price', 'estimated_time',
         'icon', 'icon_color', 'sort_order', 'is_active', 'is_featured', 'featured_sort',
         'fields_json', 'pricing_formula',
     ];

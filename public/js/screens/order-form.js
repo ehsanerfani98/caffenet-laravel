@@ -68,6 +68,9 @@
     return html;
   }
 
+  /* Sheet entry — guards + popup shell. The form itself lives in
+   * mountOrderForm so the dedicated service page (#/service/{slug}) can host
+   * the identical form without a popup. */
   Screens.openOrderForm = function (service) {
     const user = api.state.currentUser;
     if (!user) { Screens.openAuth(); return; }
@@ -77,6 +80,22 @@
       UI.toast('ثبت سفارش تنها با حساب مشتری امکان‌پذیر است.', 'warning');
       return;
     }
+    const popup = UI.sheet({
+      title: 'ثبت سفارش',
+      subtitle: service.title,
+      icon: 'receipt',
+      tone: 'emerald',
+      size: 'tall',
+    });
+    Screens.mountOrderForm(service, { body: popup.body, footer: popup.footer, close: function () { popup.close(); } });
+  };
+
+  /* Mounts the full order form (fields, files, coupon, pricing, submit flow)
+   * into any host exposing {body, footer, close} — the bottom sheet above or
+   * the dedicated service page. close() runs after a real order was created,
+   * right before the tracker / acknowledgment popup opens. */
+  Screens.mountOrderForm = function (service, host) {
+    const user = api.state.currentUser;
 
     const settings = api.state.settings || {};
     // BazaarPay gateway (بازارپی) — when available the footer shows two
@@ -143,18 +162,10 @@
       state.urgency = 'normal';
     }
 
-    const sheet = UI.sheet({
-      title: 'ثبت سفارش',
-      subtitle: service.title,
-      icon: 'receipt',
-      tone: 'emerald',
-      size: 'tall',
-    });
-
     function renderForm() {
       const couponsEnabled = settings.enableCoupons !== false;
 
-      sheet.body.html(
+      host.body.html(
         /* service dynamic fields */
         '<div class="form-fields">' +
           service.fields.map((f) => fieldInput(f, state.formData[f.id])).join('') +
@@ -205,7 +216,7 @@
     }
 
     function renderFiles() {
-      const $list = sheet.body.find('#files-list');
+      const $list = host.body.find('#files-list');
       $list.html(state.files.map((f) =>
         '<div class="file-chip"><div class="fc-icon">' + icon('file') + '</div>' +
         '<div class="fc-main"><div class="fc-name">' + PU.escapeHtml(f.name) + '</div>' +
@@ -240,7 +251,7 @@
       // حالت «ثبت درخواست»: هیچ قیمتی نمایش داده نمی‌شود — مبلغ بعداً با مدیر توافق می‌شود
       if (paymentsDisabled) return;
       const p = livePricing();
-      sheet.body.find('#price-summary').html(
+      host.body.find('#price-summary').html(
         '<div class="price-summary">' +
           '<div class="ps-row"><span>جمع خدمات</span><span>' + PU.formatToman(p.subtotal) + '</span></div>' +
           (p.urgencyMultiplier > 1 ? '<div class="ps-row"><span>ضریب فوریت</span><span>×' + PU.toPersianDigits(p.urgencyMultiplier) + '</span></div>' : '') +
@@ -252,7 +263,7 @@
 
     /* ---- events (delegated on sheet body) ---- */
 
-    sheet.body.on('input change', '[data-field]', function () {
+    host.body.on('input change', '[data-field]', function () {
       const id = $(this).data('field');
       const field = service.fields.find((f) => f.id === id);
       if (field && field.type === 'checkbox') state.formData[id] = this.checked;
@@ -261,22 +272,22 @@
       renderPrice();
     });
 
-    sheet.body.on('click', '[data-field-radio]', function () {
+    host.body.on('click', '[data-field-radio]', function () {
       const id = $(this).data('field-radio');
       state.formData[id] = $(this).data('value');
-      sheet.body.find('[data-field-radio="' + id + '"]').removeClass('sel');
+      host.body.find('[data-field-radio="' + id + '"]').removeClass('sel');
       $(this).addClass('sel');
       renderPrice();
     });
 
-    sheet.body.on('click', '[data-urgency]', function () {
+    host.body.on('click', '[data-urgency]', function () {
       state.urgency = $(this).data('urgency');
-      sheet.body.find('[data-urgency]').removeClass('on');
+      host.body.find('[data-urgency]').removeClass('on');
       $(this).addClass('on');
       renderPrice();
     });
 
-    sheet.body.on('click', '[data-contact]', function () {
+    host.body.on('click', '[data-contact]', function () {
       const key = $(this).data('contact');
       const idx = state.contactMethods.indexOf(key);
       if (idx === -1) state.contactMethods.push(key);
@@ -284,9 +295,9 @@
       $(this).toggleClass('active', state.contactMethods.includes(key));
     });
 
-    sheet.body.on('click', '#add-file', () => sheet.body.find('#file-input').trigger('click'));
+    host.body.on('click', '#add-file', () => host.body.find('#file-input').trigger('click'));
 
-    sheet.body.on('change', '#file-input', async function () {
+    host.body.on('change', '#file-input', async function () {
       const files = Array.from(this.files || []);
       for (const file of files) {
         if (file.size > MAX_FILE_MB * 1024 * 1024) {
@@ -307,7 +318,7 @@
       $(this).val('');
     });
 
-    sheet.body.on('click', '#apply-coupon', async function () {
+    host.body.on('click', '#apply-coupon', async function () {
       const code = ($('#coupon-code').val() || '').trim();
       const p = Pricing.calculate({
         service, formData: state.formData, urgency: state.urgency, deliveryMethod: state.deliveryMethod,
@@ -320,17 +331,17 @@
         state.couponCode = code;
         state.couponDiscount = r.discount;
         state.couponError = null;
-        sheet.body.find('#coupon-msg').html('<div class="info-box" style="margin-top:8px;color:var(--emerald);background:var(--emerald-soft)">کد تخفیف اعمال شد: ' + PU.formatToman(r.discount) + ' تخفیف</div>');
+        host.body.find('#coupon-msg').html('<div class="info-box" style="margin-top:8px;color:var(--emerald);background:var(--emerald-soft)">کد تخفیف اعمال شد: ' + PU.formatToman(r.discount) + ' تخفیف</div>');
       } catch (e) {
         state.couponCode = '';
         state.couponDiscount = 0;
-        sheet.body.find('#coupon-msg').html('<div class="warn-box" style="margin-top:8px">' + PU.escapeHtml(e.message) + '</div>');
+        host.body.find('#coupon-msg').html('<div class="warn-box" style="margin-top:8px">' + PU.escapeHtml(e.message) + '</div>');
       }
       renderPrice();
     });
 
     /* ---- footer: pay buttons — or a single «ثبت درخواست» in no-payment mode ---- */
-    sheet.footer.html(paymentsDisabled ?
+    host.footer.html(paymentsDisabled ?
       '<button class="btn emerald block" id="order-submit-request">' + icon('check') + 'ثبت درخواست</button>'
       :
       (bazaarPayAvailable ?
@@ -339,7 +350,7 @@
         :
         '<button class="btn emerald block" id="order-pay-wallet">' + icon('check') + 'ثبت و پرداخت از کیف پول</button>'));
 
-    const $footerButtons = sheet.footer.find('button');
+    const $footerButtons = host.footer.find('button');
 
     /* Acknowledgment popup for «ثبت درخواست» — centered modal with the
      * admin-configured notice text (orderRequestNotice) and a single
@@ -421,14 +432,14 @@
 
         // ── ثبت درخواست (payments disabled): no payment step — just acknowledge ──
         if (method === 'request') {
-          sheet.close();
+          host.close();
           openRequestConfirmation(order);
           return;
         }
 
         // ── BazaarPay gateway (checkout redirect + optional direct pay) ──
         if (method === 'bazaarpay') {
-          sheet.close();
+          host.close();
           try {
             const r = await api.payOrderWithBazaarPay(order.id);
             // Navigating outcomes: open the redirect interstitial and let the
@@ -468,19 +479,19 @@
         // ── Wallet payment ──
         try {
           await api.payOrderWithWallet(order.id);
-          sheet.close();
+          host.close();
           UI.toast('پرداخت از کیف پول انجام شد و سفارش به صف کار اضافه شد.', 'success');
           Screens.openOrderTracker(order.id);
         } catch (e) {
           if (e.code === 'INSUFFICIENT_WALLET') {
             // Rare race: the balance changed between the check and the debit.
-            sheet.close();
+            host.close();
             Screens.openWalletShortage(e.data && e.data.required, e.data && e.data.balance);
             Screens.openOrderTracker(order.id);
             return;
           }
           UI.toast(e.message + ' — می‌توانید از صفحه سفارش‌ها دوباره تلاش کنید.', 'error');
-          sheet.close();
+          host.close();
           Screens.openOrderTracker(order.id);
         }
       } catch (e) {
@@ -496,12 +507,12 @@
       }
     }
 
-    sheet.footer.find('#order-pay-wallet').on('click', function () { submitOrder('wallet'); });
-    sheet.footer.find('#order-pay-gateway').on('click', function () { submitOrder('bazaarpay'); });
-    sheet.footer.find('#order-submit-request').on('click', function () { submitOrder('request'); });
+    host.footer.find('#order-pay-wallet').on('click', function () { submitOrder('wallet'); });
+    host.footer.find('#order-pay-gateway').on('click', function () { submitOrder('bazaarpay'); });
+    host.footer.find('#order-submit-request').on('click', function () { submitOrder('request'); });
 
     // keep note in sync
-    sheet.body.on('input', '#customer-note', function () { state.customerNote = this.value; });
+    host.body.on('input', '#customer-note', function () { state.customerNote = this.value; });
 
     renderForm();
   };

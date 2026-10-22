@@ -199,6 +199,14 @@
     /* ---------------- screen titles ---------------- */
 
     screenTitles() {
+      // Service pages carry their own title — resolve the service from the
+      // slug segment so the app bar names the service being ordered.
+      if (this.screen.indexOf('service/') === 0) {
+        let slug = '';
+        try { slug = decodeURIComponent(this.screen.split('/')[1] || ''); } catch (e) { slug = this.screen.split('/')[1] || ''; }
+        const svc = (api.state.services || []).find((s) => (s.slug || '') === slug || String(s.id) === slug);
+        return svc ? { t1: svc.title, t2: 'ثبت سفارش' } : { t1: 'جزئیات خدمت', t2: 'ثبت سفارش' };
+      }
       const map = {
         home: { t1: 'کافی‌نت احسان', t2: 'خدمات آنلاین، سریع و مطمئن' },
         catalog: { t1: 'دسته‌بندی خدمات', t2: 'انتخاب خدمت مورد نظر' },
@@ -262,6 +270,12 @@
         html = window.Screens.adminUserTransactions(ctx);
       }
       else if (scr === 'terms') html = window.Screens.termsPage(ctx);
+      else if (scr.indexOf('service/') === 0) {
+        // Dynamic route: #/service/{slug} — the dedicated order page.
+        try { ctx.serviceSlug = decodeURIComponent(scr.split('/')[1] || ''); }
+        catch (e) { ctx.serviceSlug = scr.split('/')[1] || ''; }
+        html = window.Screens.serviceDetail(ctx);
+      }
       else html = UI.emptyState('صفحه یافت نشد', 'این مسیر در دسترس نیست', 'alert');
 
       $host.html('<div class="screen">' + html + '</div>');
@@ -271,6 +285,10 @@
       // through its fixed hook instead of the screenKey lookup.
       if (scr.indexOf('admin/user-transactions') === 0) {
         if (window.Screens.bind_admin_user_transactions) window.Screens.bind_admin_user_transactions($host, ctx);
+      } else if (scr.indexOf('service/') === 0) {
+        // Dynamic route — bind through the fixed hook (the slug suffix makes
+        // the screenKey lookup impossible).
+        if (window.Screens.bind_service_detail) window.Screens.bind_service_detail($host, ctx);
       } else {
         const name = this.screenKey(scr);
         if (window.Screens['bind_' + name]) window.Screens['bind_' + name]($host, ctx);

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Support\Formatter;
 use App\Models\Category;
 use App\Models\Service;
+use App\Services\SlugService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -98,6 +99,29 @@ class CatalogController extends Controller
         return response()->json($rows->map([Formatter::class, 'service'])->values()->all());
     }
 
+    /**
+     * Deep-link support for #/service/{slug} — resolves one service by its
+     * URL slug (active rows only, unless an admin asks). 404 JSON keeps the
+     * client's empty-state path simple.
+     */
+    public function serviceBySlug(Request $request, string $slug): JsonResponse
+    {
+        $user = $request->attributes->get('authUser'); // optional auth
+        $isAdmin = $user && $user->role === 'admin';
+
+        $query = Service::query()->where('slug', $slug);
+        if (! $isAdmin) {
+            $query->where('is_active', true);
+        }
+
+        $service = $query->first();
+        if (! $service) {
+            return response()->json(['error' => 'خدمت یافت نشد.'], 404);
+        }
+
+        return response()->json(Formatter::service($service));
+    }
+
     public function saveService(Request $request): JsonResponse
     {
         $body = (array) $request->json()->all();
@@ -159,6 +183,14 @@ class CatalogController extends Controller
             'fields_json' => json_encode($clean, JSON_UNESCAPED_UNICODE),
             'pricing_formula' => (string) ($body['pricingFormulaDescription'] ?? ''),
         ];
+
+        // URL slug (#/service/{slug}) — generated ONCE from the title and kept
+        // stable afterwards so shared links never break. New rows always get
+        // one; legacy rows created before the slug column get theirs on the
+        // first save after the migration.
+        if (! $service || trim((string) $service->slug) === '') {
+            $payload['slug'] = SlugService::uniqueFor($title, $service?->id);
+        }
 
         if ($service) {
             $service->update($payload);

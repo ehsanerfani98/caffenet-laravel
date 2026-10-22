@@ -36,6 +36,10 @@ class ArtisanRunnerController extends Controller
         'migrate:fresh' => ['command' => 'migrate:fresh', 'opts' => ['--force' => true]],
         'migrate:rollback' => ['command' => 'migrate:rollback', 'opts' => ['--force' => true]],
         'db:seed' => ['command' => 'db:seed', 'opts' => ['--force' => true]],
+        // Single-seeder alias — the plain db:seed above runs ALL seeders,
+        // while this one only backfills service slugs (ServiceSlugSeeder,
+        // idempotent). Added for the #/service/{slug} rollout on cPanel.
+        'db:seed:slugs' => ['command' => 'db:seed', 'opts' => ['--force' => true, '--class' => 'ServiceSlugSeeder']],
         'cache:clear' => ['command' => 'cache:clear', 'opts' => []],
         'config:cache' => ['command' => 'config:cache', 'opts' => []],
         'config:clear' => ['command' => 'config:clear', 'opts' => []],

@@ -73,6 +73,7 @@
     <script defer src="/js/screens/terms.js?v={{ filemtime(public_path('js/screens/terms.js')) }}"></script>
     <script defer src="/js/screens/landing.js?v={{ filemtime(public_path('js/screens/landing.js')) }}"></script>
     <script defer src="/js/screens/order-form.js?v={{ filemtime(public_path('js/screens/order-form.js')) }}"></script>
+    <script defer src="/js/screens/service-page.js?v={{ filemtime(public_path('js/screens/service-page.js')) }}"></script>
     <script defer src="/js/screens/order-tracker.js?v={{ filemtime(public_path('js/screens/order-tracker.js')) }}"></script>
     <script defer src="/js/screens/wallet.js?v={{ filemtime(public_path('js/screens/wallet.js')) }}"></script>
     <script defer src="/js/screens/payment.js?v={{ filemtime(public_path('js/screens/payment.js')) }}"></script>

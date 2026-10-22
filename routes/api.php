@@ -48,6 +48,8 @@ Route::get('/auth/me', [AuthController::class, 'me'])->middleware('auth.session'
 // ---------------- Catalog (public reads, guarded writes) ----------------
 Route::middleware('auth.optional')->get('/categories', [CatalogController::class, 'categories']);
 Route::middleware('auth.optional')->get('/services', [CatalogController::class, 'services']);
+// Deep-link support for the dedicated order page (#/service/{slug}).
+Route::middleware('auth.optional')->get('/services/slug/{slug}', [CatalogController::class, 'serviceBySlug']);
 
 Route::middleware(['auth.session', 'permission:services.create|services.edit|services.manage'])->group(function () {
     Route::post('/categories', [CatalogController::class, 'saveCategory']);

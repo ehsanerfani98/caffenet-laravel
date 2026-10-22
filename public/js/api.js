@@ -224,6 +224,12 @@
       return r;
     }
 
+    // Deep-link support for #/service/{slug} — cold links land before/without
+    // a state sync, so the page resolves the service straight from the API.
+    async getServiceBySlug(slug) {
+      return this.request('GET', '/api/services/slug/' + encodeURIComponent(slug));
+    }
+
     /* ---------------- orders ---------------- */
 
     async fetchOrderById(id) {

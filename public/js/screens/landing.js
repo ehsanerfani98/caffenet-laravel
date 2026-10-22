@@ -16,6 +16,19 @@
     return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
   }
 
+  // Deep-linkable service page (#/service/{slug}) — clicking a service now
+  // navigates to a routed page instead of opening the order-form popup.
+  // The numeric-id fallback keeps taps working even for rows the slug
+  // seeder has not reached yet.
+  function gotoService(svc) {
+    const key = svc && (svc.slug || svc.id);
+    if (key && window.App && typeof App.navigate === 'function') {
+      App.navigate('service/' + encodeURIComponent(key));
+    } else {
+      Screens.openOrderForm(svc); // defensive fallback — App is always present in the SPA
+    }
+  }
+
   function serviceCard(svc, settings) {
     // حالت «غیرفعال کردن پرداخت‌ها»: هیچ قیمتی روی کارت نیست — فقط زمان تخمینی
     const noPay = !!(settings && settings.paymentsDisabled);
@@ -369,7 +382,7 @@
         const svc = api.state.services.find((s) => s.id === $(this).data('service'));
         if (!svc) return;
         sheet.close();
-        Screens.openOrderForm(svc);
+        gotoService(svc);
       });
 
       // Pop the keyboard immediately on platforms that allow programmatic
@@ -418,7 +431,8 @@
       if ($(e.target).closest('[data-draft-delete]').length) return;
       const svcId = $(this).data('draft-resume');
       const svc = api.state.services.find((s) => String(s.id) === String(svcId));
-      if (svc) Screens.openOrderForm(svc);
+      // The service page's embedded form restores the saved snapshot itself.
+      if (svc) gotoService(svc);
     });
     $host.on('click', '[data-draft-delete]', function () {
       const svcId = String($(this).data('draft-delete'));
@@ -432,7 +446,7 @@
     // innerHTML refreshes.
     $host.on('click', '[data-service]', function () {
       const svc = api.state.services.find((s) => s.id === $(this).data('service'));
-      if (svc) Screens.openOrderForm(svc);
+      if (svc) gotoService(svc);
     });
     $host.on('click', '[data-track]', function () {
       const order = api.state.orders.find((o) => o.id === $(this).data('track'));
@@ -496,7 +510,7 @@
       $list.html('<div class="svc-grid">' + items.map((s) => serviceCard(s, api.state.settings)).join('') + '</div>');
       $list.find('[data-service]').on('click', function () {
         const svc = api.state.services.find((s) => s.id === $(this).data('service'));
-        if (svc) Screens.openOrderForm(svc);
+        if (svc) gotoService(svc);
       });
     }
 
