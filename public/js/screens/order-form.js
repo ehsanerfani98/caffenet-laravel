@@ -144,6 +144,16 @@
           service.fields.map((f) => fieldInput(f, state.formData[f.id])).join('') +
         '</div>' +
 
+        /* files */
+        '<label class="field-label">فایل‌های پیوست (اختیاری — حداکثر ' + PU.toPersianDigits(MAX_FILE_MB) + ' مگابایت)</label>' +
+        '<div id="files-list"></div>' +
+        '<button class="btn ghost block sm" id="add-file">' + icon('upload') + 'افزودن فایل</button>' +
+        '<input type="file" id="file-input" class="hidden" multiple>' +
+
+        /* customer note */
+        '<label class="field-label">توضیحات سفارش</label>' +
+        '<textarea class="textarea" id="customer-note" rows="2" placeholder="هر نکته‌ای برای اپراتور…">' + PU.escapeHtml(state.customerNote) + '</textarea>' +
+
         /* urgency */
         '<label class="field-label">سطح فوریت <span class="req">*</span></label>' +
         '<div class="segmented" id="urgency-seg">' +
@@ -172,12 +182,6 @@
         '</div>' +
         '<div class="help-text">می‌توانید چند گزینه را انتخاب کنید تا اپراتور از همان راه با شما در تماس باشد.</div>' +
 
-        /* files */
-        '<label class="field-label">فایل‌های پیوست (اختیاری — حداکثر ' + PU.toPersianDigits(MAX_FILE_MB) + ' مگابایت)</label>' +
-        '<div id="files-list"></div>' +
-        '<button class="btn ghost block sm" id="add-file">' + icon('upload') + 'افزودن فایل</button>' +
-        '<input type="file" id="file-input" class="hidden" multiple>' +
-
         /* coupon */
         (couponsEnabled ?
           '<label class="field-label">کد تخفیف</label>' +
@@ -186,12 +190,6 @@
             '<button class="btn slate" id="apply-coupon">اعمال</button>' +
           '</div>' +
           '<div id="coupon-msg"></div>' : '') +
-
-        /* customer note */
-        '<label class="field-label">توضیحات سفارش</label>' +
-        '<textarea class="textarea" id="customer-note" rows="2" placeholder="هر نکته‌ای برای اپراتور…">' + PU.escapeHtml(state.customerNote) + '</textarea>' +
-
-
 
         /* live price */
         '<div id="price-summary" style="margin-top:16px"></div>'
