@@ -180,12 +180,12 @@
 
         /* contact methods — multi-select */
         '<label class="field-label">راه‌های ارتباط با شما <span class="req">*</span></label>' +
+        '<div class="help-text">می‌توانید چند گزینه را انتخاب کنید تا اپراتور از همان راه با شما در تماس باشد.</div>' +
         '<div class="contact-grid" id="contact-methods">' +
           PU.contactMethods.map(([k, l]) =>
             '<span class="chip ' + (state.contactMethods.includes(k) ? 'active' : '') + '" data-contact="' + k + '">' + l + '</span>'
           ).join('') +
         '</div>' +
-        '<div class="help-text">می‌توانید چند گزینه را انتخاب کنید تا اپراتور از همان راه با شما در تماس باشد.</div>' +
 
         /* coupon — در حالت ثبت درخواست پرداختی در کار نیست، پس کد تخفیف هم بی‌معناست */
         (couponsEnabled && !paymentsDisabled ?
