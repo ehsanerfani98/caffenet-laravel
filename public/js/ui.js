@@ -121,6 +121,12 @@
         },
       };
 
+      // Honor the «body» option — modal() is the only overlay whose content
+      // is passed inline (order-form's «ثبت درخواست» acknowledgment), while
+      // sheet() callers fill .body themselves. Without this line the body
+      // option was silently dropped and the modal rendered with no content.
+      api.body.html(opts.body);
+
       $backdrop.find('#modal-ok').on('click', api.close);
       $backdrop.on('click', (e) => { if (e.target === $backdrop[0]) api.close(); });
 
