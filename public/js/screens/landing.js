@@ -17,9 +17,9 @@
   }
 
   function serviceCard(svc, settings) {
-    // حالت «غیرفعال کردن پرداخت‌ها»: قیمت خدمات مخفی می‌شود — مبلغ بعداً با مدیر توافق می‌شود
+    // حالت «غیرفعال کردن پرداخت‌ها»: هیچ قیمتی روی کارت نیست — فقط زمان تخمینی
     const noPay = !!(settings && settings.paymentsDisabled);
-    const price = noPay ? 'هماهنگی پس از ثبت درخواست' : (svc.basePrice > 0 ? PU.formatToman(svc.basePrice) : 'محاسبه در سفارش');
+    const price = svc.basePrice > 0 ? PU.formatToman(svc.basePrice) : 'محاسبه در سفارش';
     // Apply the admin-picked icon color when set; otherwise the .svc-icon
     // background (sky-soft) + color (sky-deep) defaults apply.
     const iconHtml = window.renderCategoryIcon(svc.icon || 'printer', { color: svc.iconColor || null });
@@ -32,7 +32,7 @@
         '<div class="svc-title">' + PU.escapeHtml(svc.title) + '</div>' +
         '<div class="svc-desc">' + PU.escapeHtml(svc.description || '') + '</div>' +
         '<div class="svc-meta"><span>' + (svc.estimatedTime ? PU.escapeHtml(svc.estimatedTime) : '') + '</span>' +
-        '<span class="svc-price">' + price + '</span></div>' +
+        (!noPay ? '<span class="svc-price">' + price + '</span>' : '') + '</div>' +
       '</div>'
     );
   }

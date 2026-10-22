@@ -135,7 +135,13 @@
     // A restored draft may also carry a coupon from the payment era — in
     // request mode there is no price/discount at all (the coupon UI is hidden
     // above), so it must not silently leak into the order the server prices.
-    if (paymentsDisabled) { state.couponCode = ''; state.couponDiscount = 0; }
+    if (paymentsDisabled) {
+      // فوریت و کد تخفیف هر دو عامل قیمت‌اند — در حالت «ثبت درخواست» نباید از
+      // پیش‌نویس‌های دوران پرداخت به سفارش بی‌پرداخت سرریز کنند.
+      state.couponCode = '';
+      state.couponDiscount = 0;
+      state.urgency = 'normal';
+    }
 
     const sheet = UI.sheet({
       title: 'ثبت سفارش',
@@ -164,12 +170,13 @@
         '<label class="field-label">توضیحات سفارش</label>' +
         '<textarea class="textarea" id="customer-note" rows="2" placeholder="هر نکته‌ای برای اپراتور…">' + PU.escapeHtml(state.customerNote) + '</textarea>' +
 
-        /* urgency */
+        /* urgency — فوریت یک عامل قیمت است (ضریب)؛ در حالت «ثبت درخواست» کل بخش مخفی است */
+        (paymentsDisabled ? '' :
         '<label class="field-label">سطح فوریت <span class="req">*</span></label>' +
         '<div class="segmented" id="urgency-seg">' +
-          [['normal', 'معمولی'], ['urgent', paymentsDisabled ? 'فوری' : 'فوری (×' + PU.toPersianDigits(settings.urgentPriceMultiplier || 1.3) + ')'], ['immediate', paymentsDisabled ? 'آنی' : 'آنی (×' + PU.toPersianDigits(settings.immediatePriceMultiplier || 1.6) + ')']]
+          [['normal', 'معمولی'], ['urgent', 'فوری (×' + PU.toPersianDigits(settings.urgentPriceMultiplier || 1.3) + ')'], ['immediate', 'آنی (×' + PU.toPersianDigits(settings.immediatePriceMultiplier || 1.6) + ')']]
             .map(([k, l]) => '<button class="seg ' + (state.urgency === k ? 'on' : '') + '" data-urgency="' + k + '">' + l + '</button>').join('') +
-        '</div>' +
+        '</div>') +
 
         /* contact methods — multi-select */
         '<label class="field-label">راه‌های ارتباط با شما <span class="req">*</span></label>' +
