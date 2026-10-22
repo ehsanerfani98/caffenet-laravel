@@ -157,7 +157,6 @@
       '<label class="field-label">روز نگهداری فایل‌ها</label><input class="input" id="s-retention" inputmode="numeric" value="' + (s.fileRetentionDays || 14) + '">' +
       '<label class="field-label">ضریب سفارش فوری</label><input class="input" id="s-urgent" value="' + (s.urgentPriceMultiplier || 1.3) + '">' +
       '<label class="field-label">ضریب سفارش آنی</label><input class="input" id="s-immediate" value="' + (s.immediatePriceMultiplier || 1.6) + '">' +
-      '<label class="field-label">هزینه پیک (تومان)</label><input class="input" id="s-courier" inputmode="numeric" value="' + (s.courierCost || 35000) + '">' +
       '<div class="section-title">' + icon('wallet') + 'مبالغ آماده شارژ کیف پول</div>' +
       '<div class="help-text" style="margin:0 2px 8px">با درگاه بازارپی، شارژ با <b>هر مبلغی</b> مستقیم از درگاه انجام می‌شود و به SKU نیازی نیست — فیلد SKU را می‌توانید خالی بگذارید. SKU فقط برای حالت قدیمی پرداخت داخل اپ کافه‌بازار (IAP از طریق deep-link) کاربرد دارد که فقط زمانی استفاده می‌شود که بازارپی فعال نباشد.</div>' +
       '<div id="s-presets">' + presetRowsHtml(s.walletTopUpPresets) + '</div>' +
@@ -199,7 +198,6 @@
           fileRetentionDays: Number(sheet.body.find('#s-retention').val()),
           urgentPriceMultiplier: Number(sheet.body.find('#s-urgent').val()),
           immediatePriceMultiplier: Number(sheet.body.find('#s-immediate').val()),
-          courierCost: Number(sheet.body.find('#s-courier').val()),
           walletTopUpPresets: collectPresets(sheet.body),
           enableCoupons: sheet.body.find('#s-coupons').is(':checked'),
           paymentsDisabled: sheet.body.find('#s-pay-off').is(':checked'),
