@@ -749,6 +749,9 @@
           '<label class="field-label">عنوان</label><input class="input" id="slide-title" value="' + PU.escapeHtml(slide ? slide.title || '' : '') + '">' +
           '<label class="field-label">زیرعنوان</label><input class="input" id="slide-sub" value="' + PU.escapeHtml(slide ? slide.subtitle || '' : '') + '">' +
           '<label class="field-label">متن دکمه (اختیاری)</label><input class="input" id="slide-cta" value="' + PU.escapeHtml(slide ? slide.ctaLabel || '' : '') + '">' +
+          '<label class="field-label">لینک بنر (اختیاری)</label>' +
+          '<input class="input" id="slide-link" dir="ltr" placeholder="https://… یا #/service/…" value="' + PU.escapeHtml(slide ? slide.ctaTarget || '' : '') + '">' +
+          '<div class="help-text">با کلیک روی بنر، کاربر به همین لینک می‌رود. لینک داخلی برنامه با # شروع می‌شود (مثل #/service/…) و لینک بیرونی با https:// — شماره تماس هم می‌توانید با tel: بدهید.</div>' +
           '<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;font-weight:600;margin:12px 2px">' +
           '<input type="checkbox" id="slide-active"' + (!slide || slide.isActive ? ' checked' : '') + '> فعال</label>'
         );
@@ -777,6 +780,7 @@
             title: inner.body.find('#slide-title').val(),
             subtitle: inner.body.find('#slide-sub').val(),
             ctaLabel: inner.body.find('#slide-cta').val(),
+            ctaTarget: inner.body.find('#slide-link').val(),
             isActive: inner.body.find('#slide-active').is(':checked'),
           });
           UI.toast('اسلاید ذخیره شد.', 'success');

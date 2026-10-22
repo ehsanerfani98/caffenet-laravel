@@ -276,13 +276,32 @@
 
       let index = 0;
 
+      /* Banner link — a slide with ctaTarget navigates on tap. Internal
+       * routes ('#/service/x' or '/service/x') go through the SPA router,
+       * tel:/mailto: hand off to the dialer/mail app, everything else is
+       * treated as a web URL and opens in a new tab. */
+      function openSlideLink(raw) {
+        const t = String(raw || '').trim();
+        if (!t) return;
+        if (t.charAt(0) === '#' || t.charAt(0) === '/') {
+          const route = t.replace(/^#?\/?/, '');
+          if (route && window.App && App.navigate) App.navigate(route);
+          else location.hash = t;
+        } else if (/^(tel:|mailto:)/i.test(t)) {
+          location.href = t;
+        } else {
+          window.open(/^https?:\/\//i.test(t) ? t : 'https://' + t, '_blank');
+        }
+      }
+
       function render() {
         const inner = list.map((s) =>
-          '<div class="hero-slide">' +
+          '<div class="hero-slide' + (s.ctaTarget ? ' clickable' : '') + '">' +
             '<img src="' + PU.escapeHtml(s.imageUrl) + '" alt="" draggable="false">' +
             ((s.title || s.subtitle) ?
               '<div class="caption"><div class="s1">' + PU.escapeHtml(s.title || '') + '</div>' +
               (s.subtitle ? '<div class="s2">' + PU.escapeHtml(s.subtitle) + '</div>' : '') + '</div>' : '') +
+            ((s.ctaTarget && s.ctaLabel) ? '<span class="slide-cta">' + PU.escapeHtml(s.ctaLabel) + '</span>' : '') +
           '</div>'
         ).join('');
         $container.html(
@@ -299,6 +318,11 @@
             $container.find('.dot').removeClass('on');
             $(this).addClass('on');
           });
+        });
+
+        $container.find('.hero-slide').each(function (i) {
+          if (!list[i] || !list[i].ctaTarget) return;
+          $(this).on('click', function () { openSlideLink(list[i].ctaTarget); });
         });
       }
 
