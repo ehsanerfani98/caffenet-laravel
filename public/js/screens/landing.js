@@ -17,7 +17,9 @@
   }
 
   function serviceCard(svc, settings) {
-    const price = svc.basePrice > 0 ? PU.formatToman(svc.basePrice) : 'محاسبه در سفارش';
+    // حالت «غیرفعال کردن پرداخت‌ها»: قیمت خدمات مخفی می‌شود — مبلغ بعداً با مدیر توافق می‌شود
+    const noPay = !!(settings && settings.paymentsDisabled);
+    const price = noPay ? 'هماهنگی پس از ثبت درخواست' : (svc.basePrice > 0 ? PU.formatToman(svc.basePrice) : 'محاسبه در سفارش');
     // Apply the admin-picked icon color when set; otherwise the .svc-icon
     // background (sky-soft) + color (sky-deep) defaults apply.
     const iconHtml = window.renderCategoryIcon(svc.icon || 'printer', { color: svc.iconColor || null });
@@ -86,7 +88,10 @@
           '<div class="oc-head"><span class="oc-num">' + PU.toPersianDigits(active.orderNumber) + '</span>' + UI.statusBadge(active.status) + '</div>' +
           '<div class="oc-title">' + PU.escapeHtml(active.serviceTitle) + '</div>' +
           queueBadge +
-          '<div class="oc-foot"><span class="oc-price">' + PU.formatToman(Math.max(0, active.totalPrice - active.discountAmount)) + '</span>' +
+          // حالت «غیرفعال کردن پرداخت‌ها»: مبلغ سفارشِ پرداخت‌نشده نمایش داده نمی‌شود (رسیدِ سفارش‌های پرداخت‌شده حفظ می‌شود)
+          '<div class="oc-foot">' +
+          (!(api.state.settings && api.state.settings.paymentsDisabled) || active.paidAmount > 0 ?
+            '<span class="oc-price">' + PU.formatToman(Math.max(0, active.totalPrice - active.discountAmount)) + '</span>' : '') +
           '<span style="color:var(--sky);font-weight:700">پیگیری ↗</span></div>' +
         '</div>' +
       '</div>'
@@ -488,7 +493,7 @@
         $list.html(UI.emptyState('خدمتی یافت نشد', 'عبارت دیگری را جستجو کنید', 'search'));
         return;
       }
-      $list.html('<div class="svc-grid">' + items.map((s) => serviceCard(s)).join('') + '</div>');
+      $list.html('<div class="svc-grid">' + items.map((s) => serviceCard(s, api.state.settings)).join('') + '</div>');
       $list.find('[data-service]').on('click', function () {
         const svc = api.state.services.find((s) => s.id === $(this).data('service'));
         if (svc) Screens.openOrderForm(svc);
@@ -552,7 +557,9 @@
           '<div class="oc-head"><span class="oc-num">' + PU.toPersianDigits(o.orderNumber) + '</span>' + UI.statusBadge(o.status) + '</div>' +
           '<div class="oc-title">' + PU.escapeHtml(o.serviceTitle) + '</div>' +
           '<div class="oc-foot">' +
-            '<span class="oc-price">' + PU.formatToman(Math.max(0, o.totalPrice - o.discountAmount)) + '</span>' +
+            // حالت «غیرفعال کردن پرداخت‌ها»: سفارش پرداخت‌نشده مبلغ ندارد؛ رسید سفارش‌های پرداخت‌شده می‌ماند
+            (!(api.state.settings && api.state.settings.paymentsDisabled) || o.paidAmount > 0 ?
+              '<span class="oc-price">' + PU.formatToman(Math.max(0, o.totalPrice - o.discountAmount)) + '</span>' : '') +
             '<span style="font-size:11px;color:var(--ink-soft)">' + PU.toJalaliDateShort(o.createdAt) + '</span>' +
           '</div>' +
         '</div>'

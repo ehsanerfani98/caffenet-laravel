@@ -132,6 +132,11 @@
     // delivery section no longer exists, so force the only remaining method.
     state.deliveryMethod = 'download';
 
+    // A restored draft may also carry a coupon from the payment era — in
+    // request mode there is no price/discount at all (the coupon UI is hidden
+    // above), so it must not silently leak into the order the server prices.
+    if (paymentsDisabled) { state.couponCode = ''; state.couponDiscount = 0; }
+
     const sheet = UI.sheet({
       title: 'ثبت سفارش',
       subtitle: service.title,
@@ -162,7 +167,7 @@
         /* urgency */
         '<label class="field-label">سطح فوریت <span class="req">*</span></label>' +
         '<div class="segmented" id="urgency-seg">' +
-          [['normal', 'معمولی'], ['urgent', 'فوری (×' + PU.toPersianDigits(settings.urgentPriceMultiplier || 1.3) + ')'], ['immediate', 'آنی (×' + PU.toPersianDigits(settings.immediatePriceMultiplier || 1.6) + ')']]
+          [['normal', 'معمولی'], ['urgent', paymentsDisabled ? 'فوری' : 'فوری (×' + PU.toPersianDigits(settings.urgentPriceMultiplier || 1.3) + ')'], ['immediate', paymentsDisabled ? 'آنی' : 'آنی (×' + PU.toPersianDigits(settings.immediatePriceMultiplier || 1.6) + ')']]
             .map(([k, l]) => '<button class="seg ' + (state.urgency === k ? 'on' : '') + '" data-urgency="' + k + '">' + l + '</button>').join('') +
         '</div>' +
 
@@ -175,8 +180,8 @@
         '</div>' +
         '<div class="help-text">می‌توانید چند گزینه را انتخاب کنید تا اپراتور از همان راه با شما در تماس باشد.</div>' +
 
-        /* coupon */
-        (couponsEnabled ?
+        /* coupon — در حالت ثبت درخواست پرداختی در کار نیست، پس کد تخفیف هم بی‌معناست */
+        (couponsEnabled && !paymentsDisabled ?
           '<label class="field-label">کد تخفیف</label>' +
           '<div style="display:flex;gap:8px">' +
             '<input class="input" id="coupon-code" placeholder="مثلاً WELCOME" style="text-transform:uppercase">' +
@@ -225,6 +230,8 @@
     }
 
     function renderPrice() {
+      // حالت «ثبت درخواست»: هیچ قیمتی نمایش داده نمی‌شود — مبلغ بعداً با مدیر توافق می‌شود
+      if (paymentsDisabled) return;
       const p = livePricing();
       sheet.body.find('#price-summary').html(
         '<div class="price-summary">' +
