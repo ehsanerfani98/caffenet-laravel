@@ -50,6 +50,12 @@
     if (user.role !== 'customer') return UI.emptyState('کیف پول فقط برای مشتریان فعال است', '', 'wallet');
 
     const settings = api.state.settings || {};
+    // حالت «غیرفعال کردن پرداخت‌ها»: the whole wallet/top-up area is disabled.
+    // (The route guard in app.js already redirects here — this is defense in
+    // depth for direct screen renders.)
+    if (settings.paymentsDisabled) {
+      return UI.emptyState('پرداخت‌ها در حال حاضر غیرفعال است', 'برای ثبت سفارش از دکمه «ثبت درخواست» استفاده کنید.', 'wallet');
+    }
     const presets = walletPresetAmounts(settings.walletTopUpPresets);
 
     // Gateway priority for the WebView app:

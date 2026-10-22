@@ -603,7 +603,7 @@
         '<div style="font-size:12.5px;color:var(--ink-soft);margin:4px 0 8px">' + PU.toPersianDigits(user.phone) + '</div>' +
         '<span class="pill submitted">' + PU.escapeHtml(roleLabel) + '</span>' +
       '</div>' +
-      (user.role === 'customer' ?
+      (user.role === 'customer' && !(settings && settings.paymentsDisabled) ?
         '<div class="card" style="margin-top:10px;display:flex;align-items:center;gap:10px;cursor:pointer" id="profile-wallet">' +
           '<div class="lr-icon tone-emerald">' + icon('wallet') + '</div>' +
           '<div class="lr-main"><div class="lr-title">کیف پول</div><div class="lr-sub">موجودی: ' + PU.formatToman(user.walletBalance) + '</div></div>' +

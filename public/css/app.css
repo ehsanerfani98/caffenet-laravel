@@ -524,6 +524,29 @@ svg.i.i-lg { width: 30px; height: 30px; }
 .sheet .sheet-footer { padding: 11px 16px calc(11px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--card); }
 .sheet .sheet-footer:empty { display: none; }
 
+/* ---------- Centered modal (acknowledgment popups) ---------- */
+.modal-backdrop {
+    position: absolute; inset: 0; z-index: 70;
+    background: rgba(2, 8, 23, .55);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    animation: fadeIn .2s ease both;
+    transform: translateZ(0);
+}
+.modal {
+    background: var(--card); width: 100%; max-width: 340px;
+    border-radius: 22px; padding: 22px 18px 16px;
+    max-height: 86%; overflow-y: auto;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    text-align: center;
+    animation: modalPop .28s cubic-bezier(.32,.72,.34,1) both;
+}
+@keyframes modalPop { from { opacity: 0; transform: scale(.86) translateY(14px); } to { opacity: 1; transform: none; } }
+.modal .m-icon { width: 54px; height: 54px; border-radius: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.modal .m-icon svg { width: 26px; height: 26px; }
+.modal .m-title { font-size: 15.5px; font-weight: 800; }
+.modal .m-body { font-size: 13px; color: var(--ink); width: 100%; line-height: 1.9; }
+
 .tone-sky { background: var(--sky-soft); color: var(--sky-deep); }
 .tone-emerald { background: var(--emerald-soft); color: #065f46; }
 .tone-amber { background: var(--amber-soft); color: #92400e; }

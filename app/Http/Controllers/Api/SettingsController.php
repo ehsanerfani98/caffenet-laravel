@@ -29,7 +29,7 @@ class SettingsController extends Controller
         $out['smsEnabled'] = SettingsService::bool('smsEnabled');
         foreach (SettingsService::businessKeys() as $key) {
             $raw = SettingsService::raw($key);
-            if (in_array($key, ['enableWalletPayment', 'enableCoupons'], true)) {
+            if (in_array($key, ['enableWalletPayment', 'enableCoupons', 'paymentsDisabled'], true)) {
                 $out[$key] = SettingsService::bool($key);
             } elseif ($key === 'walletTopUpPresets') {
                 // Each preset carries its own Cafe Bazaar SKU ({amount, sku}).

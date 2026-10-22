@@ -165,6 +165,14 @@
       '<div class="info-box" style="margin:12px 2px">مشتری در فرم سفارش دو دکمه پرداخت دارد: <b>«پرداخت از کیف پول»</b> و <b>«پرداخت آنلاین»</b>. با «پرداخت آنلاین» (بازارپی) سفارش مثل شارژ کیف پول به صفحه پرداخت بازارپی هدایت می‌شود و بدون نیاز به موجودی، پرداخت می‌گردد. اگر «پرداخت مستقیم (دایرکت‌پی)» در تنظیمات سیستمی فعال باشد، پس از امضای قرارداد بار اول، پرداخت‌های بعدی همان دکمه به‌صورت خودکار و بدون خروج از برنامه انجام می‌شود.</div>' +
       '<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;font-weight:600;margin:12px 2px">' +
       '<input type="checkbox" id="s-coupons"' + (s.enableCoupons !== false ? ' checked' : '') + '> کدهای تخفیف فعال باشند</label>' +
+      '<div class="section-title">' + icon('alert') + 'حالت ثبت درخواست (غیرفعال کردن پرداخت‌ها)</div>' +
+      '<div class="help-text" style="margin:0 2px 8px">با فعال‌کردن این گزینه <b>همه فرآیندهای پرداخت غیرفعال می‌شود</b>: چیپ موجودی کیف پول، منوی کیف پول، صفحه شارژ و دکمه‌های پرداخت در اپ مخفی می‌شوند. در فرم ثبت سفارش دکمه «<b>ثبت درخواست</b>» جای دکمه‌های پرداخت را می‌گیرد؛ سفارش بدون هیچ پرداختی ثبت می‌شود و بلافاصله پنجره‌ای با متن زیر (و دکمه «متوجه شدم») به مشتری نمایش داده می‌شود.</div>' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 2px 12px">' +
+        '<div style="font-size:12.5px;font-weight:600">غیرفعال کردن همه پرداخت‌ها</div>' +
+        '<label class="switch"><input type="checkbox" id="s-pay-off"' + (s.paymentsDisabled ? ' checked' : '') + '><span class="track"></span></label>' +
+      '</div>' +
+      '<label class="field-label">متن پیام پس از ثبت درخواست</label>' +
+      '<textarea class="input textarea" id="s-request-notice" rows="4" placeholder="مثلاً: درخواست شما ثبت شد؛ همکاران ما به‌زودی برای ادامه کار با شما تماس می‌گیرند.">' + PU.escapeHtml(s.orderRequestNotice || '') + '</textarea>' +
       '<div class="section-title">' + icon('shield') + 'قوانین و حریم خصوصی</div>' +
       '<div class="help-text" style="margin:0 2px 8px">این متن پیش از دریافت شماره همراه و در صفحه «قوانین و حریم خصوصی» به کاربر نمایش داده می‌شود. متن به‌صورت ساده ذخیره می‌شود و نیازی به HTML نیست؛ خط‌های جدید به پاراگراف تبدیل می‌شوند.</div>' +
       '<textarea class="input textarea" id="s-terms" rows="12" style="min-height:200px;line-height:1.9">' + PU.escapeHtml(s.termsText || '') + '</textarea>'
@@ -194,6 +202,8 @@
           courierCost: Number(sheet.body.find('#s-courier').val()),
           walletTopUpPresets: collectPresets(sheet.body),
           enableCoupons: sheet.body.find('#s-coupons').is(':checked'),
+          paymentsDisabled: sheet.body.find('#s-pay-off').is(':checked'),
+          orderRequestNotice: sheet.body.find('#s-request-notice').val(),
           termsText: sheet.body.find('#s-terms').val(),
         });
         UI.toast('تنظیمات ذخیره شد.', 'success');

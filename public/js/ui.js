@@ -88,6 +88,49 @@
       document.body.style.removeProperty('overflow');
     },
 
+    /* ---------- Modal (centered acknowledgment popup) ---------- */
+
+    /* Unlike the bottom sheet, this is a centered dialog. It registers in the
+     * same openSheets registry so closeAllSheets() and the overscroll
+     * watchdog cover it too. */
+    modal(options) {
+      const opts = Object.assign({
+        title: '', icon: 'info', tone: 'sky', body: '',
+        buttonText: 'متوجه شدم', onClose: null,
+      }, options);
+
+      const $backdrop = $(
+        '<div class="modal-backdrop">' +
+          '<div class="modal">' +
+            '<div class="m-icon ' + (TONE_CLASS[opts.tone] || TONE_CLASS.sky) + '">' + icon(opts.icon) + '</div>' +
+            '<div class="m-title">' + PU.escapeHtml(opts.title) + '</div>' +
+            '<div class="m-body"></div>' +
+            '<button class="btn emerald block" id="modal-ok">' + icon('check') + PU.escapeHtml(opts.buttonText) + '</button>' +
+          '</div>' +
+        '</div>'
+      );
+
+      const api = {
+        el: $backdrop,
+        body: $backdrop.find('.m-body'),
+        close() {
+          $backdrop.remove();
+          openSheets = openSheets.filter((s) => s !== api);
+          document.body.style.removeProperty('overflow');
+          if (opts.onClose) opts.onClose();
+        },
+      };
+
+      $backdrop.find('#modal-ok').on('click', api.close);
+      $backdrop.on('click', (e) => { if (e.target === $backdrop[0]) api.close(); });
+
+      this.bindSheetWatchdog();
+
+      $('#sheet-host').append($backdrop);
+      openSheets.push(api);
+      return api;
+    },
+
     /* Overscroll repaint watchdog.
        After a pull-to-refresh / rubber-band overscroll (Bazaar WebView shell,
        Chrome, iOS Safari) the compositor can lose absolutely-positioned overlay
@@ -158,8 +201,12 @@
 
       let actions = '';
       if (isCustomer) {
-        actions += '<button class="chip-wallet" data-appbar-action="wallet">' +
-          icon('wallet') + '<span>' + PU.formatToman(user.walletBalance) + '</span></button>';
+        // حالت «غیرفعال کردن پرداخت‌ها»: the wallet balance chip is hidden.
+        const paymentsDisabled = !!(settings && settings.paymentsDisabled);
+        if (!paymentsDisabled) {
+          actions += '<button class="chip-wallet" data-appbar-action="wallet">' +
+            icon('wallet') + '<span>' + PU.formatToman(user.walletBalance) + '</span></button>';
+        }
       }
       if (isAdmin) {
         const smsCount = api.state.smsInboxUnread || 0;

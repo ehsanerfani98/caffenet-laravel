@@ -127,6 +127,11 @@
       if (['wallet', 'orders'].includes(this.screen) && !user) {
         this.screen = 'home';
       }
+      // حالت «غیرفعال کردن پرداخت‌ها»: the wallet page is fully disabled —
+      // deep links / stale hashes land on home instead.
+      if (this.screen === 'wallet' && api.state.settings && api.state.settings.paymentsDisabled) {
+        this.screen = 'home';
+      }
 
       // Any navigation dismisses every open popup/sheet so a stale modal can
       // never linger over the newly rendered screen (e.g. after jumping to the
@@ -161,13 +166,17 @@
       }
       if (user.role === 'customer') {
         const pending = api.state.orders.filter((o) => ['pending_payment', 'submitted', 'processing'].includes(o.status)).length;
-        return [
+        const items = [
           { key: 'home', label: 'خانه', icon: 'home' },
           { key: 'catalog', label: 'دسته‌بندی', icon: 'grid' },
           { key: 'orders', label: 'سفارش‌ها', icon: 'folder', badge: pending },
-          { key: 'wallet', label: 'کیف پول', icon: 'wallet' },
-          { key: 'profile', label: 'پروفایل', icon: 'user' },
         ];
+        // حالت «غیرفعال کردن پرداخت‌ها»: تمام بخش‌های کیف پول از رابط کاربری حذف می‌شوند.
+        if (!(api.state.settings && api.state.settings.paymentsDisabled)) {
+          items.push({ key: 'wallet', label: 'کیف پول', icon: 'wallet' });
+        }
+        items.push({ key: 'profile', label: 'پروفایل', icon: 'user' });
+        return items;
       }
       if (user.role === 'operator') {
         return [

@@ -306,18 +306,24 @@
         icon('sms') + 'گفتگو با پشتیبانی</button>';
 
       if (retryable) {
-        // BazaarPay adds a second way to settle an unpaid order: the gateway
-        // page (checkout redirect — same pipeline as a top-up). Direct Pay is
-        // resolved automatically server-side when a contract is active.
-        // Button order mirrors the order form: gateway («پرداخت آنلاین») is
-        // the primary green button, wallet the secondary one.
-        const bazaarPayAvailable = !!(api.state.settings && api.state.settings.bazaarPay && api.state.settings.bazaarPay.available);
-        body +=
-          '<div class="warn-box" style="margin-bottom:12px">این سفارش پرداخت نشده است. برای ورود به صف کار، پرداخت را انجام دهید.</div>' +
-          (bazaarPayAvailable
-            ? '<button class="btn emerald block" id="retry-pay-direct" style="margin-bottom:12px">' + icon('zap') + 'پرداخت آنلاین</button>' +
-              '<button class="btn slate block" id="retry-pay" style="margin-bottom:12px">' + icon('wallet') + 'پرداخت از کیف پول</button>'
-            : '<button class="btn emerald block" id="retry-pay" style="margin-bottom:12px">' + icon('wallet') + 'پرداخت از کیف پول</button>');
+        // حالت «غیرفعال کردن پرداخت‌ها»: no pay buttons at all — the customer
+        // cannot settle the order while payments are off.
+        if (api.state.settings && api.state.settings.paymentsDisabled) {
+          body += '<div class="info-box" style="margin-bottom:12px">پرداخت‌ها در حال حاضر غیرفعال است. سفارش شما ثبت شده و پس از بررسی توسط اپراتور پیگیری می‌شود.</div>';
+        } else {
+          // BazaarPay adds a second way to settle an unpaid order: the gateway
+          // page (checkout redirect — same pipeline as a top-up). Direct Pay is
+          // resolved automatically server-side when a contract is active.
+          // Button order mirrors the order form: gateway («پرداخت آنلاین») is
+          // the primary green button, wallet the secondary one.
+          const bazaarPayAvailable = !!(api.state.settings && api.state.settings.bazaarPay && api.state.settings.bazaarPay.available);
+          body +=
+            '<div class="warn-box" style="margin-bottom:12px">این سفارش پرداخت نشده است. برای ورود به صف کار، پرداخت را انجام دهید.</div>' +
+            (bazaarPayAvailable
+              ? '<button class="btn emerald block" id="retry-pay-direct" style="margin-bottom:12px">' + icon('zap') + 'پرداخت آنلاین</button>' +
+                '<button class="btn slate block" id="retry-pay" style="margin-bottom:12px">' + icon('wallet') + 'پرداخت از کیف پول</button>'
+              : '<button class="btn emerald block" id="retry-pay" style="margin-bottom:12px">' + icon('wallet') + 'پرداخت از کیف پول</button>');
+        }
       }
 
       if (tab === 'timeline') {

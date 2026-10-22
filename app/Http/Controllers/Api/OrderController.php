@@ -143,6 +143,15 @@ class OrderController extends Controller
             ? 'bazaarpay'
             : 'wallet';
 
+        // «حالت ثبت درخواست»: while the admin has disabled all payments, a
+        // customer may submit the order as a plain request — no wallet debit
+        // and no gateway. Honored ONLY while paymentsDisabled is on, so a
+        // tampered client can never bypass the balance guard by sending
+        // 'request' at any other time (it silently falls back to 'wallet').
+        if (($body['paymentMethod'] ?? null) === 'request' && \App\Services\SettingsService::bool('paymentsDisabled')) {
+            $paymentMethod = 'request';
+        }
+
         // Wallet payments require sufficient balance up-front — never persist
         // an order the customer cannot pay for; the client shows a shortage
         // warning and sends the user to top up instead. BazaarPay has no such
@@ -195,8 +204,8 @@ class OrderController extends Controller
                 'total_price' => $pricing['totalBeforeDiscount'],
                 'discount_amount' => $discount,
                 'paid_amount' => 0,
-                // Payment INTENT at creation ('wallet' | 'bazaarpay'); the
-                // final method is recorded on the order row by
+                // Payment INTENT at creation ('wallet' | 'bazaarpay' |
+                // 'request'); the final method is recorded on the order row by
                 // PaymentFulfillmentService once the payment verifies.
                 'payment_method' => $paymentMethod,
                 'payment_tracking_code' => '',
@@ -208,7 +217,9 @@ class OrderController extends Controller
 
             OrderLog::create([
                 'order_id' => $order->id,
-                'action' => 'ثبت سفارش؛ در انتظار پرداخت',
+                'action' => $paymentMethod === 'request'
+                    ? 'ثبت درخواست (پرداخت غیرفعال)؛ در انتظار بررسی'
+                    : 'ثبت سفارش؛ در انتظار پرداخت',
                 'performed_by' => $user->name,
                 'timestamp' => now()->toIso8601String(),
             ]);

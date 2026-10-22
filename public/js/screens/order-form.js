@@ -86,6 +86,10 @@
     // contract-based) is resolved automatically inside the gateway button
     // by the server when its contract is active.
     const bazaarPayAvailable = !!(settings.bazaarPay && settings.bazaarPay.available);
+    // حالت «غیرفعال کردن پرداخت‌ها» (حالت ثبت درخواست): the admin turned every
+    // payment path off — the footer becomes a single «ثبت درخواست» button and
+    // the order is created with no payment step at all.
+    const paymentsDisabled = !!settings.paymentsDisabled;
     const state = {
       formData: {},
       urgency: 'normal',
@@ -311,14 +315,35 @@
       renderPrice();
     });
 
-    /* ---- footer: two explicit pay buttons — gateway first (primary) ---- */
-    sheet.footer.html(bazaarPayAvailable ?
-      '<button class="btn emerald block" id="order-pay-gateway" style="margin-bottom:8px">' + icon('zap') + 'پرداخت آنلاین</button>' +
-      '<button class="btn slate block" id="order-pay-wallet">' + icon('wallet') + 'پرداخت از کیف پول</button>'
+    /* ---- footer: pay buttons — or a single «ثبت درخواست» in no-payment mode ---- */
+    sheet.footer.html(paymentsDisabled ?
+      '<button class="btn emerald block" id="order-submit-request">' + icon('check') + 'ثبت درخواست</button>'
       :
-      '<button class="btn emerald block" id="order-pay-wallet">' + icon('check') + 'ثبت و پرداخت از کیف پول</button>');
+      (bazaarPayAvailable ?
+        '<button class="btn emerald block" id="order-pay-gateway" style="margin-bottom:8px">' + icon('zap') + 'پرداخت آنلاین</button>' +
+        '<button class="btn slate block" id="order-pay-wallet">' + icon('wallet') + 'پرداخت از کیف پول</button>'
+        :
+        '<button class="btn emerald block" id="order-pay-wallet">' + icon('check') + 'ثبت و پرداخت از کیف پول</button>'));
 
     const $footerButtons = sheet.footer.find('button');
+
+    /* Acknowledgment popup for «ثبت درخواست» — centered modal with the
+     * admin-configured notice text (orderRequestNotice) and a single
+     * «متوجه شدم» button. */
+    function openRequestConfirmation(order) {
+      const notice = String(settings.orderRequestNotice || '').trim() ||
+        'درخواست شما ثبت شد. همکاران ما به‌زودی برای ادامه کار با شما تماس می‌گیرند.';
+      UI.modal({
+        title: 'درخواست شما ثبت شد',
+        icon: 'checkcircle',
+        tone: 'emerald',
+        body:
+          '<div class="info-box" style="margin-bottom:10px">شماره پیگیری: <b class="persian-nums">' +
+          PU.toPersianDigits(String(order.orderNumber || order.id || '')) + '</b></div>' +
+          '<div style="white-space:pre-wrap">' + PU.escapeHtml(notice) + '</div>',
+        buttonText: 'متوجه شدم',
+      });
+    }
 
     async function submitOrder(method) {
       const p = livePricing();
@@ -379,6 +404,13 @@
 
         // A real order now exists — the saved draft has served its purpose.
         if (window.OrderDraft) OrderDraft.clear(service.id);
+
+        // ── ثبت درخواست (payments disabled): no payment step — just acknowledge ──
+        if (method === 'request') {
+          sheet.close();
+          openRequestConfirmation(order);
+          return;
+        }
 
         // ── BazaarPay gateway (checkout redirect + optional direct pay) ──
         if (method === 'bazaarpay') {
@@ -452,6 +484,7 @@
 
     sheet.footer.find('#order-pay-wallet').on('click', function () { submitOrder('wallet'); });
     sheet.footer.find('#order-pay-gateway').on('click', function () { submitOrder('bazaarpay'); });
+    sheet.footer.find('#order-submit-request').on('click', function () { submitOrder('request'); });
 
     // keep note in sync
     sheet.body.on('input', '#customer-note', function () { state.customerNote = this.value; });
