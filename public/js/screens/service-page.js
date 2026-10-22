@@ -24,7 +24,11 @@
   /* Same visual language as the catalog card, expanded for a full page. */
   function heroHtml(svc, settings) {
     const noPay = !!(settings && settings.paymentsDisabled);
-    const price = noPay ? 'هماهنگی پس از ثبت درخواست'
+    /* Request mode renders NO price line at all — same treatment as the
+     * catalog card, where .svc-price is dropped entirely. A Persian
+     * placeholder wording in this slot was explicitly rejected by the
+     * owner, so in request mode we simply render nothing. */
+    const price = noPay ? null
       : (svc.basePrice > 0 ? PU.formatToman(svc.basePrice) : 'محاسبه در سفارش');
     const iconHtml = window.renderCategoryIcon(svc.icon || 'printer', { color: svc.iconColor || null });
     const iconStyle = svc.iconColor ? ' style="background:transparent;color:' + PU.escapeHtml(svc.iconColor) + ';"' : '';
@@ -38,7 +42,7 @@
           '</div>' +
         '</div>' +
         (svc.description ? '<div class="svc-desc">' + PU.escapeHtml(svc.description) + '</div>' : '') +
-        '<div class="svc-hero-price">' + price + '</div>' +
+        (price ? '<div class="svc-hero-price">' + price + '</div>' : '') +
       '</div>'
     );
   }
