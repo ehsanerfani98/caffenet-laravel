@@ -92,8 +92,6 @@
       presetsGrid +
       customBlock +
 
-      '<div class="info-box" style="margin-top:16px"> افزایش موجودی پس از تایید درگاه به‌صورت خودکار اعمال می‌شود.<br>پس از شارژ، می‌توانید سفارش خود را ثبت و از کیف پول پرداخت کنید.</div>' +
-
       '<div class="section-title">' + icon('receipt') + 'تاریخچه تراکنش‌ها</div>' +
       '<div id="wallet-txns"><div class="spinner" style="margin:16px auto"></div></div>'
     );
@@ -179,18 +177,15 @@
   };
 
   /* Shared wallet-shortage prompt. Used by the order form and the order tracker
-   * when the wallet cannot cover a service payment; it explains the shortfall
-   * and guides the customer to the wallet page to top up. When the caller has
-   * saved an order draft first (order-form.js → OrderDraft), the customer is
-   * told the form will be restored automatically after the top-up. When the
-   * BazaarPay gateway is available, the customer is also reminded they can pay
-   * the order directly from the gateway instead of topping up. */
-  Screens.openWalletShortage = function (required, balance, opts) {
-    opts = opts || {};
+   * when the wallet cannot cover a service payment; it shows the shortfall
+   * numbers and guides the customer to the wallet page to top up. Callers may
+   * have saved an order draft first (order-form.js → OrderDraft) so the form is
+   * restored automatically after the top-up — that announcement was removed as
+   * clutter, the behavior itself is unchanged. */
+  Screens.openWalletShortage = function (required, balance) {
     const need = Number(required || 0);
     const have = Number(balance || 0);
     const shortfall = Math.max(0, need - have);
-    const gatewayAvailable = !!(api.state.settings && api.state.settings.bazaarPay && api.state.settings.bazaarPay.available);
 
     const sheet = UI.sheet({
       title: 'موجودی کیف پول کافی نیست',
@@ -201,17 +196,11 @@
 
     sheet.body.html(
       '<div class="warn-box" style="margin-bottom:12px">برای ثبت و پرداخت این سفارش، ابتدا کیف پول خود را شارژ کنید.</div>' +
-      (opts.draftSaved
-        ? '<div class="info-box" style="margin-bottom:12px">' + icon('check') + ' <b>اطلاعات سفارش شما ذخیره شد.</b> پس از شارژ کیف پول، به‌صورت خودکار به همین سفارش برمی‌گردید و نیازی به وارد کردن مجدد اطلاعات نیست.</div>'
-        : '') +
       '<div class="price-summary">' +
         '<div class="ps-row"><span>مبلغ قابل پرداخت</span><span>' + PU.formatToman(need) + '</span></div>' +
         '<div class="ps-row"><span>موجودی فعلی کیف پول</span><span>' + PU.formatToman(have) + '</span></div>' +
         '<div class="ps-row total"><span>مبلغ کسری</span><span class="val">' + PU.formatToman(shortfall) + '</span></div>' +
-      '</div>' +
-      (gatewayAvailable
-        ? '<div class="info-box" style="margin-top:12px">' + icon('zap', 'i-sm') + ' راه دیگر: به فرم سفارش برگردید و دکمه «<b>پرداخت آنلاین</b>» را بزنید تا بدون شارژ کیف پول، مستقیم در صفحه بازارپی پرداخت کنید.</div>'
-        : '')
+      '</div>'
     );
 
     sheet.footer.html('<button class="btn emerald block" id="go-wallet">' + icon('plus') + 'شارژ کیف پول</button>');

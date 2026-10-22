@@ -89,9 +89,7 @@
     const state = {
       formData: {},
       urgency: 'normal',
-      deliveryMethod: 'download',
-      deliveryAddress: '',
-      deliveryPostalCode: '',
+      deliveryMethod: 'download', // روش دریافت از فرم حذف شده — همیشه دانلود آنلاین
       customerNote: '',
       contactMethods: [],
       files: [],
@@ -126,6 +124,10 @@
       }
     } catch (e) { /* draft is best-effort — never block the form */ }
 
+    // A draft saved by an older build may carry 'courier' + address; the
+    // delivery section no longer exists, so force the only remaining method.
+    state.deliveryMethod = 'download';
+
     const sheet = UI.sheet({
       title: 'ثبت سفارش',
       subtitle: service.title,
@@ -135,7 +137,6 @@
     });
 
     function renderForm() {
-      const needsAddress = state.deliveryMethod === 'courier';
       const couponsEnabled = settings.enableCoupons !== false;
 
       sheet.body.html(
@@ -160,18 +161,6 @@
           [['normal', 'معمولی'], ['urgent', 'فوری (×' + PU.toPersianDigits(settings.urgentPriceMultiplier || 1.3) + ')'], ['immediate', 'آنی (×' + PU.toPersianDigits(settings.immediatePriceMultiplier || 1.6) + ')']]
             .map(([k, l]) => '<button class="seg ' + (state.urgency === k ? 'on' : '') + '" data-urgency="' + k + '">' + l + '</button>').join('') +
         '</div>' +
-
-        /* delivery */
-        '<label class="field-label">روش دریافت</label>' +
-        '<div class="segmented" id="delivery-seg">' +
-          [['download', 'دانلود آنلاین'], ['in_person', 'حضوری'], ['courier', 'ارسال با پیک']]
-            .map(([k, l]) => '<button class="seg ' + (state.deliveryMethod === k ? 'on' : '') + '" data-delivery="' + k + '">' + l + '</button>').join('') +
-        '</div>' +
-        (needsAddress ?
-          '<label class="field-label">آدرس تحویل <span class="req">*</span></label>' +
-          '<textarea class="textarea" id="delivery-address" rows="2" placeholder="نشانی کامل…">' + PU.escapeHtml(state.deliveryAddress) + '</textarea>' +
-          '<label class="field-label">کد پستی</label>' +
-          '<input class="input" id="delivery-postal" inputmode="numeric" value="' + PU.escapeHtml(state.deliveryPostalCode) + '">' : '') +
 
         /* contact methods — multi-select */
         '<label class="field-label">راه‌های ارتباط با شما <span class="req">*</span></label>' +
@@ -233,20 +222,13 @@
 
     function renderPrice() {
       const p = livePricing();
-      const balance = Number((api.state.currentUser && api.state.currentUser.walletBalance) || 0);
-      const shortfall = Math.max(0, p.payable - balance);
       sheet.body.find('#price-summary').html(
         '<div class="price-summary">' +
           '<div class="ps-row"><span>جمع خدمات</span><span>' + PU.formatToman(p.subtotal) + '</span></div>' +
           (p.urgencyMultiplier > 1 ? '<div class="ps-row"><span>ضریب فوریت</span><span>×' + PU.toPersianDigits(p.urgencyMultiplier) + '</span></div>' : '') +
-          (p.deliveryCost > 0 ? '<div class="ps-row"><span>هزینه پیک</span><span>' + PU.formatToman(p.deliveryCost) + '</span></div>' : '') +
           (p.discountAmount > 0 ? '<div class="ps-row" style="color:var(--emerald)"><span>تخفیف</span><span>−' + PU.formatToman(p.discountAmount) + '</span></div>' : '') +
           '<div class="ps-row total"><span>مبلغ قابل پرداخت</span><span class="val">' + PU.formatToman(p.payable) + '</span></div>' +
-        '</div>' +
-        (shortfall > 0
-          ? '<div class="warn-box" style="margin-top:10px">موجودی کیف پول کافی نیست؛ <b>' + PU.formatToman(shortfall) + '</b> کسری دارید' +
-            (bazaarPayAvailable ? ' — دکمه «پرداخت آنلاین» بدون نیاز به موجودی کار می‌کند.' : '. ابتدا کیف پول را شارژ کنید.') + '</div>'
-          : '')
+        '</div>'
       );
     }
 
@@ -274,13 +256,6 @@
       sheet.body.find('[data-urgency]').removeClass('on');
       $(this).addClass('on');
       renderPrice();
-    });
-
-    sheet.body.on('click', '[data-delivery]', function () {
-      state.deliveryMethod = $(this).data('delivery');
-      sheet.body.find('[data-delivery]').removeClass('on');
-      $(this).addClass('on');
-      renderForm(); // address fields toggle
     });
 
     sheet.body.on('click', '[data-contact]', function () {
@@ -358,10 +333,6 @@
           }
         }
       }
-      if (state.deliveryMethod === 'courier' && !state.deliveryAddress.trim()) {
-        UI.toast('برای ارسال با پیک، وارد کردن آدرس الزامی است.', 'warning');
-        return;
-      }
       if (!state.contactMethods.length) {
         UI.toast('حداقل یک راه ارتباطی را انتخاب کنید.', 'warning');
         return;
@@ -392,8 +363,6 @@
         formData: state.formData,
         urgency: state.urgency,
         deliveryMethod: state.deliveryMethod,
-        deliveryAddress: state.deliveryAddress || undefined,
-        deliveryPostalCode: state.deliveryPostalCode || undefined,
         customerNote: state.customerNote || undefined,
         contactMethods: state.contactMethods,
         customerFiles: state.files,
@@ -484,9 +453,7 @@
     sheet.footer.find('#order-pay-wallet').on('click', function () { submitOrder('wallet'); });
     sheet.footer.find('#order-pay-gateway').on('click', function () { submitOrder('bazaarpay'); });
 
-    // keep address/note in sync
-    sheet.body.on('input', '#delivery-address', function () { state.deliveryAddress = this.value; });
-    sheet.body.on('input', '#delivery-postal', function () { state.deliveryPostalCode = this.value; });
+    // keep note in sync
     sheet.body.on('input', '#customer-note', function () { state.customerNote = this.value; });
 
     renderForm();
