@@ -220,6 +220,12 @@
           icon('bell') + (smsCount ? '<span class="badge">' + PU.toPersianDigits(smsCount) + '</span>' : '') + '</button>';
       }
       if (user) {
+        /* Push status/enable, right beside the bell — tap to (re-)register
+         * the FCM token. Red = server has no active token for this user,
+         * green = registered. Guests never see it (tokens need auth). */
+        actions += '<button class="icon-btn" data-appbar-action="fcm" aria-label="فعال‌سازی اعلان‌ها">' + icon('bellring') + '</button>';
+      }
+      if (user) {
         actions += '<button class="icon-btn" data-appbar-action="profile" aria-label="پروفایل">' + icon('user') + '</button>';
       } else {
         actions += '<button class="chip-wallet" data-appbar-action="login">' + icon('user') + '<span>ورود</span></button>';
@@ -240,6 +246,23 @@
         const action = $(this).data('appbar-action');
         if (window.App && App.handleAppBarAction) App.handleAppBarAction(action);
       });
+
+      /* Paint the push icon immediately from the last known FCM state, then
+       * confirm with the server — a wiped fcm_tokens table flips it red on
+       * the next boot instead of trusting a client-side flag. When FCM is
+       * disabled in settings the button is removed entirely. */
+      const $fcmBtn = $('#app-bar').find('[data-appbar-action="fcm"]');
+      if ($fcmBtn.length && window.FCM) {
+        const paintFcm = function (ok) {
+          $fcmBtn.removeClass('fcm-on fcm-off').addClass(ok ? 'fcm-on' : 'fcm-off');
+        };
+        paintFcm(!!FCM.registered);
+        FCM.status().then(function (st) {
+          if (!st) return;
+          if (st.enabled === false) { $fcmBtn.remove(); return; }
+          paintFcm(!!st.registered || !!FCM.registered);
+        });
+      }
     },
 
     /* ---------- BottomNav ---------- */

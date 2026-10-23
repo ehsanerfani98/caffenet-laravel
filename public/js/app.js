@@ -304,7 +304,32 @@
         this.navigate('wallet');
       } else if (action === 'sms') {
         window.Screens.openSmsInbox();
+      } else if (action === 'fcm') {
+        this.enablePushNotifications();
       }
+    },
+
+    /* Tap on the AppBar push icon — (re-)register the FCM token for this
+     * device (covers: never registered, revoked, wiped fcm_tokens table)
+     * and repaint the red/green status icon in place. */
+    async enablePushNotifications() {
+      if (!window.FCM) return;
+      UI.busy(true);
+      let ok = false;
+      try {
+        ok = await FCM.requestPermission();
+      } catch (e) {
+        ok = false;
+      } finally {
+        UI.busy(false);
+      }
+      const $fcmBtn = $('#app-bar').find('[data-appbar-action="fcm"]');
+      if ($fcmBtn.length) $fcmBtn.removeClass('fcm-on fcm-off').addClass(ok ? 'fcm-on' : 'fcm-off');
+      UI.toast(
+        ok ? 'اعلان‌ها برای این دستگاه فعال شد ✅'
+           : 'فعال‌سازی اعلان‌ها انجام نشد — اجازه نوتیفیکیشن مرورگر را بررسی کنید.',
+        ok ? 'success' : 'error'
+      );
     },
 
     /* ---------------- payment gateway return ---------------- */

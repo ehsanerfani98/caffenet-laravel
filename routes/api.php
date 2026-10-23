@@ -194,6 +194,7 @@ Route::get('/fcm/config', [FcmController::class, 'config']);
 // Token registration (auth required — needs the current user's id).
 Route::middleware('auth.session')->group(function () {
     Route::post('/fcm/token', [FcmController::class, 'registerToken']);
+    Route::get('/fcm/token', [FcmController::class, 'status']);
     Route::delete('/fcm/token', [FcmController::class, 'unregister']);
     Route::post('/fcm/test', [FcmController::class, 'test'])
         ->middleware('permission:settings.edit|settings.manage');

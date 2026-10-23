@@ -110,6 +110,10 @@ svg.i.i-lg { width: 30px; height: 30px; }
 }
 .app-bar .icon-btn:active { transform: scale(.94); }
 .app-bar .icon-btn svg { width: 19px; height: 19px; }
+/* Push status icon — red = no active FCM token on the server for this
+ * user, green = token registered. Glyph uses stroke:currentColor. */
+.app-bar .icon-btn.fcm-off svg { color: #ef4444; }
+.app-bar .icon-btn.fcm-on svg { color: #4ade80; }
 .app-bar .icon-btn .badge {
     position: absolute; top: -4px; inset-inline-start: -4px;
     min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px;

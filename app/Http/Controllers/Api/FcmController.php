@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\FcmToken;
 use App\Services\FirebasePushService;
 use App\Services\SettingsService;
 use Illuminate\Http\JsonResponse;
@@ -84,6 +85,27 @@ class FcmController extends Controller
         FirebasePushService::deactivateUserTokens($user->id);
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Push-registration status for the CURRENT user — drives the AppBar
+     * notification icon (red = no active token, green = registered).
+     * Exists so a wiped fcm_tokens table (or a token revoked server-side)
+     * is detected on the next app boot instead of trusting a client flag.
+     */
+    public function status(Request $request): JsonResponse
+    {
+        $user = $request->attributes->get('authUser');
+        if (! $user) {
+            return response()->json(['error' => 'ورود لازم است.'], 401);
+        }
+
+        return response()->json([
+            'enabled' => SettingsService::bool('fcmEnabled'),
+            'registered' => FcmToken::where('user_id', $user->id)
+                ->where('is_active', true)
+                ->exists(),
+        ]);
     }
 
     /**

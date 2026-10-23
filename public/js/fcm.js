@@ -22,6 +22,9 @@
     _initialized: false,
     _messaging: null,
     _config: null,
+    // True only after a token was fetched AND the server accepted it in
+    // this browser session — the AppBar red/green icon reads this.
+    registered: false,
 
     /**
      * Boot FCM. Called from app.js after the user logs in. No-op when FCM
@@ -103,7 +106,8 @@
     /**
      * Request notification permission + register the FCM token.
      * Called automatically on init, but can also be called manually
-     * (e.g. from a "enable notifications" button).
+     * (e.g. from the AppBar notification icon).
+     * Resolves true ONLY when the server accepted the token.
      */
     async requestPermission() {
       if (!this._messaging || !this._msgMod) {
@@ -114,11 +118,29 @@
       try {
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') return false;
-        await this._registerToken();
-        return true;
+        return await this._registerToken();
       } catch (e) {
         console.warn('[FCM] requestPermission failed:', e.message);
         return false;
+      }
+    },
+
+    /**
+     * Ask the server whether the current user still has an ACTIVE push
+     * token. Drives the AppBar icon — a wiped fcm_tokens table must turn
+     * it red again even if this browser registered long ago.
+     * Resolves {registered, enabled}, or null when the request fails.
+     */
+    async status() {
+      try {
+        const resp = await fetch('/api/fcm/token', {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        });
+        if (!resp.ok) return null;
+        return await resp.json();
+      } catch (e) {
+        return null;
       }
     },
 
@@ -132,7 +154,7 @@
     async _registerToken() {
       const msgMod = this._msgMod;
       const messaging = this._messaging;
-      if (!messaging || !this._config.vapidKey) return;
+      if (!messaging || !this._config || !this._config.vapidKey) return false;
 
       try {
         const token = await msgMod.getToken(messaging, {
@@ -141,10 +163,11 @@
         });
         if (! token) {
           console.warn('[FCM] No token received — permission may not be granted.');
-          return;
+          this.registered = false;
+          return false;
         }
 
-        await fetch('/api/fcm/token', {
+        const resp = await fetch('/api/fcm/token', {
           method: 'POST',
           credentials: 'same-origin',
           headers: {
@@ -153,8 +176,12 @@
           },
           body: JSON.stringify({ token: token, platform: 'web' }),
         });
+        this.registered = !!resp.ok;
+        return this.registered;
       } catch (e) {
+        this.registered = false;
         console.warn('[FCM] getToken failed:', e.message);
+        return false;
       }
     },
 
@@ -185,6 +212,7 @@
      * Deactivate this user's tokens on the server (called on logout).
      */
     async unregister() {
+      this.registered = false;
       try {
         await fetch('/api/fcm/token', {
           method: 'DELETE',
