@@ -45,7 +45,9 @@
   document.addEventListener('DOMContentLoaded', () => PWA.watchOnline());
 
   // Register the hand-written service worker (autoUpdate semantics).
-  if ('serviceWorker' in navigator && location.protocol === 'https:' || location.hostname === 'localhost') {
+  // isSecureContext covers https AND localhost/127.0.0.1 — the old
+  // precedence-broken check skipped 127.0.0.1 (http) dev/testing origins.
+  if ('serviceWorker' in navigator && window.isSecureContext) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js').catch(() => { /* offline is optional */ });
     });

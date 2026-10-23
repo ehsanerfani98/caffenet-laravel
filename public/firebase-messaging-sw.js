@@ -12,6 +12,18 @@
  * admin can change it from the settings panel without redeploying the SW.
  */
 
+// The Firebase Compat SDK must be imported SYNCHRONOUSLY during the SW's
+// initial script evaluation — Chrome refuses importScripts() calls made
+// asynchronously (after an await), failing with "The script at ... failed
+// to load". Config fetch + initializeApp below may stay async.
+try {
+  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+} catch (e) {
+  // gstatic unreachable / blocked — the manual push fallback below still works.
+  self.__sdkErr = (e && e.message) || 'compat SDK importScripts failed';
+}
+
 // Cache the config so we don't fetch on every push event.
 let _fcmConfig = null;
 
@@ -36,8 +48,18 @@ self.addEventListener('activate', (event) => {
 
 // Listen for push events. When Firebase's own handler isn't loaded yet
 // (cold start), we fall back to a basic notification.
+// In-memory diagnostics (reset on every SW restart) — introspectable via
+// Playwright worker.evaluate to debug delivery chain issues.
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
+  self.__pushSeen = (self.__pushSeen || 0) + 1;
+  // Persistent delivery trace — survives SW idle restarts (unlike the
+  // in-memory flags). The page/E2E reads cache 'fcm-debug-v1'.
+  const __trace = (rec) => {
+    try { event.waitUntil(caches.open('fcm-debug-v1')
+      .then(c => c.put('/__fcm-push-trace', new Response(JSON.stringify(rec))))); } catch (e) {}
+  };
+  __trace({ at: new Date().toISOString(), seen: self.__pushSeen, by: null, sdkReady: !!self.__sdkReady });
+  if (!event.data) { self.__pushErr = 'no data'; return; }
 
   let payload;
   try {
@@ -69,13 +91,22 @@ self.addEventListener('push', (event) => {
             if (!self.firebase.apps.length) {
               self.firebase.initializeApp(cfg);
             }
-            // Let Firebase handle it.
+            // Let Firebase handle it (background display / foreground
+            // forwarding to the visible tab).
+            self.__fw = 'sdk';
+            __trace({ at: new Date().toISOString(), seen: self.__pushSeen, by: 'sdk', sdkReady: !!self.__sdkReady });
             return;
           }
         } catch (e) { /* fall through to manual */ }
       }
       // Fallback: show the notification directly.
-      return self.registration.showNotification(title, options);
+      try {
+        await self.registration.showNotification(title, options);
+        self.__fw = 'manual';
+        __trace({ at: new Date().toISOString(), seen: self.__pushSeen, by: 'manual', sdkReady: !!self.__sdkReady });
+      } catch (e) {
+        self.__pushErr = 'showNotification: ' + (e && e.message);
+      }
     })()
   );
 });
@@ -99,23 +130,23 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// Dynamically import the Firebase compat SDK + initialize with the live config.
-// Using importScripts (works in classic SWs) — the compat build is the only
-// one that auto-handles background push without app-level glue.
+// Initialize with the live config (async is fine here — only importScripts
+// had to be synchronous). Once firebase.messaging() runs, the compat SDK
+// owns push: background → system notification, foreground (visible tab) →
+// forwarded to the page so onMessage can show a toast.
 (async function () {
   try {
+    if (!self.firebase || !self.firebase.messaging) return;
     const cfg = await loadConfig();
     if (!cfg || !cfg.enabled || !cfg.apiKey) return;
-
-    importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-    importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 
     if (!self.firebase.apps.length) {
       self.firebase.initializeApp(cfg);
     }
     const messaging = self.firebase.messaging();
-    // Firebase's compat SW will now handle `push` events automatically.
+    self.__sdkReady = true;
   } catch (e) {
     // If the SDK fails to load, the manual push handler above still works.
+    self.__sdkErr = (e && e.message) || 'sdk init failed';
   }
 })();

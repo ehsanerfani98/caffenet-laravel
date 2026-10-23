@@ -253,25 +253,59 @@
 
     /**
      * Get (or register) the service worker registration that FCM needs.
-     * We reuse the existing /sw.js registration when present; otherwise
-     * we register /firebase-messaging-sw.js as a separate SW.
+     *
+     * Dedicated '/fcm/' scope — do NOT reuse the PWA /sw.js registration:
+     * sw.js owns offline caching but has NO push handler, so a token
+     * subscribed through it can never receive a push event (nothing is
+     * shown and onMessage never fires). firebase-messaging-sw.js owns
+     * push → notification + foreground forwarding. Distinct scopes keep
+     * the two workers side by side ('/' vs '/fcm/').
      */
     async _getSwRegistration() {
       if (!('serviceWorker' in navigator)) return null;
-      try {
-        // Try to reuse an existing registration first (the app already
-        // registers /sw.js for PWA purposes).
-        const existing = await navigator.serviceWorker.getRegistration();
-        if (existing && existing.active) return existing;
-
-        // Otherwise register the FCM-specific SW.
-        return await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-          scope: '/',
+      const waitActive = function (reg) {
+        // PushManager.subscribe requires an ACTIVE worker — wait through
+        // the installing/waiting phases (first install activates fast).
+        if (reg.active || !reg.installing && !reg.waiting) return Promise.resolve(reg);
+        const w = reg.installing || reg.waiting;
+        return new Promise(function (resolve) {
+          const done = function () { resolve(reg); };
+          w.addEventListener('statechange', function () {
+            if (w.state === 'activated') done();
+          });
+          setTimeout(done, 12000); // safety net — subscribe may still retry
         });
+      };
+      // register() can STALL indefinitely when the SW script's synchronous
+      // importScripts (gstatic) hangs on a bad network — bound every step
+      // and fall back to the page-controlled SW so token registration never
+      // bricks (delivery then depends on that SW, so /fcm/ is preferred).
+      const withTimeout = function (p, ms) {
+        return Promise.race([p, new Promise(function (resolve) {
+          setTimeout(function () { resolve(null); }, ms);
+        })]);
+      };
+      try {
+        const existing = await navigator.serviceWorker.getRegistration('/fcm/');
+        if (existing) {
+          const ready = await withTimeout(waitActive(existing), 15000);
+          if (ready) return ready;
+          console.warn('[FCM] /fcm/ SW not active in time — using the page SW.');
+        } else {
+          const reg = await withTimeout(
+            navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/fcm/' }),
+            20000
+          );
+          if (reg) {
+            const ready = await withTimeout(waitActive(reg), 15000);
+            if (ready) return ready;
+          }
+          console.warn('[FCM] /fcm/ SW registration stalled — using the page SW.');
+        }
       } catch (e) {
-        console.warn('[FCM] SW registration failed:', e.message);
-        return null;
+        console.warn('[FCM] SW registration failed (' + ((e && e.message) || e) + ') — using the page SW.');
       }
+      try { return await navigator.serviceWorker.ready; } catch (e) { return null; }
     },
 
     /**
