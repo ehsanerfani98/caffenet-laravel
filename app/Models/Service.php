@@ -11,7 +11,7 @@ class Service extends CaffenetModel
     protected $fillable = [
         'id', 'category_id', 'title', 'slug', 'description', 'base_price', 'estimated_time',
         'icon', 'icon_color', 'sort_order', 'is_active', 'is_featured', 'featured_sort',
-        'fields_json', 'pricing_formula',
+        'fields_json', 'pricing_formula', 'created_at',
     ];
 
     protected $casts = [

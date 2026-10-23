@@ -37,6 +37,9 @@ return new class extends Migration
             $table->string('title');
             $table->string('icon_name');
             $table->text('description')->nullable();
+            // Catalog ordering tie-breaker (CatalogController orders by
+            // sort_order, created_at). string(32) holds ISO-8601 strings.
+            $table->string('created_at', 32)->nullable();
         });
 
         Schema::create('services', function (Blueprint $table) {
@@ -50,6 +53,8 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
             $table->text('fields_json');
             $table->text('pricing_formula')->nullable();
+            // Catalog ordering tie-breaker — mirrors categories.created_at.
+            $table->string('created_at', 32)->nullable();
             $table->index('category_id', 'idx_services_category');
         });
 

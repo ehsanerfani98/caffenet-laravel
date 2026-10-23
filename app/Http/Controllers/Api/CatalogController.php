@@ -47,7 +47,7 @@ class CatalogController extends Controller
 
         $sortOrder = (int) ($body['sortOrder'] ?? 0);
 
-        $category = $body['id'] ? Category::find($body['id']) : null;
+        $category = ($body['id'] ?? null) ? Category::find($body['id']) : null;
         if ($category) {
             $category->update([
                 'title' => $title,

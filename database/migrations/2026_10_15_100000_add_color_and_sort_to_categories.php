@@ -21,8 +21,18 @@ return new class extends Migration
         Schema::table('categories', function (Blueprint $table) {
             $table->string('icon_color', 32)->nullable()->after('icon_name');
             $table->integer('sort_order')->default(0)->after('icon_color');
-            $table->string('created_at', 32)->nullable()->after('description')->change();
         });
+
+        // CatalogController orders categories by (sort_order, created_at),
+        // so the column MUST exist. The base migration only creates it on
+        // installs made after the created_at fix; older databases never
+        // had it (the previous `->change()` here crashed on MySQL with
+        // «Unknown column 'created_at'»). Add it when it is missing.
+        if (! Schema::hasColumn('categories', 'created_at')) {
+            Schema::table('categories', function (Blueprint $table) {
+                $table->string('created_at', 32)->nullable()->after('description');
+            });
+        }
     }
 
     public function down(): void

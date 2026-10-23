@@ -22,6 +22,16 @@ return new class extends Migration
             $table->string('icon_color', 32)->nullable()->after('icon');
             $table->integer('sort_order')->default(0)->after('icon_color');
         });
+
+        // CatalogController orders services by (sort_order, created_at),
+        // so the column MUST exist. The base migration only creates it on
+        // installs made after the created_at fix; older databases never
+        // had it — add it when it is missing.
+        if (! Schema::hasColumn('services', 'created_at')) {
+            Schema::table('services', function (Blueprint $table) {
+                $table->string('created_at', 32)->nullable()->after('pricing_formula');
+            });
+        }
     }
 
     public function down(): void
