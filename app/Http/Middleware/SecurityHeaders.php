@@ -26,8 +26,10 @@ class SecurityHeaders
             "img-src 'self' data: blob:",
             "font-src 'self' data:",
             // FCM needs connect-src to: firebaseinstallations.googleapis.com
-            // (token registration) + fcm.googleapis.com (message delivery).
-            "connect-src 'self' https://fcm.googleapis.com https://firebaseinstallations.googleapis.com https://www.gstatic.com",
+            // (Firebase Installation ID) + fcmregistrations.googleapis.com
+            // (the actual token subscribe POST — without it getToken throws
+            // messaging/token-subscribe-failed) + fcm.googleapis.com (delivery).
+            "connect-src 'self' https://fcm.googleapis.com https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com https://www.gstatic.com",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",

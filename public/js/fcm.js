@@ -208,18 +208,32 @@
         return { ok: false, reason: 'config' };
       }
 
+      // Step 1 — fetch the FCM token from Google. Failures here are NOT
+      // SDK-load problems: the SDK already loaded (we have messaging).
+      // Typical causes: network blocked, CSP blocking the Google endpoints,
+      // VAPID mismatch — surfaced to the UI as reason 'subscribe'.
+      let token;
       try {
-        const token = await msgMod.getToken(messaging, {
+        token = await msgMod.getToken(messaging, {
           vapidKey: this._config.vapidKey,
           serviceWorkerRegistration: await this._getSwRegistration(),
         });
-        if (! token) {
-          console.warn('[FCM] No token received — permission may not be granted.');
-          this.registered = false;
-          return { ok: false, reason: 'token' };
-        }
+      } catch (e) {
+        this.registered = false;
+        console.warn('[FCM] getToken failed:', e.message);
+        return { ok: false, reason: 'subscribe', error: e.message };
+      }
+      if (! token) {
+        console.warn('[FCM] No token received — permission may not be granted.');
+        this.registered = false;
+        return { ok: false, reason: 'token' };
+      }
 
-        const resp = await fetch('/api/fcm/token', {
+      // Step 2 — hand the token to our server. A thrown fetch means the
+      // request never reached the server (offline / connection reset).
+      let resp;
+      try {
+        resp = await fetch('/api/fcm/token', {
           method: 'POST',
           credentials: 'same-origin',
           headers: {
@@ -228,13 +242,13 @@
           },
           body: JSON.stringify({ token: token, platform: 'web' }),
         });
-        this.registered = !!resp.ok;
-        return resp.ok ? { ok: true } : { ok: false, reason: 'server', status: resp.status };
       } catch (e) {
         this.registered = false;
-        console.warn('[FCM] getToken failed:', e.message);
-        return { ok: false, reason: 'sdk', error: e.message };
+        console.warn('[FCM] token POST failed:', e.message);
+        return { ok: false, reason: 'network', error: e.message };
       }
+      this.registered = !!resp.ok;
+      return resp.ok ? { ok: true } : { ok: false, reason: 'server', status: resp.status };
     },
 
     /**
