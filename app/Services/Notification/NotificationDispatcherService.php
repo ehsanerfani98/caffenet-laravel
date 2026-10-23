@@ -6,6 +6,7 @@ use App\Contracts\NotificationDispatcherServiceInterface;
 use App\Models\NotificationLog;
 use App\Models\Order;
 use App\Services\FirebasePushService;
+use App\Services\JalaliDate;
 use App\Services\SettingsService;
 use App\Services\SmsService;
 use Illuminate\Support\Facades\Log;
@@ -190,8 +191,10 @@ class NotificationDispatcherService implements NotificationDispatcherServiceInte
             'status_title'     => \App\Models\Order::STATUS_TITLES[$order->status] ?? $order->status,
             'eta_minutes'      => (string) ($order->estimated_wait_minutes ?? ''),
             'duration_minutes' => (string) ($order->estimated_duration_minutes ?? ''),
-            'start_time'       => (string) ($order->estimated_start_at ?? ''),
-            'end_time'         => (string) ($order->estimated_end_at ?? ''),
+            // Jalali calendar + Persian digits for customer SMS
+            // (e.g. ۱۴۰۵/۸/۱ ۱۵:۳۳) — never raw ISO-8601.
+            'start_time'       => JalaliDate::format($order->estimated_start_at),
+            'end_time'         => JalaliDate::format($order->estimated_end_at),
             'queue_position'   => (string) ($order->queue_position ?? ''),
             'tracking_url'     => $order->track_token
                 ? url('/api/orders/track/'.$order->track_token)
