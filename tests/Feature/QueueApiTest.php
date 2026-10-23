@@ -80,6 +80,24 @@ class QueueApiTest extends TestCase
         putenv('ARTISAN_RUNNER_TOKEN=');
     }
 
+    public function test_artisan_runner_whitelist_covers_deploy_commands(): void
+    {
+        // Reflection guard (no HTTP): deploy-critical commands must stay
+        // whitelisted — config:clear (apply config after deploy) and
+        // queue:restart (graceful worker restart signal, e.g. after the
+        // SQLite concurrency pragmas rollout).
+        $ref = new \ReflectionClass(\App\Http\Controllers\Api\ArtisanRunnerController::class);
+        $whitelist = $ref->getConstant('WHITELIST');
+
+        $this->assertIsArray($whitelist);
+        $this->assertArrayHasKey('config:clear', $whitelist);
+        $this->assertArrayHasKey('queue:restart', $whitelist);
+
+        $restart = $whitelist['queue:restart'];
+        $this->assertSame('queue:restart', $restart['command']);
+        $this->assertSame([], $restart['opts'], 'queue:restart must run with no extra options.');
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────
 
     private function seedOrderTypes(): void

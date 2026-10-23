@@ -48,6 +48,10 @@ class ArtisanRunnerController extends Controller
         'view:cache' => ['command' => 'view:cache', 'opts' => []],
         'view:clear' => ['command' => 'view:clear', 'opts' => []],
         'queue:work' => ['command' => 'queue:work', 'opts' => ['--stop-when-empty' => true, '--max-time' => 50, '--tries' => 1]],
+        // Graceful restart signal: running workers finish the current job and
+        // exit, then the per-minute cron respawns them with fresh code/config
+        // (new SQLite pragmas etc.). Safe to run from the browser.
+        'queue:restart' => ['command' => 'queue:restart', 'opts' => []],
         'schedule:run' => ['command' => 'schedule:run', 'opts' => []],
         'caffenet:cleanup' => ['command' => 'caffenet:cleanup', 'opts' => []],
         'queue:slots:generate' => ['command' => 'queue:slots:generate', 'opts' => ['--hours' => 24]],

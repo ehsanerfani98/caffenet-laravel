@@ -687,6 +687,7 @@ ANY /api/_artisan/run/{command}?token=YOUR_TOKEN
 | `view:cache` | `view:cache` | — |
 | `view:clear` | `view:clear` | — |
 | `queue:work` | `queue:work` | `--stop-when-empty --max-time=50 --tries=1` |
+| `queue:restart` | `queue:restart` | — (سیگنال restart نرم؛ worker فعلی کار جاری را تمام و خارج می‌شود، کرونِ هر دقیقه دوباره بالا می‌آورد) |
 | `schedule:run` | `schedule:run` | — |
 | `caffenet:cleanup` | `caffenet:cleanup` | — |
 | `queue:slots:generate` | `queue:slots:generate` | `--hours=24` |
