@@ -353,10 +353,9 @@
     const $footerButtons = host.footer.find('button');
 
     /* Acknowledgment popup for «ثبت درخواست» — centered modal with the
-     * admin-configured notice text (orderRequestNotice) and a single
-     * «متوجه شدم» button. The request enters the operator queue the moment
-     * it is submitted, so the body says so and dismissing the modal lands
-     * the customer on the live queue tracker. */
+     * tracking number, the admin-configured notice text (orderRequestNotice)
+     * and a single «متوجه شدم» button. Dismissing the modal lands the
+     * customer on the live queue tracker. */
     function openRequestConfirmation(order) {
       const notice = String(settings.orderRequestNotice || '').trim() ||
         'درخواست شما ثبت شد. همکاران ما به‌زودی برای ادامه کار با شما تماس می‌گیرند.';
@@ -367,7 +366,6 @@
         body:
           '<div class="info-box" style="margin-bottom:10px">شماره پیگیری: <b class="persian-nums">' +
           PU.toPersianDigits(String(order.orderNumber || order.id || '')) + '</b></div>' +
-          '<div class="info-box" style="margin-bottom:10px;background:var(--emerald-soft);color:var(--emerald)">سفارش شما هم‌اکنون وارد صف بررسی اپراتورها شد؛ قیمت پس از بررسی توسط همکاران اعلام می‌شود.</div>' +
           '<div style="white-space:pre-wrap">' + PU.escapeHtml(notice) + '</div>',
         buttonText: 'متوجه شدم',
         onClose: function () {
