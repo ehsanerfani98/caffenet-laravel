@@ -16,6 +16,7 @@
     refund: 'عودت وجه',
     manual_credit: 'شارژ دستی توسط مدیریت',
     manual_debit: 'کسر دستی توسط مدیریت',
+    manual_payment: 'پرداخت دستی سفارش (ثبت توسط مدیریت)',
   };
 
   /* One ledger row. `showUser` (default true) appends the wallet owner id —
@@ -41,7 +42,8 @@
     '<span class="chip" data-type="purchase">خرید خدمت</span>' +
     '<span class="chip" data-type="refund">عودت وجه</span>' +
     '<span class="chip" data-type="manual_credit">شارژ دستی</span>' +
-    '<span class="chip" data-type="manual_debit">کسر دستی</span>';
+    '<span class="chip" data-type="manual_debit">کسر دستی</span>' +
+    '<span class="chip" data-type="manual_payment">پرداخت دستی</span>';
 
   Screens.adminOrders = function (ctx) {
     if (!ctx.user || ctx.user.role !== 'admin') {
@@ -170,7 +172,7 @@
             (canManualPay
               ? '<div class="section-title">' + icon('wallet') + 'پرداخت دستی</div>' +
                 '<button class="btn emerald block" id="od-manual-pay">' + icon('wallet') + 'ثبت پرداخت دستی توسط مدیریت</button>' +
-                '<div class="help-text">برای زمانی که مشتری حضوری پرداخت کرده است؛ سفارش مثل پرداخت آنلاین «ثبت‌شده» می‌شود، وارد صف کار می‌رود و پیامک رسید برای مشتری ارسال می‌شود.</div>'
+                '<div class="help-text">برای زمانی که مشتری حضوری پرداخت کرده است؛ سفارش مثل پرداخت آنلاین «ثبت‌شده» می‌شود، یک تراکنش برای مشتری ثبت می‌شود، وارد صف کار می‌رود و پیامک رسید برای مشتری ارسال می‌شود.</div>'
               : '') +
 
             '<div class="section-title">' + icon('clock') + 'روند سفارش (ردیابی عملیات)</div>' +
@@ -224,7 +226,7 @@
         icon: 'wallet', tone: 'emerald',
       });
       sheet.body.html(
-        '<div class="info-box">پرداخت حضوری مشتری ثبت می‌شود: سفارش «ثبت‌شده» و وارد صف کار می‌شود و پیامک رسید برای مشتری ارسال می‌شود.</div>' +
+        '<div class="info-box">پرداخت حضوری مشتری ثبت می‌شود: سفارش «ثبت‌شده» و وارد صف کار می‌شود، یک تراکنش در کیف پول مشتری ثبت می‌شود و پیامک رسید برای مشتری ارسال می‌شود.</div>' +
         '<label class="field-label">مبلغ پرداخت‌شده (تومان) <span class="req">*</span></label>' +
         '<input class="input" id="mp-amount" inputmode="numeric" value="' + payable + '">' +
         '<label class="field-label">شماره پیگیری / رسید (اختیاری)</label>' +

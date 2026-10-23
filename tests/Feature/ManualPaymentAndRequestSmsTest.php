@@ -217,6 +217,25 @@ class ManualPaymentAndRequestSmsTest extends TestCase
             'amount' => self::PRICE,
         ]);
 
+        // A wallet-ledger transaction records the manual payment for the
+        // customer — visible in their wallet history and the admin's
+        // user-transactions roster, exactly like other payment methods.
+        // The wallet balance itself must stay untouched (the money was
+        // collected outside the wallet).
+        $paymentId = DB::table('payments')->where('order_id', $order->id)->where('gateway', 'manual')->value('id');
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id' => $customer->id,
+            'order_id' => $order->id,
+            'payment_id' => $paymentId,
+            'type' => 'manual_payment',
+            'direction' => 'debit',
+            'amount' => self::PRICE,
+            'balance_after' => 0,
+            'reference' => 'RCPT-7734',
+            'performed_by_name' => 'مدیر سیستم',
+        ]);
+        $this->assertEquals(0, (int) $customer->fresh()->wallet_balance);
+
         // Exactly like a gateway payment: queue entry + receipt SMS + logs.
         $this->assertDatabaseHas('queue_entries', ['order_id' => $order->id]);
         $this->assertDatabaseHas('order_logs', [
@@ -274,6 +293,41 @@ class ManualPaymentAndRequestSmsTest extends TestCase
 
         $order->refresh();
         $this->assertEquals(50000, $order->paid_amount);
+
+        // The ledger row carries the exact settled amount.
+        $this->assertDatabaseHas('wallet_transactions', [
+            'order_id' => $order->id,
+            'type' => 'manual_payment',
+            'amount' => 50000,
+        ]);
+    }
+
+    public function test_gateway_payments_do_not_create_manual_payment_ledger_rows(): void
+    {
+        // A gateway (BazaarPay) payment applies through the same fulfillment
+        // service but must NOT produce a manual_payment ledger row — the
+        // wallet history stays reserved for wallet/manual movements.
+        $customer = $this->customer();
+        $order = $this->createRequestOrder($customer);
+
+        $payment = Payment::create([
+            'order_id' => $order->id,
+            'user_id' => $customer->id,
+            'purpose' => 'order',
+            'amount' => self::PRICE,
+            'gateway' => 'bazaarpay',
+            'status' => 'pending',
+            'created_at' => now()->toIso8601String(),
+        ]);
+
+        $applied = \App\Services\PaymentFulfillmentService::apply($payment, 'BP-TRK-1', null, 'bazaarpay');
+
+        $this->assertTrue($applied);
+        $this->assertDatabaseMissing('wallet_transactions', [
+            'order_id' => $order->id,
+            'type' => 'manual_payment',
+        ]);
+        $this->assertDatabaseMissing('wallet_transactions', ['order_id' => $order->id]);
     }
 
     public function test_manual_payment_is_available_even_with_payments_enabled(): void

@@ -80,6 +80,33 @@ class PaymentFulfillmentService
                         DB::table('coupons')->where('id', $order->coupon_id)->increment('usage_count');
                     }
 
+                    // Manual registration: record a wallet-ledger transaction
+                    // for the customer so the payment is visible in their
+                    // wallet history and the admin's user-transactions roster
+                    // — the same record an online/wallet payment produces.
+                    // The balance itself is NOT touched (the money was
+                    // collected outside the wallet: cash, terminal, transfer),
+                    // so this is a pure record row: direction=debit with
+                    // balance_after = the untouched current balance.
+                    if ($paymentMethod === 'manual' && $payment->user_id) {
+                        $owner = DB::table('users')->where('id', $payment->user_id)->first();
+                        if ($owner) {
+                            WalletTransaction::create([
+                                'user_id' => $payment->user_id,
+                                'order_id' => $payment->order_id,
+                                'payment_id' => $payment->id,
+                                'type' => WalletTransaction::TYPE_MANUAL_PAYMENT,
+                                'direction' => WalletTransaction::DIRECTION_DEBIT,
+                                'amount' => (int) $payment->amount,
+                                'balance_after' => (int) $owner->wallet_balance,
+                                'reference' => $refId,
+                                'note' => 'پرداخت دستی سفارش '.$order->order_number.' توسط مدیریت',
+                                'performed_by_name' => $performedByName ?? 'مدیریت',
+                                'created_at' => $now,
+                            ]);
+                        }
+                    }
+
                     $paidOrder = $order;
 
                     // ── Smart queue: enqueue the now-submitted order ──

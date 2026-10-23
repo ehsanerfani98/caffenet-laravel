@@ -584,7 +584,8 @@ erDiagram
   UI کاربر را به «شارژ کیف پول» هدایت کند. همین بررسی به‌صورت اتمیک در `pay-wallet` هم تکرار می‌شود.
 
 ### دفتر کل کیف پول (Ledger) و عودت وجه
-- هر تغییر موجودی در جدول `wallet_transactions` ثبت می‌شود: `type` ∈ {`topup`, `purchase`, `refund`, `manual_credit`, `manual_debit`}، `direction` ∈ {`credit`, `debit`}، `amount` (همیشه مثبت) و `balance_after` (عکس فوری موجودی پس از عملیات) — برای رهگیری و تطبیق کامل.
+- هر تغییر موجودی در جدول `wallet_transactions` ثبت می‌شود: `type` ∈ {`topup`, `purchase`, `refund`, `manual_credit`, `manual_debit`, `manual_payment`}، `direction` ∈ {`credit`, `debit`}، `amount` (همیشه مثبت) و `balance_after` (عکس فوری موجودی پس از عملیات) — برای رهگیری و تطبیق کامل.
+- **ردیف `manual_payment`:** وقتی مدیریت برای سفارشی پرداخت دستی ثبت می‌کند (`POST /api/orders/{id}/manual-payment`)، علاوه بر ردیف `payments` یک تراکنش دفتری برای مشتری ثبت می‌شود تا پرداخت مثل روش‌های آنلاین در «تراکنش‌های» کیف پول مشتری و در «تراکنش‌های کاربران» پنل ادمین دیده شود. چون پول از خارج کیف پول (نقدی/کارتخوان/کارت‌به‌کارت) وصول شده، موجودی دست نمی‌خورد: `direction=debit` و `balance_after` برابر موجودی فعلی می‌ماند. این ردیف در `PaymentFulfillmentService::apply` اتمیک با خود پرداخت ثبت می‌شود (فقط برای `paymentMethod=manual`).
 - همهٔ مسیرهای تغییر موجودی از [`app/Services/WalletService.php`](../app/Services/WalletService.php:1) عبور می‌کنند تا تغییر موجودی و ثبت دفتر کل اتمیک و همیشه هماهنگ بمانند: شارژ درگاه (زرین‌پال/کافه‌بازار)، پرداخت خدمت از کیف پول، و شارژ/کسر دستی مدیریت.
 - **عودت وجه فقط توسط مدیر/مدیر سیستم** (`wallet.refund|wallet.manage`) و از `POST /api/wallet/refund` انجام می‌شود؛ مبلغ به کیف پول کاربر واریز می‌شود. اگر `orderId` بیاید، سفارش به وضعیت `refunded` («عودت شده») می‌رود، `refund_amount`/`refunded_at` ثبت و یک ردیف در `order_logs` (روند سفارش) اضافه می‌شود.
 - شارژ/کسر دستی توسط مدیریت (`POST /api/wallet/adjust`) و تغییر موجودی در فرم کاربر (`walletChange`) همگی در دفتر کل ثبت می‌شوند.
