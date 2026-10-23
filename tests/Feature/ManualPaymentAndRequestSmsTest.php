@@ -13,18 +13,28 @@ use Tests\TestCase;
 
 /**
  * «حالت ثبت درخواست» + پرداخت دستی مدیریت — the SMS chain no longer
- * depends on a customer payment:
+ * depends on a customer payment, and the request enters the queue without
+ * one:
  *
  *  1. With the paymentsDisabled switch ON, registering an order request
  *     (paymentMethod='request') immediately sends the order-confirmation
- *     SMS (smsPatternPaid) — the payment condition is removed.
+ *     SMS (smsPatternPaid) — the payment condition is removed — and the
+ *     order is born `submitted` and enters the operator queue IMMEDIATELY
+ *     (queue entry + ETA + track token): the operator reviews it, announces
+ *     the price, the customer pays by any means, and management registers
+ *     the payment manually. Nothing waits for a payment that never comes.
  *  2. Management can register a manual (offline) payment for any unpaid
- *     order in ALL conditions; the order is marked paid + submitted exactly
- *     like a verified gateway payment (receipt SMS + queue enqueue +
- *     coupon consumption) — POST /orders/{id}/manual-payment.
+ *     order in ALL conditions; the order is marked paid exactly like a
+ *     verified gateway payment (receipt SMS + wallet-ledger transaction +
+ *     coupon consumption + queue enqueue when it was not already queued)
+ *     — POST /orders/{id}/manual-payment. A queued request order keeps its
+ *     current status (submitted/processing/ready) — no re-enqueue, no
+ *     demotion back to submitted.
  *  3. Gateway payments (BazaarPay/Zarinpal/IAP) go through
  *     PaymentFulfillmentService::apply — they now send the receipt SMS too
  *     (the wallet path always did; apply() never did).
+ *  4. The 30-minute abandonment cleanup never touches request orders —
+ *     they are not waiting for any in-app payment.
  */
 class ManualPaymentAndRequestSmsTest extends TestCase
 {
@@ -142,7 +152,7 @@ class ManualPaymentAndRequestSmsTest extends TestCase
         ]);
     }
 
-    /* ───────── 1. request mode: SMS at registration (no payment) ───────── */
+    /* ───────── 1. request mode: SMS at registration + IMMEDIATE queue entry ───────── */
 
     public function test_request_order_registration_sends_confirmation_sms_without_any_payment(): void
     {
@@ -150,9 +160,19 @@ class ManualPaymentAndRequestSmsTest extends TestCase
 
         $order = $this->createRequestOrder($customer);
 
-        $this->assertEquals(Order::STATUS_PENDING_PAYMENT, $order->status);
+        // No payment step exists — the order does NOT wait in pending_payment:
+        // it is born submitted and goes straight into the operator queue.
+        $this->assertEquals(Order::STATUS_SUBMITTED, $order->status);
         $this->assertEquals('request', $order->payment_method);
         $this->assertEquals(0, $order->paid_amount);
+
+        // Queue bookkeeping happened at submission: entry + position + ETA
+        // + public track token — the exact state a paid order gets.
+        $this->assertDatabaseHas('queue_entries', ['order_id' => $order->id]);
+        $this->assertNotNull($order->queue_position);
+        $this->assertNotNull($order->estimated_wait_minutes);
+        $this->assertNotNull($order->track_token);
+        $this->assertNotNull($order->estimated_start_at);
 
         $this->assertPaidSmsSent($customer->phone, $order->order_number, (string) self::PRICE);
     }
@@ -209,6 +229,10 @@ class ManualPaymentAndRequestSmsTest extends TestCase
         $this->assertEquals('RCPT-7734', $order->payment_tracking_code);
         $this->assertEquals(Order::STATUS_SUBMITTED, $order->status);
 
+        // The order was already in the queue since submission — the manual
+        // payment must NOT create a second entry or re-stamp the ETA.
+        $this->assertEquals(1, DB::table('queue_entries')->where('order_id', $order->id)->count());
+
         // A payment row records the manual transaction.
         $this->assertDatabaseHas('payments', [
             'order_id' => $order->id,
@@ -251,6 +275,103 @@ class ManualPaymentAndRequestSmsTest extends TestCase
         $this->assertPaidSmsSent($customer->phone, $order->order_number, (string) self::PRICE);
 
         $this->assertEquals('manual', $resp->json('paymentMethod'));
+    }
+
+    public function test_manual_payment_keeps_processing_status_of_a_queued_request_order(): void
+    {
+        $customer = $this->customer();
+        $admin = $this->admin();
+        $order = $this->createRequestOrder($customer);
+
+        // The operator already picked the request up and is working on it
+        // (price announced, customer paid in the meantime).
+        DB::table('orders')->where('id', $order->id)->update(['status' => Order::STATUS_PROCESSING]);
+        $this->fakeIppanel();
+
+        $this->actingAs($admin)
+            ->postJson("/api/orders/{$order->id}/manual-payment", [])
+            ->assertStatus(200);
+
+        $order->refresh();
+
+        // Paid like any other order…
+        $this->assertEquals(self::PRICE, $order->paid_amount);
+        $this->assertEquals('manual', $order->payment_method);
+        // …but NOT demoted back to submitted and NOT re-enqueued: the
+        // operator's work continues exactly where it was.
+        $this->assertEquals(Order::STATUS_PROCESSING, $order->status);
+        $this->assertEquals(1, DB::table('queue_entries')->where('order_id', $order->id)->count());
+    }
+
+    public function test_wallet_payment_of_a_queued_request_order_preserves_its_queue_state(): void
+    {
+        // Defensive API-path coverage: the UI never offers it, but a customer
+        // paying a queued request order from wallet must not demote the order
+        // out of its operator's hands or duplicate the queue entry.
+        $customer = User::create([
+            'id' => 'usr-cust-rich3',
+            'phone' => '09120000007',
+            'name' => 'مشتری متمول سه',
+            'role' => 'customer',
+            'wallet_balance' => self::PRICE,
+            'created_at' => now()->toIso8601String(),
+        ]);
+        $order = $this->createRequestOrder($customer);
+        $this->fakeIppanel();
+
+        $this->actingAs($customer)
+            ->postJson("/api/orders/{$order->id}/pay-wallet", [])
+            ->assertStatus(200);
+
+        $order->refresh();
+        $this->assertEquals(self::PRICE, $order->paid_amount);
+        $this->assertEquals('wallet', $order->payment_method);
+        $this->assertEquals(Order::STATUS_SUBMITTED, $order->status);
+        $this->assertEquals(1, DB::table('queue_entries')->where('order_id', $order->id)->count());
+    }
+
+    public function test_abandonment_cleanup_never_expires_request_orders(): void
+    {
+        // Enough balance for the plain wallet-intent order below (the request
+        // order itself never touches the wallet).
+        $customer = User::create([
+            'id' => 'usr-cust-rich4',
+            'phone' => '09120000008',
+            'name' => 'مشتری متمول چهار',
+            'role' => 'customer',
+            'wallet_balance' => self::PRICE,
+            'created_at' => now()->toIso8601String(),
+        ]);
+        $requestOrder = $this->createRequestOrder($customer);
+
+        // A plain wallet-intent order still sitting in pending_payment — the
+        // classic case the 30-minute cleanup exists for.
+        $plainOrder = $this->actingAs($customer)
+            ->postJson('/api/orders', [
+                'serviceId' => 'srv-test',
+                'formData' => [],
+                'urgency' => 'normal',
+                'deliveryMethod' => 'download',
+                'contactMethods' => ['app_chat'],
+            ])
+            ->assertStatus(201);
+        $plainId = $plainOrder->json('id');
+
+        // Age both orders past the abandonment window. The request order is
+        // forced back to pending_payment to mimic legacy rows created before
+        // request orders were born submitted.
+        $old = now()->subMinutes(40)->toIso8601String();
+        DB::table('orders')->where('id', $requestOrder->id)->update(['status' => Order::STATUS_PENDING_PAYMENT, 'created_at' => $old]);
+        DB::table('orders')->where('id', $plainId)->update(['created_at' => $old]);
+
+        $expired = \App\Services\CleanupService::expireAbandonedPayments();
+
+        // Only the payment-waiting plain order dies; the request order — no
+        // matter how old — is never killed for a payment that was never part
+        // of its flow.
+        $this->assertEquals(1, $expired);
+        $this->assertEquals(Order::STATUS_PENDING_PAYMENT, Order::find($requestOrder->id)->status);
+        $this->assertEquals(Order::STATUS_FAILED, Order::find($plainId)->status);
     }
 
     public function test_manual_payment_consumes_reserved_coupon(): void

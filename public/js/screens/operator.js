@@ -1,5 +1,7 @@
 /* Caffenet Lite — screens/operator.js
- * Operator work queue: paid orders only (never pending_payment/failed),
+ * Operator work queue: submitted+ orders (never pending_payment/failed/
+ * refunded) — including request-mode orders that enter the queue at
+ * submission and are paid later via a management-registered manual payment;
  * filters, detail sheet with status/result-file/assign/notes/chat.
  * Port of operator/OperatorDashboard.tsx. */
 (function () {

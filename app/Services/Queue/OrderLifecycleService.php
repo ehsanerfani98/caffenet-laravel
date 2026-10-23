@@ -6,6 +6,7 @@ use App\Contracts\QueueManagerServiceInterface;
 use App\Contracts\WaitTimeEstimatorServiceInterface;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
+use App\Models\QueueEntry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -28,11 +29,21 @@ class OrderLifecycleService implements \App\Contracts\OrderLifecycleService
     ) {}
 
     /**
-     * Called when an order becomes `submitted` (post-payment verified).
-     * Enqueues it and stamps the ETA + track token.
+     * Called when an order becomes `submitted` (post-payment verified, or a
+     * «ثبت درخواست» order at creation). Enqueues it and stamps the ETA +
+     * track token.
+     *
+     * Idempotent: an order that already holds a queue entry (a request-mode
+     * order enqueued at submission and paid manually later) is left alone —
+     * no second entry, no ETA re-stamp. Ready orders keep their finished
+     * entry too, so they are equally protected against a stray re-enqueue.
      */
     public function onSubmitted(Order $order): void
     {
+        if (QueueEntry::where('order_id', $order->id)->exists()) {
+            return;
+        }
+
         DB::transaction(function () use ($order) {
             $queueType = $order->queue_type ?: 'normal';
             $wait = $this->estimator->estimateWaitMinutes($queueType);

@@ -77,6 +77,12 @@ class CleanupService
 
         $stale = DB::table('orders')
             ->where('status', 'pending_payment')
+            // «حالت ثبت درخواست» orders are not waiting for any in-app
+            // payment — the operator announces the price and management
+            // registers the payment manually, however long that takes. New
+            // request orders are born submitted anyway; this keeps legacy
+            // rows still sitting in pending_payment from being killed too.
+            ->where('payment_method', '!=', 'request')
             ->where('created_at', '<', $cutoff)
             ->get();
 

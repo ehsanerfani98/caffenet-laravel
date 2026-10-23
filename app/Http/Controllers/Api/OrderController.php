@@ -27,7 +27,12 @@ use Illuminate\Support\Str;
  * Orders — faithful port of ordersRouter in routes.ts.
  *
  * Payment-centric lifecycle guarantees preserved:
- *  - Creation always starts at pending_payment with paid_amount = 0.
+ *  - Creation starts at pending_payment with paid_amount = 0 — EXCEPT the
+ *    «حالت ثبت درخواست» (paymentsDisabled + paymentMethod='request'): the
+ *    operator reviews the request, announces the price and the customer pays
+ *    by any means, after which management registers the payment manually.
+ *    There is no payment step to wait for, so the order is born `submitted`
+ *    and enters the operator queue IMMEDIATELY.
  *  - Wallet payment is transactional with an atomic unpaid guard
  *    (no double-debit under concurrent requests).
  *  - Amounts are always recomputed server-side from the order record.
@@ -182,6 +187,17 @@ class OrderController extends Controller
                 \App\Models\OrderType::KEY_NORMAL,
             );
 
+            // «حالت ثبت درخواست»: no payment step exists — the operator
+            // reviews the request and announces the price, and the customer
+            // pays afterwards (management then registers the payment
+            // manually). Waiting for a payment that will never come through
+            // the app would strand the order in pending_payment (where the
+            // 30-minute abandonment cleanup would kill it), so the order is
+            // born `submitted` and goes straight into the operator queue.
+            $initialStatus = $paymentMethod === 'request'
+                ? Order::STATUS_SUBMITTED
+                : Order::STATUS_PENDING_PAYMENT;
+
             $order = Order::create([
                 'order_number' => self::generateOrderNumber(),
                 'service_id' => $service->id,
@@ -189,7 +205,7 @@ class OrderController extends Controller
                 'customer_id' => $user->id,
                 'customer_phone' => $user->phone,
                 'customer_name' => $user->name,
-                'status' => Order::STATUS_PENDING_PAYMENT,
+                'status' => $initialStatus,
                 'urgency' => $urgency,
                 // Smart queue fields (set at creation; consumed when the
                 // order transitions to `submitted` after payment):
@@ -219,7 +235,7 @@ class OrderController extends Controller
             OrderLog::create([
                 'order_id' => $order->id,
                 'action' => $paymentMethod === 'request'
-                    ? 'ثبت درخواست (پرداخت غیرفعال)؛ در انتظار بررسی'
+                    ? 'ثبت درخواست (پرداخت غیرفعال)؛ ورود مستقیم به صف اپراتور'
                     : 'ثبت سفارش؛ در انتظار پرداخت',
                 'performed_by' => $user->name,
                 'timestamp' => now()->toIso8601String(),
@@ -248,6 +264,19 @@ class OrderController extends Controller
                     'payment_method' => 'request',
                 ]
             );
+
+            // ── Smart queue: the request goes straight into the operator queue ──
+            // Same enqueue the paid fulfillment path uses (ETA + track token
+            // + queue position). Non-fatal: a queue hiccup must never fail an
+            // already-created order.
+            try {
+                app(\App\Services\Queue\OrderLifecycleService::class)->onSubmitted($order->fresh());
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('OrderController: request-mode onSubmitted failed', [
+                    'order_id' => $order->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return response()->json(Formatter::order($order->fresh()), 201);
@@ -316,7 +345,13 @@ class OrderController extends Controller
                         'paid_amount' => $payable,
                         'payment_method' => 'wallet',
                         'payment_tracking_code' => $trackingCode,
-                        'status' => Order::STATUS_SUBMITTED,
+                        // A request-mode order (paymentsDisabled) may already
+                        // be sitting in the queue (submitted/processing) when
+                        // the customer pays — never demote it back to
+                        // submitted; only the pre-payment states advance.
+                        'status' => in_array($fresh->status, [Order::STATUS_PENDING_PAYMENT, Order::STATUS_FAILED], true)
+                            ? Order::STATUS_SUBMITTED
+                            : $fresh->status,
                         'updated_at' => $now,
                     ]);
 
@@ -368,6 +403,9 @@ class OrderController extends Controller
         }
 
         // SMS: pattern-based — uses smsPatternPaid + smsPatternPaidVars from settings.
+        // The model was read before the paying transaction — re-read it so the
+        // receipt carries the real paid amount and final payment method.
+        $order = $order->fresh() ?? $order;
         SmsService::sendOrderNotification(
             $order->customer_phone,
             'paid',
@@ -380,14 +418,18 @@ class OrderController extends Controller
         );
 
         // ── Smart queue: enqueue the now-submitted order ──
-        try {
-            $order->refresh();
-            app(\App\Services\Queue\OrderLifecycleService::class)->onSubmitted($order);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('OrderController: onSubmitted failed', [
-                'order_id' => $order->id,
-                'error' => $e->getMessage(),
-            ]);
+        // Skipped entirely when the payment did not move the order into the
+        // queue (request-mode order that was already submitted/processing —
+        // onSubmitted's own guard would also catch it).
+        if (in_array($order->refresh()->status, [Order::STATUS_PENDING_PAYMENT, Order::STATUS_FAILED], true)) {
+            try {
+                app(\App\Services\Queue\OrderLifecycleService::class)->onSubmitted($order);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('OrderController: onSubmitted failed', [
+                    'order_id' => $order->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return response()->json(Formatter::order($order->fresh()));
@@ -398,10 +440,14 @@ class OrderController extends Controller
      *
      * Replaces the online payment steps: the admin records that the customer
      * paid in person (cash, card terminal, receipt…), the order is marked
-     * paid + submitted exactly like a verified gateway payment (including
-     * the receipt SMS and the smart-queue enqueue). Available in ALL
-     * conditions — with the paymentsDisabled switch on or off — for any
-     * still-unpaid order (pending_payment / failed).
+     * paid exactly like a verified gateway payment (including the receipt
+     * SMS, the wallet-ledger transaction and the smart-queue enqueue when the
+     * order was not already queued). Available in ALL conditions — with the
+     * paymentsDisabled switch on or off — for any still-unpaid order that has
+     * not reached a terminal state: pending_payment / failed (classic unpaid
+     * orders) and submitted / processing / ready (request-mode orders that
+     * entered the queue at submission and are paid later, on the operator's
+     * price announcement).
      *
      * Body (all optional except the path id):
      *  - amount    (integer) defaults to the order's payable (total - discount)
@@ -419,9 +465,14 @@ class OrderController extends Controller
         if ((int) $order->paid_amount > 0) {
             return response()->json(['error' => 'این سفارش قبلاً پرداخت شده است.'], 400);
         }
-        // Only the two "still needs payment" states accept a manual payment;
+        // Only states that can still receive money accept a manual payment:
+        // the classic unpaid states plus the queue states a request-mode order
+        // occupies (it entered the queue at submission and is paid later).
         // cancelled/delivered/refunded orders must not be resurrected here.
-        if (! in_array($order->status, [Order::STATUS_PENDING_PAYMENT, Order::STATUS_FAILED], true)) {
+        if (! in_array($order->status, [
+            Order::STATUS_PENDING_PAYMENT, Order::STATUS_FAILED,
+            Order::STATUS_SUBMITTED, Order::STATUS_PROCESSING, Order::STATUS_READY,
+        ], true)) {
             return response()->json(['error' => 'این سفارش در وضعیت قابل ثبت پرداخت دستی نیست.'], 400);
         }
 

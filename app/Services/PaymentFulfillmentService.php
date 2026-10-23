@@ -56,11 +56,21 @@ class PaymentFulfillmentService
             if ($payment->purpose === 'order') {
                 $order = Order::find($payment->order_id);
                 if ($order) {
+                    // Status target: the classic pre-payment states advance to
+                    // `submitted` (and enter the queue). A request-mode order
+                    // («حالت ثبت درخواست») is ALREADY in the queue — it was
+                    // born submitted and may even be processing/ready when
+                    // management registers the manual payment — so its
+                    // current status is preserved untouched.
+                    $targetStatus = in_array($order->status, [Order::STATUS_PENDING_PAYMENT, Order::STATUS_FAILED], true)
+                        ? Order::STATUS_SUBMITTED
+                        : $order->status;
+
                     DB::table('orders')->where('id', $order->id)->where('paid_amount', 0)->update([
                         'paid_amount' => (int) $payment->amount,
                         'payment_method' => $paymentMethod,
                         'payment_tracking_code' => $refId ?? '',
-                        'status' => Order::STATUS_SUBMITTED,
+                        'status' => $targetStatus,
                         'updated_at' => $now,
                     ]);
                     OrderLog::create([
@@ -110,15 +120,20 @@ class PaymentFulfillmentService
                     $paidOrder = $order;
 
                     // ── Smart queue: enqueue the now-submitted order ──
-                    // Resolved out of the container to avoid a static circular ref.
-                    try {
-                        $order->refresh();
-                        app(\App\Services\Queue\OrderLifecycleService::class)->onSubmitted($order);
-                    } catch (\Throwable $e) {
-                        \Illuminate\Support\Facades\Log::error('PaymentFulfillment: onSubmitted failed', [
-                            'order_id' => $order->id,
-                            'error' => $e->getMessage(),
-                        ]);
+                    // Only when this payment is what brought the order INTO
+                    // the queue. A request-mode order was enqueued at
+                    // submission (onSubmitted's own guard would also catch
+                    // it, but skipping here keeps intent explicit).
+                    if ($targetStatus !== $order->status) {
+                        try {
+                            $order->refresh();
+                            app(\App\Services\Queue\OrderLifecycleService::class)->onSubmitted($order);
+                        } catch (\Throwable $e) {
+                            \Illuminate\Support\Facades\Log::error('PaymentFulfillment: onSubmitted failed', [
+                                'order_id' => $order->id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
                     }
                 }
             } else { // wallet top-up
@@ -143,6 +158,10 @@ class PaymentFulfillmentService
         // path has always sent.
         if ($applied && $paidOrder !== null) {
             try {
+                // Re-read the paid row: the in-transaction model still carries
+                // paid_amount=0. (The enqueue used to refresh it implicitly;
+                // request-mode orders skip the enqueue, so make it explicit.)
+                $paidOrder = $paidOrder->fresh() ?? $paidOrder;
                 SmsService::sendOrderNotification(
                     $paidOrder->customer_phone,
                     'paid',

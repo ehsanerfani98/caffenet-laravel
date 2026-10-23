@@ -135,9 +135,13 @@
             ['submitted', 'ثبت‌شده'], ['processing', 'در حال انجام'], ['ready', 'آماده تحویل'],
             ['delivered', 'تحویل شده'], ['cancelled', 'لغو شده'],
           ];
-          // Manual payment targets the two "still needs money" states; the
-          // button disappears the moment the order carries any paid amount.
-          const canManualPay = o.paidAmount === 0 && (o.status === 'pending_payment' || o.status === 'failed');
+          // Manual payment targets any order still waiting for its money:
+          // the two classic unpaid states plus the queue states a request-mode
+          // order occupies (it entered the queue at submission and is paid
+          // later, on the operator's price announcement). The button
+          // disappears the moment the order carries any paid amount.
+          const canManualPay = o.paidAmount === 0 &&
+            ['pending_payment', 'failed', 'submitted', 'processing', 'ready'].includes(o.status);
           const sheet = UI.sheet({
             title: 'جزئیات سفارش',
             subtitle: o.orderNumber + ' — ' + o.customerName,
@@ -172,7 +176,7 @@
             (canManualPay
               ? '<div class="section-title">' + icon('wallet') + 'پرداخت دستی</div>' +
                 '<button class="btn emerald block" id="od-manual-pay">' + icon('wallet') + 'ثبت پرداخت دستی توسط مدیریت</button>' +
-                '<div class="help-text">برای زمانی که مشتری حضوری پرداخت کرده است؛ سفارش مثل پرداخت آنلاین «ثبت‌شده» می‌شود، یک تراکنش برای مشتری ثبت می‌شود، وارد صف کار می‌رود و پیامک رسید برای مشتری ارسال می‌شود.</div>'
+                '<div class="help-text">برای زمانی که مشتری حضوری پرداخت کرده است؛ یک تراکنش مثل پرداخت آنلاین برای مشتری ثبت می‌شود و پیامک رسید ارسال می‌شود. اگر سفارش هنوز در صف نباشد وارد صف کار می‌رود؛ درخواست‌های در صف (حالت ثبت درخواست) در همان وضعیت می‌مانند.</div>'
               : '') +
 
             '<div class="section-title">' + icon('clock') + 'روند سفارش (ردیابی عملیات)</div>' +
@@ -226,7 +230,7 @@
         icon: 'wallet', tone: 'emerald',
       });
       sheet.body.html(
-        '<div class="info-box">پرداخت حضوری مشتری ثبت می‌شود: سفارش «ثبت‌شده» و وارد صف کار می‌شود، یک تراکنش در کیف پول مشتری ثبت می‌شود و پیامک رسید برای مشتری ارسال می‌شود.</div>' +
+        '<div class="info-box">پرداخت حضوری مشتری ثبت می‌شود: یک تراکنش مثل پرداخت آنلاین در کیف پول مشتری ثبت می‌شود و پیامک رسید برای مشتری ارسال می‌شود. سفارش‌هایی که هنوز در صف نیستند وارد صف کار می‌شوند؛ درخواست‌های در صف بدون تغییر در صف می‌مانند.</div>' +
         '<label class="field-label">مبلغ پرداخت‌شده (تومان) <span class="req">*</span></label>' +
         '<input class="input" id="mp-amount" inputmode="numeric" value="' + payable + '">' +
         '<label class="field-label">شماره پیگیری / رسید (اختیاری)</label>' +
