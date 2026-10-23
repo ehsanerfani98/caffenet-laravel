@@ -137,6 +137,15 @@ TEXT;
             'label' => 'غیرفعال کردن همه پرداخت‌ها (حالت ثبت درخواست)', 'default' => '0'],
         ['key' => 'orderRequestNotice', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_BUSINESS,
             'label' => 'متن پیام پس از ثبت درخواست (حالت بدون پرداخت)', 'default' => ''],
+        // Request-mode work duration («غیرفعال کردن همه پرداخت‌ها»): urgency
+        // is hidden there, so there is no quick/normal/long ladder — every
+        // order draws a random duration from this [min, max] minutes window
+        // and the queue estimator sums those per-order durations for each
+        // customer's «نفرهای جلوی شما / انتظار تقریبی» display.
+        ['key' => 'requestOrderMinDuration', 'category' => 'payment', 'type' => 'number', 'scope' => self::SCOPE_BUSINESS,
+            'label' => 'حداقل زمان انجام هر سفارش (دقیقه) — حالت ثبت درخواست', 'default' => '30'],
+        ['key' => 'requestOrderMaxDuration', 'category' => 'payment', 'type' => 'number', 'scope' => self::SCOPE_BUSINESS,
+            'label' => 'حداکثر زمان انجام هر سفارش (دقیقه) — حالت ثبت درخواست', 'default' => '60'],
         ['key' => 'enableCoupons', 'category' => 'payment', 'type' => 'boolean', 'scope' => self::SCOPE_BUSINESS,
             'label' => 'فعال بودن کدهای تخفیف', 'default' => '1'],
         ['key' => 'walletTopUpPresets', 'category' => 'payment', 'type' => 'string', 'scope' => self::SCOPE_BUSINESS,
@@ -485,6 +494,42 @@ TEXT;
     public static function set(string $key, string $value): void
     {
         DB::table('settings')->updateOrInsert(['key' => $key], ['value' => $value]);
+    }
+
+    /** Persian (۰-۹) and Arabic (٠-٩) digits → ASCII, so admin-entered
+     * numbers parse regardless of the keyboard layout they were typed with. */
+    public static function toLatinDigits(mixed $value): string
+    {
+        return strtr((string) $value, [
+            '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+            '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+            '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+            '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+        ]);
+    }
+
+    /**
+     * Duration window (minutes) for request-mode orders. Falls back to
+     * 30..60 on empty/invalid input and swaps the bounds when the admin
+     * typed them the other way around.
+     *
+     * @return array{0: int, 1: int} [min, max]
+     */
+    public static function requestOrderDurationRange(): array
+    {
+        $min = (int) self::toLatinDigits(self::raw('requestOrderMinDuration'));
+        $max = (int) self::toLatinDigits(self::raw('requestOrderMaxDuration'));
+        if ($min <= 0) {
+            $min = 30;
+        }
+        if ($max <= 0) {
+            $max = 60;
+        }
+        if ($max < $min) {
+            [$min, $max] = [$max, $min];
+        }
+
+        return [$min, $max];
     }
 
     public static function appUrl(): string

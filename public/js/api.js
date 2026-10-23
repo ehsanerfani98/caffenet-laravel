@@ -305,6 +305,13 @@
       return order;
     }
 
+    /** «پاسخ نداد» — arm the 15-min no-response clock (staff only). */
+    async markNoResponse(id) {
+      const r = await this.request('PATCH', '/api/orders/' + id + '/no-response', {});
+      if (r && r.order) this._replaceOrder(r.order);
+      return r;
+    }
+
     async updateOrder(id, fields) {
       const order = await this.request('PATCH', '/api/orders/' + id, fields);
       this._replaceOrder(order);

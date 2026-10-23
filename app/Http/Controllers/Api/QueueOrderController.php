@@ -45,6 +45,47 @@ class QueueOrderController extends Controller
         private readonly SlotReservationServiceInterface $slots,
     ) {}
 
+    /**
+     * «پاسخ نداد» — arm the 15-minute no-response strike clock (staff only).
+     *
+     * The scheduler sweeps expired deadlines every minute: each expiry pushes
+     * the order to the back of the queue (requeue SMS + push), and once the
+     * order has been pushed back 3 times the next expiry auto-cancels it.
+     * The customer's "answered" signal is the operator pressing «شروع کار» —
+     * QueueManagerService::startOrder clears the deadline.
+     */
+    public function noResponse(Request $request, string $id): JsonResponse
+    {
+        $user = $request->attributes->get('authUser');
+        if (! in_array($user->role, ['admin', 'operator'], true)) {
+            return response()->json(['error' => 'دسترسی غیرمجاز.'], 403);
+        }
+
+        $order = Order::findOrFail($id);
+        if ($order->status !== Order::STATUS_SUBMITTED) {
+            return response()->json(['error' => 'فقط سفارش‌های در انتظار صف می‌توانند «پاسخ نداد» بخورند.'], 422);
+        }
+
+        $entry = QueueEntry::where('order_id', $order->id)->first();
+        if (! $entry) {
+            return response()->json(['error' => 'این سفارش در صف نیست.'], 422);
+        }
+
+        $deadline = now()->addMinutes(15)->toIso8601String();
+        $entry->no_response_deadline = $deadline;
+        $entry->save();
+
+        $order->no_response_deadline = $deadline;
+        $order->updated_at = now()->toIso8601String();
+        $order->save();
+
+        return response()->json([
+            'order' => (new OrderUpdateResource($order))->resolve($request),
+            'no_response_deadline' => $deadline,
+            'requeue_count' => (int) $entry->requeue_count,
+        ]);
+    }
+
     /** Operator starts work on an order. */
     public function start(Request $request, string $id): JsonResponse
     {

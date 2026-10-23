@@ -47,7 +47,13 @@ class OrderLifecycleService implements \App\Contracts\OrderLifecycleService
         DB::transaction(function () use ($order) {
             $queueType = $order->queue_type ?: 'normal';
             $wait = $this->estimator->estimateWaitMinutes($queueType);
-            $duration = $this->estimator->estimateDurationMinutes($queueType);
+            // Request-mode orders («غیرفعال کردن همه پرداخت‌ها») already carry
+            // a random per-order duration drawn at creation from the
+            // admin-configured [min, max] window — it wins over the generic
+            // queue-type base so the estimates reflect the real draw.
+            $duration = (int) $order->estimated_duration_minutes > 0
+                ? (int) $order->estimated_duration_minutes
+                : $this->estimator->estimateDurationMinutes($queueType);
 
             $order->estimated_wait_minutes = $wait;
             $order->estimated_duration_minutes = $duration;

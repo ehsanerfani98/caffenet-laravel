@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Services\PaymentFulfillmentService;
 use App\Services\PricingService;
+use App\Services\SettingsService;
 use App\Services\SmsService;
 use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
@@ -198,6 +199,15 @@ class OrderController extends Controller
                 ? Order::STATUS_SUBMITTED
                 : Order::STATUS_PENDING_PAYMENT;
 
+            // Request mode («غیرفعال کردن همه پرداخت‌ها»): the urgency picker
+            // is hidden on the form, so the quick/normal/long ladder does not
+            // apply — the work duration is a random draw from the
+            // admin-configured [min, max] minutes window. The queue estimator
+            // sums these per-order durations for every customer's wait display.
+            $requestDuration = $paymentMethod === 'request'
+                ? self::drawRequestDurationMinutes()
+                : null;
+
             $order = Order::create([
                 'order_number' => self::generateOrderNumber(),
                 'service_id' => $service->id,
@@ -212,6 +222,7 @@ class OrderController extends Controller
                 'queue_type' => $queueType,
                 'priority_level' => $queueType === \App\Models\OrderType::KEY_QUICK ? 9
                     : ($queueType === \App\Models\OrderType::KEY_LONG ? 3 : 5),
+                'estimated_duration_minutes' => $requestDuration,
                 'delivery_method' => $deliveryMethod,
                 'delivery_address' => $deliveryMethod === 'courier' ? (string) $body['deliveryAddress'] : null,
                 'delivery_postal_code' => $deliveryMethod === 'courier' ? ((string) ($body['deliveryPostalCode'] ?? '') ?: null) : null,
@@ -971,6 +982,16 @@ class OrderController extends Controller
         } while (Order::where('order_number', $number)->exists());
 
         return $number;
+    }
+
+    /** Random work duration (minutes) for a request-mode order, drawn from
+     * the admin-configured [min, max] window — see
+     * SettingsService::requestOrderDurationRange(). */
+    private static function drawRequestDurationMinutes(): int
+    {
+        [$min, $max] = SettingsService::requestOrderDurationRange();
+
+        return random_int($min, $max);
     }
 
     /** Keeps only known contact-channel keys, de-duplicated and ordered. */

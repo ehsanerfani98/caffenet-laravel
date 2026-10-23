@@ -19,7 +19,10 @@ class OrderTypeClassifierService
 {
     public function classify(?string $estimatedTimeText, ?string $fallbackKey = null): string
     {
-        $text = trim((string) $estimatedTimeText);
+        // Normalize Persian (۱ ساعت) / Arabic (١ ساعت) digits to ASCII first —
+        // PCRE's \d only matches ASCII, so «۹۰ دقیقه» used to slip through
+        // every numeric branch and fall back to normal.
+        $text = trim($this->normalizeDigits((string) $estimatedTimeText));
         if ($text === '') {
             return $fallbackKey ?: OrderType::KEY_NORMAL;
         }
@@ -57,5 +60,16 @@ class OrderTypeClassifierService
             return OrderType::KEY_NORMAL;
         }
         return OrderType::KEY_LONG;
+    }
+
+    /** Persian (۰-۹) and Arabic (٠-٩) digits → ASCII. */
+    private function normalizeDigits(string $text): string
+    {
+        return strtr($text, [
+            '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+            '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+            '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+            '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+        ]);
     }
 }

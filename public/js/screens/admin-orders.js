@@ -164,6 +164,15 @@
               STATUSES.map(([k, l]) => '<span class="chip ' + (o.status === k ? 'active' : '') + '" data-newstatus="' + k + '">' + l + '</span>').join('') +
             '</div>' +
 
+            // No-response strike clock — only for orders waiting in the queue.
+            // Each expiry pushes the order to the back; after 3 expiries it is
+            // auto-cancelled. «شروع کار» (status → processing) clears the clock.
+            (o.status === 'submitted'
+              ? '<div class="section-title">' + icon('clock') + 'مشتری پاسخ نداد؟</div>' +
+                '<button class="btn amber block" id="od-no-response">' + icon('clock') + 'پاسخ نداد — ۱۵ دقیقه فرصت</button>' +
+                '<div class="help-text">با این دکمه تایمر ۱۵ دقیقه‌ای فعال می‌شود. اگر تا پایان آن مشتری پاسخ ندهد، سفارش خودکار ته صف می‌رود (پیامک اطلاع می‌رود) و بعد از ۳ بار، سفارش کامل لغو می‌شود. «شروع کار» تایمر را خاموش می‌کند.</div>'
+              : '') +
+
             '<div class="section-title">' + icon('user') + 'ارجاع به اپراتور</div>' +
             '<select class="select" id="od-op">' +
               '<option value="">بدون تغییر</option>' +
@@ -195,6 +204,16 @@
               UI.toast('وضعیت به‌روزرسانی شد.', 'success');
               sheet.close();
             } catch (e) { UI.toast(e.message, 'error'); }
+          });
+
+          sheet.body.find('#od-no-response').on('click', async function () {
+            UI.busy(true);
+            try {
+              await api.markNoResponse(o.id);
+              UI.toast('تایمر ۱۵ دقیقه‌ای فعال شد؛ اگر مشتری پاسخ ندهد ته صف می‌رود.', 'success');
+              sheet.close();
+            } catch (e) { UI.toast(e.message, 'error'); }
+            finally { UI.busy(false); }
           });
 
           sheet.body.find('#od-assign').on('click', async function () {

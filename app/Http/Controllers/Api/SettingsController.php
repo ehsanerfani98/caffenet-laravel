@@ -34,7 +34,7 @@ class SettingsController extends Controller
             } elseif ($key === 'walletTopUpPresets') {
                 // Each preset carries its own Cafe Bazaar SKU ({amount, sku}).
                 $out[$key] = SettingsService::walletTopUpPresets();
-            } elseif (in_array($key, ['fileRetentionDays', 'courierCost'], true)) {
+            } elseif (in_array($key, ['fileRetentionDays', 'courierCost', 'requestOrderMinDuration', 'requestOrderMaxDuration'], true)) {
                 $out[$key] = (int) $raw;
             } elseif (in_array($key, ['urgentPriceMultiplier', 'immediatePriceMultiplier'], true)) {
                 $out[$key] = (float) $raw;

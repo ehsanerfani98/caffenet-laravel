@@ -172,6 +172,11 @@
       '</div>' +
       '<label class="field-label">متن پیام پس از ثبت درخواست</label>' +
       '<textarea class="input textarea" id="s-request-notice" rows="4" placeholder="مثلاً: درخواست شما ثبت شد؛ همکاران ما به‌زودی برای ادامه کار با شما تماس می‌گیرند.">' + PU.escapeHtml(s.orderRequestNotice || '') + '</textarea>' +
+      '<div class="help-text" style="margin:8px 2px 0">در این حالت سطح فوریت در فرم سفارش نمایش داده نمی‌شود؛ پس مدت انجام هر سفارش به‌صورت تصادفی از بازه زیر انتخاب می‌شود و مبنای محاسبه «نفرهای جلوی شما» و «انتظار تقریبی» است.</div>' +
+      '<div style="display:flex;gap:10px;margin:8px 2px 12px">' +
+        '<div style="flex:1"><label class="field-label">حداقل زمان انجام (دقیقه)</label><input class="input" id="s-dur-min" inputmode="numeric" value="' + (s.requestOrderMinDuration != null ? s.requestOrderMinDuration : 30) + '"></div>' +
+        '<div style="flex:1"><label class="field-label">حداکثر زمان انجام (دقیقه)</label><input class="input" id="s-dur-max" inputmode="numeric" value="' + (s.requestOrderMaxDuration != null ? s.requestOrderMaxDuration : 60) + '"></div>' +
+      '</div>' +
       '<div class="section-title">' + icon('shield') + 'قوانین و حریم خصوصی</div>' +
       '<div class="help-text" style="margin:0 2px 8px">این متن پیش از دریافت شماره همراه و در صفحه «قوانین و حریم خصوصی» به کاربر نمایش داده می‌شود. متن به‌صورت ساده ذخیره می‌شود و نیازی به HTML نیست؛ خط‌های جدید به پاراگراف تبدیل می‌شوند.</div>' +
       '<textarea class="input textarea" id="s-terms" rows="12" style="min-height:200px;line-height:1.9">' + PU.escapeHtml(s.termsText || '') + '</textarea>'
@@ -202,6 +207,8 @@
           enableCoupons: sheet.body.find('#s-coupons').is(':checked'),
           paymentsDisabled: sheet.body.find('#s-pay-off').is(':checked'),
           orderRequestNotice: sheet.body.find('#s-request-notice').val(),
+          requestOrderMinDuration: Number(PU.toLatinDigits(sheet.body.find('#s-dur-min').val()).replace(/[^\d]/g, '')) || 30,
+          requestOrderMaxDuration: Number(PU.toLatinDigits(sheet.body.find('#s-dur-max').val()).replace(/[^\d]/g, '')) || 60,
           termsText: sheet.body.find('#s-terms').val(),
         });
         UI.toast('تنظیمات ذخیره شد.', 'success');

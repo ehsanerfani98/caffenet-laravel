@@ -103,6 +103,10 @@ class QueueManagerService implements QueueManagerServiceInterface
                 $entry = QueueEntry::where('order_id', $order->id)->first();
                 if ($entry && ! $entry->started_at) {
                     $entry->started_at = $now;
+                    // Starting IS the customer's "answered" signal — stop the
+                    // no-response strike clock on the entry too (the sweep
+                    // reads the entry, not the order).
+                    $entry->no_response_deadline = null;
                     $entry->save();
                 }
 
@@ -163,25 +167,44 @@ class QueueManagerService implements QueueManagerServiceInterface
                     return;
                 }
 
-                $oldPos = $entry->position;
-                $next = (int) (DB::table('queue_entries')->max('position') ?? 0) + 1;
-                $now = now()->toIso8601String();
+                // Heal ghosts/gaps first so the count() below is the true
+                // queue length and the tail slot is exact.
+                $this->compactEntries();
 
-                $entry->position = $next;
+                $now = now()->toIso8601String();
+                $oldPos = (int) $entry->position;
                 $entry->requeue_count = $entry->requeue_count + 1;
                 $entry->no_response_deadline = null;
                 $entry->save();
 
-                // Shift everyone between $oldPos+1 and $next-1 up by 1 to fill the gap.
+                // Everyone behind closes the vacated slot…
                 DB::table('queue_entries')
                     ->where('position', '>', $oldPos)
-                    ->where('position', '<', $next)
                     ->decrement('position');
+
+                // …and the order takes the now-vacated tail, so the queue
+                // stays contiguous 1..N. The old max(position)+1 left a gap
+                // at the tail and inflated the requeued order's own
+                // «نفرهای جلوی شما = position - 1» by one phantom person.
+                $next = (int) DB::table('queue_entries')->count();
 
                 $order->queue_position = $next;
                 $order->no_response_deadline = null;
                 $order->updated_at = $now;
                 $order->save();
+
+                $entry->position = $next;
+                $entry->save();
+
+                // Sync every affected order's queue_position (the shifted ones
+                // each moved up one, ours moved to the tail) so the tracker
+                // reads consistent numbers.
+                foreach (QueueEntry::all() as $e) {
+                    DB::table('orders')->where('id', $e->order_id)->update([
+                        'queue_position' => $e->position,
+                        'updated_at' => $now,
+                    ]);
+                }
 
                 OrderStatusHistory::create([
                     'order_id' => $order->id,

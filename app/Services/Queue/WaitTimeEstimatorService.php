@@ -39,7 +39,12 @@ class WaitTimeEstimatorService implements WaitTimeEstimatorServiceInterface
             if (! $order) {
                 continue;
             }
-            $totalMinutes += $this->estimateDurationMinutes($order->queue_type ?: 'normal');
+            // Per-order duration first (request-mode orders carry a random
+            // draw from the admin's [min, max] window); the queue-type base
+            // is only the fallback for orders that never got one.
+            $totalMinutes += (int) $order->estimated_duration_minutes > 0
+                ? (int) $order->estimated_duration_minutes
+                : $this->estimateDurationMinutes($order->queue_type ?: 'normal');
         }
 
         // Divide by active operator count (parallelism).

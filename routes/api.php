@@ -171,10 +171,12 @@ Route::middleware('auth.session')->group(function () {
     Route::post('/orders/{id}/notify-me', [QueueOrderController::class, 'notifyMe']);
     Route::delete('/orders/{id}/cancel', [QueueOrderController::class, 'cancel']);
 
-    // Staff only: start / complete
+    // Staff only: start / complete / no-response strike clock
     Route::patch('/orders/{id}/start', [QueueOrderController::class, 'start'])
         ->middleware('permission:orders.edit|orders.manage');
     Route::patch('/orders/{id}/complete', [QueueOrderController::class, 'complete'])
+        ->middleware('permission:orders.edit|orders.manage');
+    Route::patch('/orders/{id}/no-response', [QueueOrderController::class, 'noResponse'])
         ->middleware('permission:orders.edit|orders.manage');
 });
 

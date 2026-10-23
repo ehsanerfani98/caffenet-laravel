@@ -17,8 +17,18 @@ class RequeueOnNoResponse
     public function handle(OrderNoResponse $event): void
     {
         try {
-            $this->autoRequeue->requeueExpired($event->order);
-            $this->notifications->notifyOrderRequeued($event->order);
+            $outcome = $this->autoRequeue->requeueExpired($event->order);
+
+            if ($outcome === 'cancelled') {
+                // notifyOrderCancelled already ran inside the service —
+                // nothing extra to send here.
+                return;
+            }
+
+            if ($outcome === 'requeued') {
+                $this->notifications->notifyOrderRequeued($event->order);
+            }
+            // 'skipped' needs nothing; 'failed' is already logged by the service.
         } catch (\Throwable $e) {
             Log::error('RequeueOnNoResponse failed', [
                 'order_id' => $event->order->id,
