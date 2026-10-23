@@ -13,6 +13,7 @@ use App\Models\Service;
 use App\Models\TicketMessage;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Services\PaymentFulfillmentService;
 use App\Services\PricingService;
 use App\Services\SmsService;
 use App\Services\WalletService;
@@ -230,6 +231,25 @@ class OrderController extends Controller
             }
         });
 
+        // «حالت ثبت درخواست» — payment condition removed from the SMS chain.
+        // With the paymentsDisabled switch on there is no payment step, so the
+        // order-confirmation SMS (the smsPatternPaid pattern that normally
+        // fires right after a verified payment) is sent immediately when the
+        // request is registered. $paymentMethod can only be 'request' while
+        // paymentsDisabled is on (guarded above).
+        if ($paymentMethod === 'request') {
+            SmsService::sendOrderNotification(
+                $order->customer_phone,
+                'paid',
+                [
+                    'order_number'   => $order->order_number,
+                    'customer_name'  => $order->customer_name,
+                    'amount'         => (string) $payable,
+                    'payment_method' => 'request',
+                ]
+            );
+        }
+
         return response()->json(Formatter::order($order->fresh()), 201);
     }
 
@@ -371,6 +391,90 @@ class OrderController extends Controller
         }
 
         return response()->json(Formatter::order($order->fresh()));
+    }
+
+    /**
+     * Manual (offline) payment registration by management — POST /orders/{id}/manual-payment.
+     *
+     * Replaces the online payment steps: the admin records that the customer
+     * paid in person (cash, card terminal, receipt…), the order is marked
+     * paid + submitted exactly like a verified gateway payment (including
+     * the receipt SMS and the smart-queue enqueue). Available in ALL
+     * conditions — with the paymentsDisabled switch on or off — for any
+     * still-unpaid order (pending_payment / failed).
+     *
+     * Body (all optional except the path id):
+     *  - amount    (integer) defaults to the order's payable (total - discount)
+     *  - reference (string)  manual tracking code / receipt number
+     *  - note      (string)  free-form note recorded in the order log
+     */
+    public function registerManualPayment(Request $request, string $id): JsonResponse
+    {
+        $actor = $request->attributes->get('authUser');
+        $order = Order::find($id);
+
+        if (! $order) {
+            return response()->json(['error' => 'سفارش یافت نشد'], 404);
+        }
+        if ((int) $order->paid_amount > 0) {
+            return response()->json(['error' => 'این سفارش قبلاً پرداخت شده است.'], 400);
+        }
+        // Only the two "still needs payment" states accept a manual payment;
+        // cancelled/delivered/refunded orders must not be resurrected here.
+        if (! in_array($order->status, [Order::STATUS_PENDING_PAYMENT, Order::STATUS_FAILED], true)) {
+            return response()->json(['error' => 'این سفارش در وضعیت قابل ثبت پرداخت دستی نیست.'], 400);
+        }
+
+        $body = (array) $request->json()->all();
+        $payable = max(0, (int) $order->total_price - (int) $order->discount_amount);
+        $amount = array_key_exists('amount', $body) && $body['amount'] !== null && $body['amount'] !== ''
+            ? (int) $body['amount']
+            : $payable;
+        if ($amount <= 0) {
+            return response()->json(['error' => 'مبلغ پرداخت دستی نامعتبر است.'], 400);
+        }
+
+        $reference = trim((string) ($body['reference'] ?? ''));
+        $note = trim((string) ($body['note'] ?? ''));
+        $trackingCode = $reference !== '' ? $reference : 'MAN-'.random_int(100000, 999999);
+
+        // A pending payment row records the manual transaction, then the
+        // shared fulfillment service applies the paid transition exactly
+        // once (idempotent guarded UPDATE) — same SMS + queue + coupon
+        // behavior as a gateway payment.
+        $payment = Payment::create([
+            'order_id' => $order->id,
+            'user_id' => $order->customer_id,
+            'purpose' => 'order',
+            'amount' => $amount,
+            'gateway' => 'manual',
+            'status' => 'pending',
+            'created_at' => now()->toIso8601String(),
+        ]);
+
+        $applied = PaymentFulfillmentService::apply($payment, $trackingCode, null, 'manual', $actor->name);
+        if (! $applied) {
+            // Lost a concurrent race — the order was paid by another path
+            // between the guard and the transaction. Close the pending row
+            // so no orphan manual payment lingers, change nothing else.
+            PaymentFulfillmentService::markFailed($payment, 'ثبت پرداخت دستی انجام نشد — سفارش همزمان از مسیر دیگری پرداخت شد.');
+
+            return response()->json(['error' => 'این سفارش قبلاً پرداخت شده است.'], 400);
+        }
+
+        if ($note !== '') {
+            OrderLog::create([
+                'order_id' => $order->id,
+                'action' => 'توضیح پرداخت دستی',
+                'performed_by' => $actor->name,
+                'note' => $note,
+                'timestamp' => now()->toIso8601String(),
+            ]);
+        }
+
+        $order->refresh();
+
+        return response()->json(Formatter::order($order));
     }
 
     public function updateStatus(Request $request, string $id): JsonResponse

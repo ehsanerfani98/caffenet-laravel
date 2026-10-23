@@ -7,6 +7,7 @@ use App\Models\OrderLog;
 use App\Models\Payment;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Services\SmsService;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -23,13 +24,17 @@ class PaymentFulfillmentService
      * returns true only when this call performed the transition.
      *
      * $paymentMethod records HOW the order was paid on the order row
-     * ('online' = Zarinpal checkout, 'bazaarpay' = BazaarPay Direct Pay).
+     * ('online' = Zarinpal checkout, 'bazaarpay' = BazaarPay Direct Pay,
+     * 'manual' = registered by management in the admin panel).
+     * $performedByName (optional) names the staff member who registered a
+     * manual payment; it only affects the order-log attribution.
      */
-    public static function apply(Payment $payment, ?string $refId = null, ?string $cardPan = null, string $paymentMethod = 'online'): bool
+    public static function apply(Payment $payment, ?string $refId = null, ?string $cardPan = null, string $paymentMethod = 'online', ?string $performedByName = null): bool
     {
         $applied = false;
+        $paidOrder = null;
 
-        DB::transaction(function () use ($payment, $refId, $cardPan, $paymentMethod, &$applied) {
+        DB::transaction(function () use ($payment, $refId, $cardPan, $paymentMethod, $performedByName, &$applied, &$paidOrder) {
             $now = now()->toIso8601String();
 
             $affected = DB::table('payments')
@@ -62,16 +67,20 @@ class PaymentFulfillmentService
                         'order_id' => $order->id,
                         // Covers both BazaarPay flows (checkout redirect and
                         // silent direct pay) — the recorded method is the same.
-                        'action' => $paymentMethod === 'bazaarpay'
-                            ? 'پرداخت با درگاه بازارپی با موفقیت انجام شد'
-                            : 'پرداخت آنلاین با موفقیت انجام شد',
-                        'performed_by' => $order->customer_name,
+                        'action' => match ($paymentMethod) {
+                            'bazaarpay' => 'پرداخت با درگاه بازارپی با موفقیت انجام شد',
+                            'manual' => 'ثبت پرداخت دستی توسط مدیریت',
+                            default => 'پرداخت آنلاین با موفقیت انجام شد',
+                        },
+                        'performed_by' => $performedByName ?? $order->customer_name,
                         'timestamp' => $now,
                     ]);
                     // Consume the reserved coupon exactly once.
                     if ($order->coupon_id) {
                         DB::table('coupons')->where('id', $order->coupon_id)->increment('usage_count');
                     }
+
+                    $paidOrder = $order;
 
                     // ── Smart queue: enqueue the now-submitted order ──
                     // Resolved out of the container to avoid a static circular ref.
@@ -98,6 +107,32 @@ class PaymentFulfillmentService
                 }
             }
         });
+
+        // Order-confirmation SMS (smsPatternPaid pattern) — fired AFTER the
+        // transaction commits so a rollback never sends a phantom receipt.
+        // This closes the gap where gateway payments (Zarinpal checkout,
+        // BazaarPay redirect/direct-pay, Cafe Bazaar IAP) and management
+        // manual payments never produced the receipt SMS that the wallet
+        // path has always sent.
+        if ($applied && $paidOrder !== null) {
+            try {
+                SmsService::sendOrderNotification(
+                    $paidOrder->customer_phone,
+                    'paid',
+                    [
+                        'order_number'   => $paidOrder->order_number,
+                        'customer_name'  => $paidOrder->customer_name,
+                        'amount'         => (string) $paidOrder->paid_amount,
+                        'payment_method' => $paidOrder->payment_method,
+                    ]
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('PaymentFulfillment: paid SMS failed', [
+                    'order_id' => $paidOrder->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         return $applied;
     }

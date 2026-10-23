@@ -72,6 +72,10 @@ Route::middleware('auth.session')->group(function () {
     Route::post('/orders', [OrderController::class, 'store']);
     Route::get('/orders/{id}', [OrderController::class, 'show']);
     Route::post('/orders/{id}/pay-wallet', [OrderController::class, 'payWithWallet']);
+    // Manual (offline) payment registration by management — replaces the
+    // online payment steps; available in ALL conditions for any unpaid order.
+    Route::post('/orders/{id}/manual-payment', [OrderController::class, 'registerManualPayment'])
+        ->middleware('permission:orders.edit|orders.manage');
     Route::post('/orders/{id}/result', [OrderController::class, 'uploadResult'])
         ->middleware('permission:orders.edit|orders.manage');
     Route::delete('/orders/{id}/result', [OrderController::class, 'deleteResult'])

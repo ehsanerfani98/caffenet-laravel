@@ -93,7 +93,7 @@ class SmsTypeRegistry
                 ],
             ],
             'paid' => [
-                'label' => 'پرداخت سفارش (کیف پول)',
+                'label' => 'پرداخت / ثبت سفارش',
                 'setting_key' => 'smsPatternPaid',
                 'fields' => [
                     'order_number'    => 'شماره سفارش',

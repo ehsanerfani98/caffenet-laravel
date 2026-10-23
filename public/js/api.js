@@ -285,6 +285,20 @@
       return result;
     }
 
+    /**
+     * Manual (offline) payment registration by management — POST
+     * /orders/{id}/manual-payment. Marks the order paid + submitted exactly
+     * like a verified gateway payment (receipt SMS + queue enqueue).
+     * payload: { amount?, reference?, note? } — amount defaults to the
+     * order's payable on the server.
+     */
+    async registerManualPayment(id, payload) {
+      const order = await this.request('POST', '/api/orders/' + id + '/manual-payment', payload || {});
+      this._replaceOrder(order);
+      await this.syncWithBackend();
+      return order;
+    }
+
     async updateOrderStatus(id, status, note) {
       const order = await this.request('PATCH', '/api/orders/' + id + '/status', { status, note });
       this._replaceOrder(order);

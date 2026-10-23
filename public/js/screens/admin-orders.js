@@ -133,6 +133,9 @@
             ['submitted', 'ثبت‌شده'], ['processing', 'در حال انجام'], ['ready', 'آماده تحویل'],
             ['delivered', 'تحویل شده'], ['cancelled', 'لغو شده'],
           ];
+          // Manual payment targets the two "still needs money" states; the
+          // button disappears the moment the order carries any paid amount.
+          const canManualPay = o.paidAmount === 0 && (o.status === 'pending_payment' || o.status === 'failed');
           const sheet = UI.sheet({
             title: 'جزئیات سفارش',
             subtitle: o.orderNumber + ' — ' + o.customerName,
@@ -162,6 +165,14 @@
             '</select>' +
             '<button class="btn ghost block sm" id="od-assign" style="margin-top:8px">ثبت اپراتور</button>' +
 
+            // Manual (offline) payment — offered ONLY for orders still waiting
+            // for money, but in ALL conditions (payments on or off).
+            (canManualPay
+              ? '<div class="section-title">' + icon('wallet') + 'پرداخت دستی</div>' +
+                '<button class="btn emerald block" id="od-manual-pay">' + icon('wallet') + 'ثبت پرداخت دستی توسط مدیریت</button>' +
+                '<div class="help-text">برای زمانی که مشتری حضوری پرداخت کرده است؛ سفارش مثل پرداخت آنلاین «ثبت‌شده» می‌شود، وارد صف کار می‌رود و پیامک رسید برای مشتری ارسال می‌شود.</div>'
+              : '') +
+
             '<div class="section-title">' + icon('clock') + 'روند سفارش (ردیابی عملیات)</div>' +
             '<div class="timeline">' + (o.logs || []).map((l) =>
               '<div class="tl-item"><div class="tl-action">' + PU.escapeHtml(l.action) + '</div>' +
@@ -190,12 +201,53 @@
             } catch (e) { UI.toast(e.message, 'error'); }
           });
 
+          if (canManualPay) sheet.body.find('#od-manual-pay').on('click', function () {
+            openManualPayment(o);
+          });
+
           if (canRefund) sheet.body.find('#od-refund').on('click', function () {
             const amount = Math.max(0, o.paidAmount || (o.totalPrice - o.discountAmount));
             openOrderRefund(o, amount);
           });
         }).catch((e) => UI.toast(e.message, 'error'));
       }).catch((e) => UI.toast(e.message, 'error'));
+    }
+
+    /* Manual (offline) payment registration — replaces the online payment
+     * steps when management records an in-person payment. Amount defaults to
+     * the order's payable but stays editable (partial/extra settlements). */
+    function openManualPayment(order) {
+      const payable = Math.max(0, (order.totalPrice || 0) - (order.discountAmount || 0));
+      const sheet = UI.sheet({
+        title: 'ثبت پرداخت دستی',
+        subtitle: order.orderNumber + ' — ' + order.customerName,
+        icon: 'wallet', tone: 'emerald',
+      });
+      sheet.body.html(
+        '<div class="info-box">پرداخت حضوری مشتری ثبت می‌شود: سفارش «ثبت‌شده» و وارد صف کار می‌شود و پیامک رسید برای مشتری ارسال می‌شود.</div>' +
+        '<label class="field-label">مبلغ پرداخت‌شده (تومان) <span class="req">*</span></label>' +
+        '<input class="input" id="mp-amount" inputmode="numeric" value="' + payable + '">' +
+        '<label class="field-label">شماره پیگیری / رسید (اختیاری)</label>' +
+        '<input class="input" id="mp-ref" dir="ltr" placeholder="مثلاً شماره فیش یا رسید ترمینال">' +
+        '<label class="field-label">توضیح (اختیاری)</label>' +
+        '<input class="input" id="mp-note">'
+      );
+      sheet.footer.html('<button class="btn emerald block" id="mp-save">ثبت پرداخت دستی</button>');
+      sheet.footer.find('#mp-save').on('click', async function () {
+        const amt = Number(PU.toLatinDigits(sheet.body.find('#mp-amount').val()).replace(/[^\d]/g, ''));
+        if (!amt) { UI.toast('مبلغ معتبر وارد کنید.', 'warning'); return; }
+        UI.busy(true);
+        try {
+          await api.registerManualPayment(order.id, {
+            amount: amt,
+            reference: (sheet.body.find('#mp-ref').val() || '').trim(),
+            note: (sheet.body.find('#mp-note').val() || '').trim(),
+          });
+          UI.toast('پرداخت دستی ثبت شد و سفارش وارد صف کار شد.', 'success');
+          sheet.close();
+        } catch (e) { UI.toast(e.message, 'error'); }
+        finally { UI.busy(false); }
+      });
     }
 
     function openOrderRefund(order, amount) {
