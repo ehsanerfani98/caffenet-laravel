@@ -38,10 +38,20 @@ return [
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
-            'journal_mode' => null,
-            'synchronous' => null,
-            'transaction_mode' => 'DEFERRED',
+            // Concurrency hardening (production runs web + queue worker + scheduler
+            // on the same SQLite file). Without busy_timeout every simultaneous
+            // write fails instantly with "database is locked" (SQLITE_BUSY).
+            // - busy_timeout: writers wait up to 10s for the current writer
+            //   instead of failing immediately.
+            // - journal_mode: WAL lets readers and the writer coexist.
+            // - synchronous: NORMAL is the recommended pairing with WAL.
+            // - transaction_mode: IMMEDIATE (PHP >= 8.4) starts every transaction
+            //   with the write lock, eliminating deferred-upgrade deadlocks that
+            //   busy_timeout cannot resolve.
+            'busy_timeout' => (int) env('DB_BUSY_TIMEOUT', 10000),
+            'journal_mode' => env('DB_JOURNAL_MODE', 'wal'),
+            'synchronous' => env('DB_SYNCHRONOUS', 'normal'),
+            'transaction_mode' => env('DB_TRANSACTION_MODE', 'IMMEDIATE'),
         ],
 
         'mysql' => [
