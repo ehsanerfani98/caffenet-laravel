@@ -41,4 +41,12 @@ interface QueueManagerServiceInterface
 
     /** Count of orders currently waiting (excluding the one being processed). */
     public function waitingCount(): int;
+
+    /**
+     * Self-heal the queue table: delete entries whose order row is gone and
+     * repack the surviving positions to contiguous 1..N (syncing
+     * orders.queue_position). Takes the queue:position lock itself — must not
+     * be called while another transaction is open on the connection.
+     */
+    public function compact(): void;
 }

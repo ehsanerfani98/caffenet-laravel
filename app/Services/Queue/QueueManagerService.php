@@ -31,6 +31,12 @@ class QueueManagerService implements QueueManagerServiceInterface
     {
         $this->locks->withLock('queue:position', function () use ($order) {
             DB::transaction(function () use ($order) {
+                // Self-heal BEFORE reading max(position): orphaned entries
+                // (order row gone) and position gaps must never feed the
+                // next position, otherwise a fresh customer inherits phantom
+                // «N نفرهای جلوی شما» from a deleted user's orders.
+                $this->compactEntries();
+
                 $next = (int) (DB::table('queue_entries')->max('position') ?? 0) + 1;
                 $now = now()->toIso8601String();
 
@@ -213,5 +219,60 @@ class QueueManagerService implements QueueManagerServiceInterface
     public function waitingCount(): int
     {
         return QueueEntry::whereNull('started_at')->count();
+    }
+
+    /**
+     * Standalone self-heal entry point: drops orphaned queue_entries and
+     * repacks the survivors to contiguous positions. Used by the user purge
+     * flow right after it deleted a (possibly queued) customer's orders, so
+     * the remaining customers never keep phantom positions.
+     *
+     * MUST NOT be called while another transaction on the same connection is
+     * still open — it takes the 'queue:position' lock itself.
+     */
+    public function compact(): void
+    {
+        $this->locks->withLock('queue:position', function () {
+            DB::transaction(fn () => $this->compactEntries());
+        }, ttlSeconds: 15);
+    }
+
+    /**
+     * The actual healing, to be run while the 'queue:position' lock is held
+     * and inside a short transaction (enqueue does both; compact() wraps it).
+     *
+     *  1. Delete entries whose order row no longer exists. queue_entries has
+     *     no FK cascade, so any delete path that misses its cleanup leaves
+     *     ghosts here — they inflate max(position) and the
+     *     «ahead = position - 1» hero the tracker shows.
+     *  2. Repack the surviving entries to contiguous 1..N preserving their
+     *     relative order, syncing orders.queue_position so the live tracker
+     *     (it re-reads QueueEntry) shows the healed number immediately.
+     */
+    private function compactEntries(): void
+    {
+        $orphanIds = QueueEntry::query()
+            ->whereNotIn('order_id', Order::query()->select('id'))
+            ->pluck('id')
+            ->all();
+
+        if (! empty($orphanIds)) {
+            QueueEntry::whereIn('id', $orphanIds)->delete();
+        }
+
+        $pos = 0;
+        foreach (QueueEntry::query()->orderBy('position')->orderBy('entered_at')->get() as $entry) {
+            $pos++;
+            if ((int) $entry->position === $pos) {
+                continue;
+            }
+            $entry->position = $pos;
+            $entry->save();
+
+            DB::table('orders')->where('id', $entry->order_id)->update([
+                'queue_position' => $pos,
+                'updated_at' => now()->toIso8601String(),
+            ]);
+        }
     }
 }
