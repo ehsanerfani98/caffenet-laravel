@@ -173,12 +173,13 @@
 
     _browserNotify(title, body) {
       try {
+        // Show ONLY when permission is already granted. Asking for the
+        // permission here would pop the browser prompt from a background
+        // polling event (no user gesture) — permission is granted
+        // exclusively from the AppBar push icon or the explicit "notify
+        // me" button in the order tracker.
         if (Notification.permission === 'granted') {
           new Notification(title, { body, icon: '/icon.png', tag: 'caffenet-queue' });
-        } else if (Notification.permission !== 'denied') {
-          Notification.requestPermission().then(p => {
-            if (p === 'granted') new Notification(title, { body, icon: '/icon.png', tag: 'caffenet-queue' });
-          });
         }
       } catch (e) { /* notifications not available */ }
     },

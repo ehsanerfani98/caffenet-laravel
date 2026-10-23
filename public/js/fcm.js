@@ -5,10 +5,13 @@
  *  - Fetch /api/fcm/config on boot to read the public Firebase web config
  *    (projectId, apiKey, appId, messagingSenderId, vapidKey).
  *  - When enabled, dynamically import the Firebase SDK from gstatic.com,
- *    initialize messaging, request notification permission, and register
- *    the device token via POST /api/fcm/token.
- *  - Listen for incoming foreground messages and show them as toasts.
- *  - On logout, call DELETE /api/fcm/token to deactivate tokens.
+ *    initialize messaging, and listen for foreground messages.
+ *  - Register the device token via POST /api/fcm/token — but ONLY when
+ *    notification permission was ALREADY granted (returning subscriber).
+ *    The browser permission prompt is NEVER shown automatically at boot:
+ *    getToken() would otherwise pop it on its own. Permission is asked
+ *    exclusively from the AppBar push icon (enable() →
+ *    Notification.requestPermission() on that click).
  *
  * The Firebase SDK is loaded ONLY when FCM is enabled in the admin panel —
  * so sites that don't use push notifications pay zero download cost.
@@ -27,8 +30,13 @@
     registered: false,
 
     /**
-     * Boot FCM. Called from app.js after the user logs in. No-op when FCM
-     * is disabled in the system settings.
+     * Boot FCM. Called from app.js after the user logs in (and on session
+     * restore). No-op when FCM is disabled in the system settings.
+     *
+     * NEVER asks for notification permission: the token is (re-)registered
+     * silently only when permission was already granted — the browser
+     * prompt must appear exclusively from the AppBar push icon click
+     * (enable()), not automatically on every app start.
      */
     async init() {
       if (this._initialized) return;
@@ -51,7 +59,15 @@
 
         await this._loadFirebaseSdk();
         await this._initMessaging();
-        await this._registerToken();
+        // Auto-register ONLY for returning subscribers. getToken() fires
+        // the browser permission prompt by itself when permission is still
+        // 'default' — so it must not run here, or the prompt appears at
+        // every boot instead of on the AppBar push icon click.
+        if ('Notification' in window && Notification.permission === 'granted') {
+          await this._registerToken();
+        } else {
+          this.registered = false;
+        }
       } catch (e) {
         console.warn('[FCM] init failed:', e.message);
       }
