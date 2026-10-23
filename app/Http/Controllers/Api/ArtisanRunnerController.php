@@ -55,6 +55,11 @@ class ArtisanRunnerController extends Controller
         'schedule:run' => ['command' => 'schedule:run', 'opts' => []],
         'caffenet:cleanup' => ['command' => 'caffenet:cleanup', 'opts' => []],
         'queue:slots:generate' => ['command' => 'queue:slots:generate', 'opts' => ['--hours' => 24]],
+        // Read-only diagnostics: prints the LIVE sqlite pragmas of the
+        // default connection (journal_mode / busy_timeout / ...) so the
+        // deployer can verify the WAL + busy_timeout hardening went live
+        // straight from the browser.
+        'caffenet:db-pragmas' => ['command' => 'caffenet:db-pragmas', 'opts' => []],
     ];
 
     public function run(Request $request, string $command): JsonResponse

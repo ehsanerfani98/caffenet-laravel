@@ -4,6 +4,8 @@ use App\Jobs\CheckNoResponseOrders;
 use App\Jobs\CleanupExpiredLocks;
 use App\Jobs\RefreshCapacitySnapshot;
 use App\Jobs\SendStartReminder;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
 // ────────────────────────────────────────────────────────────────────────
@@ -33,6 +35,10 @@ Schedule::job(new SendStartReminder(5))->everyMinute();
 Schedule::job(new CleanupExpiredLocks)->everyFiveMinutes();
 
 // Daily at 03:00: backup the SQLite database (shared-hosting friendly).
+// VACUUM INTO produces a consistent, fully-checkpointed single-file snapshot;
+// a raw file copy is NOT WAL-safe (recent commits may still live in the
+// -wal file next to the database). Falls back to the raw copy when VACUUM
+// INTO is unavailable (SQLite < 3.27).
 Schedule::call(function () {
     $dbPath = config('database.connections.sqlite.database');
     $backupDir = storage_path('app/backups');
@@ -40,7 +46,43 @@ Schedule::call(function () {
         @mkdir($backupDir, 0775, true);
     }
     $backupPath = $backupDir.'/db-'.now()->format('Y-m-d').'.sqlite';
-    if (file_exists($dbPath)) {
-        @copy($dbPath, $backupPath);
+    if (! $dbPath || ! file_exists($dbPath)) {
+        return;
     }
+    if (DB::connection()->getDriverName() === 'sqlite') {
+        try {
+            @unlink($backupPath); // VACUUM INTO refuses an existing target
+            $safe = str_replace("'", "''", (string) $backupPath);
+            DB::statement("VACUUM INTO '{$safe}'");
+            return;
+        } catch (\Throwable $e) {
+            // Fall through to the raw copy (legacy behavior).
+        }
+    }
+    @copy($dbPath, $backupPath);
 })->dailyAt('03:00')->name('sqlite-backup')->withoutOverlapping();
+
+// ────────────────────────────────────────────────────────────────────────
+// Diagnostics: print the LIVE SQLite pragmas of the default connection.
+// Used from the Artisan Runner (browser, no SSH) to verify the
+// concurrency hardening (WAL / busy_timeout) actually went live after a
+// deploy: journal_mode must read "wal" and busy_timeout "10000".
+// ────────────────────────────────────────────────────────────────────────
+Artisan::command('caffenet:db-pragmas', function () {
+    if (DB::connection()->getDriverName() !== 'sqlite') {
+        $this->info('driver='.DB::connection()->getDriverName().' — pragmas are SQLite-only; nothing to show.');
+
+        return;
+    }
+
+    $pragma = function (string $name): string {
+        $row = DB::select("PRAGMA {$name}");
+
+        return (string) ($row[0]->{$name} ?? '');
+    };
+
+    $this->info('journal_mode='.$pragma('journal_mode'));
+    $this->info('busy_timeout='.$pragma('busy_timeout'));
+    $this->info('synchronous='.$pragma('synchronous'));
+    $this->info('foreign_keys='.$pragma('foreign_keys'));
+});

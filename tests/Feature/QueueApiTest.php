@@ -92,10 +92,24 @@ class QueueApiTest extends TestCase
         $this->assertIsArray($whitelist);
         $this->assertArrayHasKey('config:clear', $whitelist);
         $this->assertArrayHasKey('queue:restart', $whitelist);
+        $this->assertArrayHasKey('caffenet:db-pragmas', $whitelist);
 
         $restart = $whitelist['queue:restart'];
         $this->assertSame('queue:restart', $restart['command']);
         $this->assertSame([], $restart['opts'], 'queue:restart must run with no extra options.');
+    }
+
+    public function test_db_pragmas_command_reports_live_values(): void
+    {
+        // Runs against the test connection (sqlite :memory:) — only the
+        // shape of the output is asserted; on a real file database
+        // journal_mode reads "wal" after the Task 30 hardening.
+        $this->artisan('caffenet:db-pragmas')
+            ->expectsOutputToContain('journal_mode=')
+            ->expectsOutputToContain('busy_timeout=')
+            ->expectsOutputToContain('synchronous=')
+            ->expectsOutputToContain('foreign_keys=')
+            ->assertExitCode(0);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────

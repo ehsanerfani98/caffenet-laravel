@@ -691,6 +691,7 @@ ANY /api/_artisan/run/{command}?token=YOUR_TOKEN
 | `schedule:run` | `schedule:run` | — |
 | `caffenet:cleanup` | `caffenet:cleanup` | — |
 | `queue:slots:generate` | `queue:slots:generate` | `--hours=24` |
+| `caffenet:db-pragmas` | `caffenet:db-pragmas` | — (پراگم‌های زنده SQLite؛ بعد از دیپلوی باید `journal_mode=wal` و `busy_timeout=10000` ببینید) |
 
 > تنها دستورات داخل whitelist قابل اجرا هستند — دستورات دلخواه artisan قابل اجرا نیستند.
 
