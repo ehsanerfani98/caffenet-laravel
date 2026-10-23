@@ -415,10 +415,18 @@ class FirebasePushService
 
         $url = 'https://iid.googleapis.com/iid/v1/'.rawurlencode($fcmToken).'/rel/topics/'.rawurlencode($topic);
         try {
+            // NOTE: do NOT use ->post($url) with a hand-set 'Content-Length'
+            // header here. Laravel turns a bodyless post() into Guzzle's
+            // json option with [] which json-encodes to a 2-byte body ('[]'),
+            // contradicting 'Content-Length: 0' — Guzzle then refuses to
+            // dispatch with "Content-Length does not match the request body
+            // size" (thrown before any network I/O), so EVERY subscribe
+            // failed and no device ever joined the topic. send('POST', ...)
+            // keeps the body genuinely empty; Guzzle derives
+            // Content-Length: 0 itself.
             $resp = Http::withToken($accessToken)
                 ->timeout(10)
-                ->withHeaders(['Content-Length' => '0'])
-                ->post($url);
+                ->send('POST', $url);
             return $resp->successful();
         } catch (\Throwable $e) {
             Log::warning('FirebasePushService: topic subscribe failed', [
