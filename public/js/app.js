@@ -311,25 +311,38 @@
 
     /* Tap on the AppBar push icon — (re-)register the FCM token for this
      * device (covers: never registered, revoked, wiped fcm_tokens table)
-     * and repaint the red/green status icon in place. */
+     * and repaint the red/green status icon in place. FCM.enable() returns
+     * WHICH link broke, so each failure gets its own diagnostic message —
+     * the old generic "check browser permission" was misleading when
+     * permission was already granted and the SDK/token fetch failed. */
     async enablePushNotifications() {
       if (!window.FCM) return;
       UI.busy(true);
-      let ok = false;
+      let res = { ok: false, reason: 'sdk' };
       try {
-        ok = await FCM.requestPermission();
+        res = await FCM.enable();
       } catch (e) {
-        ok = false;
+        res = { ok: false, reason: 'sdk', error: e && e.message };
       } finally {
         UI.busy(false);
       }
       const $fcmBtn = $('#app-bar').find('[data-appbar-action="fcm"]');
-      if ($fcmBtn.length) $fcmBtn.removeClass('fcm-on fcm-off').addClass(ok ? 'fcm-on' : 'fcm-off');
+      if ($fcmBtn.length) $fcmBtn.removeClass('fcm-on fcm-off').addClass(res.ok ? 'fcm-on' : 'fcm-off');
+      const REASONS = {
+        unsupported: 'مرورگر شما از اعلان وب پشتیبانی نمی‌کند.',
+        disabled: 'پوش نوتیفیکیشن در تنظیمات سیستم خاموش است.',
+        config: 'تنظیمات Firebase کامل نیست (API Key / Project ID / VAPID).',
+        sdk: 'بارگذاری Firebase ناموفق بود — اینترنت را بررسی کنید و دوباره تپ کنید.',
+        permission: 'اجازه نوتیفیکیشن داده نشده. در تنظیمات مرورگر اجازه اعلان را روی «مجاز» بگذارید.',
+        token: 'دریافت توکن از Firebase ناموفق بود — چند لحظه بعد دوباره تلاش کنید.',
+        server: 'ثبت توکن روی سرور ناموفق بود' + (res.status ? ' (کد ' + PU.toPersianDigits(res.status) + ')' : '') + ' — دوباره تلاش کنید.',
+      };
       UI.toast(
-        ok ? 'اعلان‌ها برای این دستگاه فعال شد ✅'
-           : 'فعال‌سازی اعلان‌ها انجام نشد — اجازه نوتیفیکیشن مرورگر را بررسی کنید.',
-        ok ? 'success' : 'error'
+        res.ok ? 'اعلان‌ها برای این دستگاه فعال شد ✅'
+               : (REASONS[res.reason] || 'فعال‌سازی اعلان‌ها انجام نشد — دوباره تلاش کنید.'),
+        res.ok ? 'success' : 'error'
       );
+      if (!res.ok && res.error) console.warn('[FCM] enable failed:', res.reason, res.error);
     },
 
     /* ---------------- payment gateway return ---------------- */

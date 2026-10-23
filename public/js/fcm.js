@@ -104,25 +104,75 @@
     },
 
     /**
-     * Request notification permission + register the FCM token.
-     * Called automatically on init, but can also be called manually
-     * (e.g. from the AppBar notification icon).
-     * Resolves true ONLY when the server accepted the token.
+     * Ensure Firebase SDK + messaging are ready. Unlike init() — which runs
+     * ONCE at boot and gives up permanently on failure — this is RETRYABLE:
+     * a flaky network / blocked CDN at boot no longer bricks the manual
+     * enable button for the whole session.
+     * Resolves {ok:true} or {ok:false, reason: 'disabled'|'config'|'sdk'}.
      */
-    async requestPermission() {
-      if (!this._messaging || !this._msgMod) {
-        await this.init();
+    async _ensureMessaging() {
+      // 1) public config — cached, but re-fetched while disabled so an admin
+      //    flipping FCM on in settings works without a full page reload.
+      if (!this._config || this._config.enabled === false) {
+        try {
+          const resp = await fetch('/api/fcm/config', {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+          });
+          if (!resp.ok) return { ok: false, reason: 'config' };
+          this._config = await resp.json();
+        } catch (e) {
+          return { ok: false, reason: 'config' };
+        }
       }
-      if (!this._messaging) return false;
+      if (!this._config.enabled) return { ok: false, reason: 'disabled' };
+      if (!this._config.apiKey || !this._config.projectId || !this._config.appId || !this._config.vapidKey) {
+        return { ok: false, reason: 'config' };
+      }
+      // 2) SDK + messaging — retried until they load successfully once.
+      if (!this._messaging) {
+        try {
+          await this._loadFirebaseSdk();
+          await this._initMessaging();
+        } catch (e) {
+          console.warn('[FCM] SDK load failed:', e.message);
+          return { ok: false, reason: 'sdk', error: e.message };
+        }
+      }
+      return { ok: true };
+    },
+
+    /**
+     * Full manual enable flow (AppBar push icon): ensure messaging, ask
+     * permission, register the token — and on failure return WHICH link
+     * broke, so the UI can show a diagnostic message instead of a generic
+     * "check your browser permission" (misleading when permission was
+     * already granted and the real failure was the SDK or the token POST).
+     * Resolves {ok:true} or {ok:false, reason, error?, status?}.
+     */
+    async enable() {
+      if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+        return { ok: false, reason: 'unsupported' };
+      }
+      const ready = await this._ensureMessaging();
+      if (!ready.ok) return ready;
 
       try {
         const permission = await Notification.requestPermission();
-        if (permission !== 'granted') return false;
-        return await this._registerToken();
+        if (permission !== 'granted') return { ok: false, reason: 'permission' };
       } catch (e) {
-        console.warn('[FCM] requestPermission failed:', e.message);
-        return false;
+        return { ok: false, reason: 'permission', error: e.message };
       }
+      return await this._registerToken();
+    },
+
+    /**
+     * Legacy boolean wrapper — landing.js profile toggle checks the result
+     * with a plain truthy test and must never receive an object.
+     */
+    async requestPermission() {
+      const res = await this.enable();
+      return !!res.ok;
     },
 
     /**
@@ -154,7 +204,9 @@
     async _registerToken() {
       const msgMod = this._msgMod;
       const messaging = this._messaging;
-      if (!messaging || !this._config || !this._config.vapidKey) return false;
+      if (!messaging || !this._config || !this._config.vapidKey) {
+        return { ok: false, reason: 'config' };
+      }
 
       try {
         const token = await msgMod.getToken(messaging, {
@@ -164,7 +216,7 @@
         if (! token) {
           console.warn('[FCM] No token received — permission may not be granted.');
           this.registered = false;
-          return false;
+          return { ok: false, reason: 'token' };
         }
 
         const resp = await fetch('/api/fcm/token', {
@@ -177,11 +229,11 @@
           body: JSON.stringify({ token: token, platform: 'web' }),
         });
         this.registered = !!resp.ok;
-        return this.registered;
+        return resp.ok ? { ok: true } : { ok: false, reason: 'server', status: resp.status };
       } catch (e) {
         this.registered = false;
         console.warn('[FCM] getToken failed:', e.message);
-        return false;
+        return { ok: false, reason: 'sdk', error: e.message };
       }
     },
 

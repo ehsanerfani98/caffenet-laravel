@@ -206,6 +206,13 @@
       const isCustomer = user && user.role === 'customer';
 
       let actions = '';
+      if (user) {
+        /* Push status/enable — FIRST from the right (first DOM element in
+         * RTL flex = rightmost icon): the owner rejected it sitting in the
+         * middle. Red = no active token on the server, green = registered;
+         * tap = (re-)register the FCM token. */
+        actions += '<button class="icon-btn" data-appbar-action="fcm" aria-label="فعال‌سازی اعلان‌ها">' + icon('bellring') + '</button>';
+      }
       if (isCustomer) {
         // حالت «غیرفعال کردن پرداخت‌ها»: the wallet balance chip is hidden.
         const paymentsDisabled = !!(settings && settings.paymentsDisabled);
@@ -218,12 +225,6 @@
         const smsCount = api.state.smsInboxUnread || 0;
         actions += '<button class="icon-btn" data-appbar-action="sms" aria-label="لاگ پیامک">' +
           icon('bell') + (smsCount ? '<span class="badge">' + PU.toPersianDigits(smsCount) + '</span>' : '') + '</button>';
-      }
-      if (user) {
-        /* Push status/enable, right beside the bell — tap to (re-)register
-         * the FCM token. Red = server has no active token for this user,
-         * green = registered. Guests never see it (tokens need auth). */
-        actions += '<button class="icon-btn" data-appbar-action="fcm" aria-label="فعال‌سازی اعلان‌ها">' + icon('bellring') + '</button>';
       }
       if (user) {
         actions += '<button class="icon-btn" data-appbar-action="profile" aria-label="پروفایل">' + icon('user') + '</button>';
