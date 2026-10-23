@@ -21,6 +21,16 @@ Route::get('/', function () {
         ->header('Cache-Control', 'no-cache, must-revalidate');
 })->name('home');
 
+// Public order tracking PAGE — the UI for the shareable tracking link.
+// The JSON lives at /api/orders/track/{token} (the token IS the auth, same
+// rule here); this blade renders it as a standalone Persian page polling the
+// endpoint every 15s, so the customer can follow the order on any device
+// without logging in. no-cache like the SPA shell (cheap ETag revalidation).
+Route::get('/track/{token}', function () {
+    return response()->view('track')
+        ->header('Cache-Control', 'no-cache, must-revalidate');
+})->where('token', '[A-Za-z0-9_-]+');
+
 // Order uploads physically live in public/uploads (no storage:link symlink
 // needed on shared hosting) and are normally served directly by the web
 // server. This route is the fallback for requests that reach PHP: it keeps the

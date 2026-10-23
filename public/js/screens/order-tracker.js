@@ -99,6 +99,9 @@
   Screens.openOrderTracker = function (orderId) {
     let current = null;
     let tab = 'timeline';
+    // Local star selection (compose phase) — survives the 5s poll repaint;
+    // reset to 0 after the one-shot review submission succeeds.
+    let picked = 0;
 
     const sheet = UI.sheet({
       title: 'پیگیری سفارش',
@@ -337,16 +340,28 @@
             (l.note ? '<div class="tl-note">' + PU.escapeHtml(l.note) + '</div>' : '') + '</div>'
           ).join('') + '</div>';
 
-        // rating for delivered orders by owner
+        // rating for delivered orders by owner — ONE submission per order.
+        // While no review has been submitted (reviewComment is null) the
+        // customer composes: stars are a LOCAL selection and «ثبت نظر»
+        // finalises {rating, reviewComment} in a single call. After that the
+        // backend locks both fields (409) and the sheet shows a read-only
+        // recap instead of the editable form.
         if (o.status === 'delivered' && isOwner) {
+          const locked = o.reviewComment !== null && o.reviewComment !== undefined;
+          const starsVal = picked || o.rating || 0;
+          const starsHtml = [1, 2, 3, 4, 5].map((i) =>
+            locked
+              ? '<span class="star ' + (o.rating >= i ? 'on' : '') + '">' + icon('starFill') + '</span>'
+              : '<button class="star ' + (starsVal >= i ? 'on' : '') + '" data-rate="' + i + '">' + icon('starFill') + '</button>'
+          ).join('');
           body += '<div class="section-title">' + icon('star') + 'امتیاز شما به این سفارش</div>' +
-            '<div class="rating-stars" id="rating-stars">' +
-              [1, 2, 3, 4, 5].map((i) =>
-                '<button class="star ' + (o.rating >= i ? 'on' : '') + '" data-rate="' + i + '">' + icon('starFill') + '</button>'
-              ).join('') + '</div>' +
-            (o.rating ? '<div style="text-align:center;font-size:11px;color:var(--ink-soft)">با تشکر از بازخورد شما!</div>' : '') +
-            '<textarea class="textarea" id="review-comment" rows="2" placeholder="نظر شما (اختیاری)">' + PU.escapeHtml(o.reviewComment || '') + '</textarea>' +
-            '<button class="btn ghost block sm" id="save-review" style="margin-top:8px">ثبت نظر</button>';
+            '<div class="rating-stars"' + (locked ? '' : ' id="rating-stars"') + '>' + starsHtml + '</div>' +
+            (locked
+              ? (o.reviewComment ? '<div class="tl-note" style="text-align:center">' + PU.escapeHtml(o.reviewComment) + '</div>' : '') +
+                '<div style="text-align:center;font-size:11px;color:var(--ink-soft)">با تشکر از بازخورد شما! بازخورد هر سفارش فقط یکبار قابل ثبت است.</div>'
+              : '<div style="text-align:center;font-size:11px;color:var(--ink-soft);margin-bottom:6px">با زدن «ثبت نظر»، امتیاز و نظر شما نهایی می‌شود و دیگر قابل تغییر نیست.</div>' +
+                '<textarea class="textarea" id="review-comment" rows="2" placeholder="نظر شما (اختیاری)">' + PU.escapeHtml(o.reviewComment || '') + '</textarea>' +
+                '<button class="btn ghost block sm" id="save-review" style="margin-top:8px">ثبت نظر</button>');
         }
       } else if (tab === 'files') {
         body += '<div class="section-title" style="margin-top:0">' + icon('files') + 'فایل‌های شما</div>';
@@ -409,12 +424,15 @@
 
       // "Share tracking link" — uses the public track_token so the customer
       // can open the order status on a second device without logging in.
+      // Points at the standalone tracking PAGE (/track/{token}) which polls
+      // the JSON endpoint — the raw /api/orders/track/{token} URL was a bare
+      // JSON document with no UI (Task 38).
       sheet.body.find('#queue-share').on('click', function () {
         if (!o.trackToken) {
           UI.toast('لینک پیگیری در دسترس نیست.', 'info');
           return;
         }
-        const url = window.location.origin + '/api/orders/track/' + o.trackToken;
+        const url = window.location.origin + '/track/' + o.trackToken;
         // Try the Web Share API first (mobile), fall back to clipboard.
         if (navigator.share) {
           navigator.share({
@@ -475,20 +493,29 @@
         } finally { $btn.prop('disabled', false); }
       });
 
-      sheet.body.find('[data-rate]').on('click', async function () {
-        const rating = Number($(this).data('rate'));
-        try {
-          current = await api.updateOrder(o.id, { rating });
-          UI.toast('امتیاز شما ثبت شد.', 'success');
-          render();
-        } catch (e) { UI.toast(e.message, 'error'); }
+      // Stars = local pick only; nothing hits the API until «ثبت نظر»
+      // submits rating + comment together (one-shot review per order).
+      sheet.body.find('[data-rate]').on('click', function () {
+        picked = Number($(this).data('rate')) || 0;
+        sheet.body.find('#rating-stars [data-rate]').each(function () {
+          $(this).toggleClass('on', picked >= Number($(this).data('rate')));
+        });
       });
 
       sheet.body.find('#save-review').on('click', async function () {
+        const $btn = $(this).prop('disabled', true);
         try {
-          current = await api.updateOrder(o.id, { rating: o.rating || 5, reviewComment: sheet.body.find('#review-comment').val() });
-          UI.toast('نظر شما ثبت شد.', 'success');
-        } catch (e) { UI.toast(e.message, 'error'); }
+          current = await api.updateOrder(o.id, {
+            rating: picked || o.rating || 5,
+            reviewComment: sheet.body.find('#review-comment').val(),
+          });
+          picked = 0;
+          UI.toast('امتیاز و نظر شما ثبت شد.', 'success');
+          render();
+        } catch (e) {
+          UI.toast(e.message, 'error');
+          $btn.prop('disabled', false);
+        }
       });
     }
 

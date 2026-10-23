@@ -665,22 +665,43 @@ class OrderController extends Controller
         $isOwner = $order->customer_id === $user->id;
         $now = now()->toIso8601String();
 
-        if (array_key_exists('rating', $fields)) {
+        // ── Rating + review: exactly ONE submission per order ────────────
+        // The customer composes (stars + comment) and finalises with the
+        // «ثبت نظر» action, which submits {rating, reviewComment} together.
+        // Once a review has been submitted (review_comment is no longer NULL)
+        // BOTH fields are locked for this order — no re-rating, no comment
+        // edits, ever. Staff note / operator assignment are unaffected.
+        $wantsRating = array_key_exists('rating', $fields);
+        $wantsReview = array_key_exists('reviewComment', $fields);
+
+        if ($wantsRating || $wantsReview) {
             if (! $isOwner) {
                 return response()->json(['error' => 'ثبت امتیاز تنها توسط مشتری سفارش مجاز است.'], 403);
             }
-            $rating = (int) $fields['rating'];
-            if ($rating < 1 || $rating > 5) {
-                return response()->json(['error' => 'امتیاز باید بین ۱ تا ۵ باشد.'], 400);
+            if ($order->review_comment !== null) {
+                return response()->json([
+                    'error' => 'برای این سفارش قبلاً امتیاز و نظر ثبت شده است؛ هر سفارش فقط یکبار قابل امتیازدهی است.',
+                ], 409);
             }
-            $order->rating = $rating;
-            $order->review_comment = isset($fields['reviewComment']) ? (string) $fields['reviewComment'] : null;
+            if ($wantsRating) {
+                $rating = (int) $fields['rating'];
+                if ($rating < 1 || $rating > 5) {
+                    return response()->json(['error' => 'امتیاز باید بین ۱ تا ۵ باشد.'], 400);
+                }
+                $order->rating = $rating;
+            }
+            // The final submission always carries the comment; a rating-only
+            // patch (compose phase) must never wipe an in-progress comment —
+            // the old code reset review_comment to NULL on every star tap.
+            if ($wantsReview) {
+                $order->review_comment = (string) $fields['reviewComment'];
+            }
             $order->updated_at = $now;
             $order->save();
 
             OrderLog::create([
                 'order_id' => $order->id,
-                'action' => "ثبت امتیاز: {$rating} از ۵",
+                'action' => $wantsRating ? "ثبت امتیاز: {$rating} از ۵" : 'ثبت نظر مشتری',
                 'performed_by' => $user->name,
                 'timestamp' => $now,
             ]);
