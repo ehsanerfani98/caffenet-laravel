@@ -33,8 +33,12 @@ class PaymentFulfillmentService
     {
         $applied = false;
         $paidOrder = null;
+        // Whether this payment is what brings the order INTO the system (a
+        // pre-payment order becoming submitted). Carried out of the
+        // transaction; used post-commit for the management notification.
+        $enteredQueue = false;
 
-        DB::transaction(function () use ($payment, $refId, $cardPan, $paymentMethod, $performedByName, &$applied, &$paidOrder) {
+        DB::transaction(function () use ($payment, $refId, $cardPan, $paymentMethod, $performedByName, &$applied, &$paidOrder, &$enteredQueue) {
             $now = now()->toIso8601String();
 
             $affected = DB::table('payments')
@@ -125,6 +129,7 @@ class PaymentFulfillmentService
                     // submission (onSubmitted's own guard would also catch
                     // it, but skipping here keeps intent explicit).
                     if ($targetStatus !== $order->status) {
+                        $enteredQueue = true;
                         try {
                             $order->refresh();
                             app(\App\Services\Queue\OrderLifecycleService::class)->onSubmitted($order);
@@ -177,6 +182,14 @@ class PaymentFulfillmentService
                     'order_id' => $paidOrder->id,
                     'error' => $e->getMessage(),
                 ]);
+            }
+
+            // Management notification: this payment just brought a NEW order
+            // into the system (gateway / manual fulfillment). Request-mode
+            // orders were already announced at registration (enteredQueue =
+            // false) — never notified twice. Self-contained and never throws.
+            if ($enteredQueue) {
+                SmsService::sendNewOrderAdminNotification($paidOrder->order_number);
             }
         }
 

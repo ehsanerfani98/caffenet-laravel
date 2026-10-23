@@ -223,6 +223,16 @@ TEXT;
         ['key' => 'smsPatternBroadcast_title', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM, 'label' => 'همگانی — نام متغیر عنوان', 'default' => ''],
         ['key' => 'smsPatternBroadcast_body', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM, 'label' => 'همگانی — نام متغیر متن', 'default' => ''],
 
+        // new_order_admin — one management notification per newly registered
+        // order, sent to exactly ONE admin-chosen number (there may be several
+        // managers; this setting decides who gets told). The pattern is plain
+        // text with NO IPPanel variables (e.g. «سفارش جدید دارید»). Empty
+        // number = notification off.
+        ['key' => 'smsPatternNewOrder', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'کد پترن سفارش جدید (اطلاع به مدیریت)', 'default' => ''],
+        ['key' => 'smsNewOrderAdminPhone', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'شماره مدیر دریافت‌کننده پیامک سفارش جدید', 'default' => ''],
+
         ['key' => 'smsNotifyEnabled', 'category' => 'sms', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM, 'label' => 'ارسال پیامک اطلاع‌رسانی سفارش', 'default' => '0'],
         ['key' => 'smsBaseUrl', 'category' => 'sms', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM, 'label' => 'آدرس پایه ippanel Edge API', 'default' => 'https://edge.ippanel.com/v1'],
 

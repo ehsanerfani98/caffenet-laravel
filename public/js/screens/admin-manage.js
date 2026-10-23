@@ -317,6 +317,9 @@
             '<div style="text-align:center;padding:16px;color:var(--ink-soft)">در حال بارگذاری پترن‌ها…</div>' +
           '</div>' +
 
+          '<div style="font-size:12px;font-weight:700;margin:16px 0 2px">اطلاع‌رسانی «سفارش جدید» به مدیریت</div>' +
+          textField('smsNewOrderAdminPhone', 'شماره دریافت‌کننده (فقط یک شماره)', { placeholder: '09121234567', help: 'با ثبت هر سفارش جدید، پیامک اطلاع‌رسانی فقط به همین شماره می‌رود — اگر چند مدیر دارید، همین‌جا شماره‌ای را که باید باخبر شود تعیین کنید. خالی = غیرفعال.' }) +
+
           switchRow('smsNotifyEnabled', 'ارسال پیامک اطلاع‌رسانی سفارش (در کنار پوش)') +
           textField('smsBaseUrl', 'آدرس پایه Edge API', { placeholder: 'https://edge.ippanel.com/v1', help: 'پیش‌فرض: https://edge.ippanel.com/v1 — این آدرس باید https://edge.ippanel.com/v1 باشد.' }) +
         '</div>';
@@ -407,6 +410,7 @@
        'smsPatternStatusChange', 'smsPatternStatusChange_order_number', 'smsPatternStatusChange_customer_name', 'smsPatternStatusChange_status_title',
        'smsPatternRefund', 'smsPatternRefund_customer_name', 'smsPatternRefund_amount',
        'smsPatternBroadcast', 'smsPatternBroadcast_title', 'smsPatternBroadcast_body',
+       'smsPatternNewOrder', 'smsNewOrderAdminPhone',
       ].forEach((k) => { rendered[k] = true; });
 
       /* ---- fallback: any system key the layout above did not claim ---- */
@@ -578,6 +582,7 @@
           { key: 'status_change', label: '۸. تغییر وضعیت (دستی)' },
           { key: 'refund',        label: '۹. عودت مبلغ به کیف پول' },
           { key: 'broadcast',     label: '۱۰. اطلاع‌رسانی همگانی' },
+          { key: 'new_order_admin', label: '۱۱. سفارش جدید (اطلاع به مدیریت)' },
         ];
 
         // Fixed fields per pattern type — mirrors SmsTypeRegistry.
@@ -592,6 +597,7 @@
           status_change: { setting: 'smsPatternStatusChange',  fields: { order_number: 'نام متغیر شماره سفارش', customer_name: 'نام متغیر نام مشتری', status_title: 'نام متغیر عنوان وضعیت' } },
           refund:        { setting: 'smsPatternRefund',        fields: { customer_name: 'نام متغیر نام مشتری', amount: 'نام متغیر مبلغ' } },
           broadcast:     { setting: 'smsPatternBroadcast',     fields: { title: 'نام متغیر عنوان', body: 'نام متغیر متن' } },
+          new_order_admin: { setting: 'smsPatternNewOrder',    fields: {} },
         };
 
         function renderPattern(p) {
@@ -603,6 +609,9 @@
               '<div style="font-size:12px;font-weight:700;margin-bottom:8px">' + p.label + '</div>' +
               '<label class="field-label">کد پترن</label>' +
               '<input class="input" data-set="' + patternCodeKey + '" dir="ltr" placeholder="مثلاً 96ttx5xosutvyp7" value="' + esc(patternCode) + '">';
+          if (!Object.keys(def.fields).length) {
+            html += '<div class="help-text" style="margin-top:6px">پترن بدون متغیر — در ippanel یک الگوی متن ساده بسازید (مثال: «سفارش جدید دارید»). پیامک فقط به شماره‌ای که در بخش «اطلاع‌رسانی سفارش جدید به مدیریت» وارد کرده‌اید ارسال می‌شود.</div>';
+          }
           rendered[patternCodeKey] = true;
 
           let i = 0;

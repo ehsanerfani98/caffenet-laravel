@@ -265,6 +265,11 @@ class OrderController extends Controller
                 ]
             );
 
+            // Management notification: a NEW order just entered the system
+            // (sent to the single admin-configured number; a no-op while it
+            // is empty). The send itself is self-contained and never throws.
+            SmsService::sendNewOrderAdminNotification($order->order_number);
+
             // ── Smart queue: the request goes straight into the operator queue ──
             // Same enqueue the paid fulfillment path uses (ETA + track token
             // + queue position). Non-fatal: a queue hiccup must never fail an
@@ -320,15 +325,26 @@ class OrderController extends Controller
 
         $trackingCode = 'WLT-'.random_int(100000, 999999);
         $now = now()->toIso8601String();
+        // Whether this payment is what brings the order INTO the system (a
+        // pre-payment order becoming submitted). Captured inside the
+        // transaction from the locked pre-payment row; used post-commit for
+        // the queue enqueue AND the management notification.
+        $enteredQueue = false;
 
         try {
-            DB::transaction(function () use ($order, $user, $payable, $trackingCode, $now) {
+            DB::transaction(function () use ($order, $user, $payable, $trackingCode, $now, &$enteredQueue) {
                 // Atomic idempotency guard: re-read inside the transaction and
                 // only proceed when still unpaid (anti double-debit race).
                 $fresh = DB::table('orders')->where('id', $order->id)->lockForUpdate()->first();
                 if (! $fresh || (int) $fresh->paid_amount > 0) {
                     throw new \RuntimeException('ORDER_ALREADY_PAID');
                 }
+
+                // Payment that lifts a pre-payment order (pending_payment /
+                // failed) into submitted IS the moment the order enters the
+                // system. A request-mode order (paymentsDisabled) was already
+                // announced at registration — its status is preserved here.
+                $enteredQueue = in_array($fresh->status, [Order::STATUS_PENDING_PAYMENT, Order::STATUS_FAILED], true);
 
                 WalletService::debit($user, $payable, WalletTransaction::TYPE_PURCHASE, [
                     'orderId' => $order->id,
@@ -417,11 +433,19 @@ class OrderController extends Controller
             ]
         );
 
+        // Management notification: the payment just brought a NEW order into
+        // the system. Request-mode orders were already announced at
+        // registration (enteredQueue = false) — never notified twice.
+        if ($enteredQueue) {
+            SmsService::sendNewOrderAdminNotification($order->order_number);
+        }
+
         // ── Smart queue: enqueue the now-submitted order ──
-        // Skipped entirely when the payment did not move the order into the
-        // queue (request-mode order that was already submitted/processing —
-        // onSubmitted's own guard would also catch it).
-        if (in_array($order->refresh()->status, [Order::STATUS_PENDING_PAYMENT, Order::STATUS_FAILED], true)) {
+        // Only when the payment moved the order into the queue (a
+        // pre-payment status becoming submitted). A request-mode order was
+        // enqueued at submission — onSubmitted's own entry guard would also
+        // catch it, but skipping here keeps intent explicit.
+        if ($enteredQueue) {
             try {
                 app(\App\Services\Queue\OrderLifecycleService::class)->onSubmitted($order);
             } catch (\Throwable $e) {

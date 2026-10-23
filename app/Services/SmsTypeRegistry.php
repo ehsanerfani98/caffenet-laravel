@@ -125,6 +125,14 @@ class SmsTypeRegistry
                     'body'            => 'متن',
                 ],
             ],
+            'new_order_admin' => [
+                'label' => 'سفارش جدید (اطلاع به مدیریت)',
+                'setting_key' => 'smsPatternNewOrder',
+                // Plain-text pattern — NO IPPanel variables. The admin builds
+                // a variable-free template in IPPanel (e.g. «سفارش جدید
+                // دارید») and the system sends it untouched. params = {}.
+                'fields' => [],
+            ],
         ];
     }
 

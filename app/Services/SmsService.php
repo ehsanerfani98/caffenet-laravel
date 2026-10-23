@@ -51,6 +51,31 @@ class SmsService
     }
 
     /**
+     * Notify management that a NEW order was registered.
+     *
+     * Sent to exactly ONE number the admin configures in the settings panel
+     * (smsNewOrderAdminPhone) — there may be several managers, this setting
+     * decides who gets told. The pattern (smsPatternNewOrder) is plain text
+     * with NO IPPanel variables (e.g. «سفارش جدید دارید»).
+     *
+     * Deliberately NOT gated by smsNotifyEnabled (that switch governs the
+     * customer-facing order SMS); the admin enables this by filling the
+     * number and disables it by clearing it — a no-op while it is empty.
+     *
+     * Fired from every point a NEW order enters the system: request-mode
+     * registration (OrderController::store) and every payment that brings a
+     * pre-payment order into the queue (wallet / gateway / manual).
+     */
+    public static function sendNewOrderAdminNotification(string $orderNumber): void
+    {
+        $phone = trim((string) SettingsService::raw('smsNewOrderAdminPhone'));
+        if ($phone === '') {
+            return;
+        }
+        self::send($phone, 'new_order_admin', [], 'سفارش جدید '.$orderNumber);
+    }
+
+    /**
      * Core: send a pattern SMS.
      *
      * 1. Read the pattern code from settings.
@@ -99,7 +124,10 @@ class SmsService
                 'from_number'  => self::toE164($s['sender']),
                 'code'         => $patternCode,
                 'recipients'   => [self::toE164($phone)],
-                'params'       => $params,
+                // Variable-free patterns carry NO params — encode as a JSON
+                // object ({}), never an array ([]), so the Edge API always
+                // receives the shape it expects.
+                'params'       => $params === [] ? new \stdClass() : $params,
             ];
 
             $response = Http::timeout(self::TIMEOUT)
