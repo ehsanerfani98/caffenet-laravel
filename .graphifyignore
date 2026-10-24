@@ -1,0 +1,9 @@
+# Graphify: keep the graph scoped to first-party project code (mirrors original scope)
+vendor/
+node_modules/
+storage/
+graphify/
+graphify-out/
+scripts-test/logs/
+*.min.js
+*.map
