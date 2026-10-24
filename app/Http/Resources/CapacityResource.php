@@ -12,6 +12,15 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 class CapacityResource extends JsonResource
 {
+    /**
+     * No `{"data": …}` envelope. The client (public/js/queue.js Poller)
+     * reads `data.tier`, `data.eta_minutes`… straight off the response
+     * body, and QueueApiTest asserts the same top-level shape — with the
+     * default Laravel wrapping every response looked like
+     * `{"data": {…}}` and the indicator silently fell back to 🟢 green.
+     */
+    public static $wrap = false;
+
     public function toArray(Request $request): array
     {
         return [

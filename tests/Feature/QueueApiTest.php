@@ -61,23 +61,26 @@ class QueueApiTest extends TestCase
     {
         config(['app.key' => 'base64:'.base64_encode(random_bytes(32))]);
 
-        // Set the env directly via putenv + reload config.
-        putenv('ARTISAN_RUNNER_TOKEN=test_secret_token');
+        // Laravel's env() reads $_ENV/$_SERVER (Dotenv EnvConst/ServerConst
+        // adapters) — putenv() alone is invisible to it, so write the
+        // superglobals the same way .env loading does.
+        $_ENV['ARTISAN_RUNNER_TOKEN'] = 'test_secret_token';
+        $_SERVER['ARTISAN_RUNNER_TOKEN'] = 'test_secret_token';
 
-        // Reload the controller's env lookup by clearing any cached config.
         $resp = $this->getJson('/api/_artisan/run/cache:clear?token=test_secret_token');
         $resp->assertOk();
         $resp->assertJsonStructure(['command', 'exit_code', 'output']);
 
-        putenv('ARTISAN_RUNNER_TOKEN=');
+        unset($_ENV['ARTISAN_RUNNER_TOKEN'], $_SERVER['ARTISAN_RUNNER_TOKEN']);
     }
 
     public function test_artisan_runner_rejects_non_whitelisted_command(): void
     {
-        putenv('ARTISAN_RUNNER_TOKEN=test_secret_token');
+        $_ENV['ARTISAN_RUNNER_TOKEN'] = 'test_secret_token';
+        $_SERVER['ARTISAN_RUNNER_TOKEN'] = 'test_secret_token';
         $resp = $this->getJson('/api/_artisan/run/tinker?token=test_secret_token');
         $resp->assertStatus(400);
-        putenv('ARTISAN_RUNNER_TOKEN=');
+        unset($_ENV['ARTISAN_RUNNER_TOKEN'], $_SERVER['ARTISAN_RUNNER_TOKEN']);
     }
 
     public function test_artisan_runner_whitelist_covers_deploy_commands(): void

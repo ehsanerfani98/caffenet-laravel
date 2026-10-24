@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Services\SlugService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -93,6 +94,12 @@ class CatalogSeeder extends Seeder
             ],
         ];
         foreach ($services as $s) {
+            // Seeded rows must carry a URL slug from day one. The slug
+            // column is created + backfilled by a migration that runs
+            // BEFORE seeding on a fresh install, so without this the four
+            // default services would stay slugless and #/service/{slug}
+            // deep links would 404 until an admin re-saved each one.
+            $s['slug'] = SlugService::uniqueFor((string) $s['title']);
             DB::table('services')->insert($s);
         }
     }
