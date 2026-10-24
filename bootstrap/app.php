@@ -23,6 +23,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->group(base_path('routes/api.php'));
         },
     )
+    // [TEST-FIX 2026-10-24] Disable automatic event-listener discovery.
+    // Laravel's default `$shouldDiscoverEvents = true` auto-registers every
+    // app/Listeners class that type-hints an event, ON TOP of the manual
+    // Event::listen() calls in AppServiceProvider::boot(). Result: EVERY
+    // listener ran TWICE — duplicate order_started SMS/notifications and the
+    // no-response sweep advancing requeue_count by 2 per sweep (breaking the
+    // 3-strike rule). Discovery off keeps exactly the manual registrations.
+    ->withEvents(discover: false)
     ->withMiddleware(function (Middleware $middleware): void {
         // Helmet-equivalent security headers on every response.
         $middleware->append(App\Http\Middleware\SecurityHeaders::class);
