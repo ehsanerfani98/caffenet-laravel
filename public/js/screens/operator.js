@@ -157,6 +157,9 @@
         '<div class="order-card" data-order="' + o.id + '" style="margin-bottom:10px">' +
           '<div class="oc-head"><span class="oc-num">' + PU.toPersianDigits(o.orderNumber) + '</span>' + UI.statusBadge(o.status) + '</div>' +
           '<div class="oc-title">' + PU.escapeHtml(o.serviceTitle) + ' — ' + PU.escapeHtml(o.customerName) + '</div>' +
+          (o.status === 'submitted' && o.noResponseDeadline
+            ? '<div class="oc-nr">' + UI.nrCountdownHtml(o.noResponseDeadline) + '</div>'
+            : '') +
           '<div class="oc-foot">' +
             '<span class="oc-price">' + PU.formatToman(o.paidAmount) + '</span>' +
             '<span style="font-size:11px;color:var(--ink-soft)">' + PU.toJalaliDateShort(o.createdAt) + '</span>' +
@@ -211,6 +214,21 @@
             STATUSES.map(([k, l]) => '<span class="chip ' + (o.status === k ? 'active' : '') + '" data-newstatus="' + k + '">' + l + '</span>').join('') +
           '</div>' +
 
+          // No-response strike clock (same as the admin sheet): the operator
+          // arms a 15-minute window after a missed call; each expiry pushes
+          // the order to the back of the queue and the 3rd one cancels it.
+          // «در حال انجام» (start) clears the clock. Operators hold the
+          // orders.manage permission, so this mirrors the admin action 1:1.
+          (o.status === 'submitted'
+            ? '<div class="section-title">' + icon('clock') + 'مشتری پاسخ نداد؟</div>' +
+              (o.noResponseDeadline
+                ? '<div style="margin:6px 0 10px">' + UI.nrCountdownHtml(o.noResponseDeadline).replace('nr-timer"', 'nr-timer nr-big"') + '</div>' +
+                  '<button class="btn amber block sm" id="od-no-response">' + icon('clock') + 'تماس دوباره بی‌پاسخ — ۱۵ دقیقه دیگر</button>' +
+                  '<div class="help-text">تایمر در جریان است؛ اگر مشتری پاسخ داد «تغییر وضعیت ← در حال انجام» را بزنید تا تایمر خاموش شود. اگر مشتری دوباره جواب نداد، همین دکمه ۱۵ دقیقه را از نو شروع می‌کند. بعد از هر انقضا سفارش ته صف می‌رود (پیامک می‌رود) و بعد از ۳ بار لغو کامل می‌شود.</div>'
+                : '<button class="btn amber block" id="od-no-response">' + icon('clock') + 'پاسخ نداد — ۱۵ دقیقه فرصت</button>' +
+                  '<div class="help-text">وقتی تماس می‌گیرید و مشتری جواب نمی‌دهد این دکمه را بزنید: تایمر ۱۵ دقیقه‌ای فعال می‌شود. اگر تا پایان آن پاسخ ندهد، سفارش خودکار ته صف می‌رود (پیامک اطلاع می‌رود) و بعد از ۳ بار کامل لغو می‌شود. «در حال انجام» تایمر را خاموش می‌کند.</div>')
+            : '') +
+
           '<label class="field-label">یادداشت پرسنلی (داخلی)</label>' +
           '<textarea class="textarea" id="op-note" rows="2">' + PU.escapeHtml(o.internalNote || '') + '</textarea>' +
           '<button class="btn ghost block sm" id="save-note" style="margin-top:8px">ذخیره یادداشت</button>' +
@@ -231,6 +249,19 @@
             UI.toast('وضعیت به‌روزرسانی شد.', 'success');
             sheet.close();
           } catch (e) { UI.toast(e.message, 'error'); }
+        });
+
+        // «پاسخ نداد» — arm (or re-arm) the 15-min strike clock. The response
+        // order replaces the list entry (api._replaceOrder), so the live
+        // countdown badge lights up on the card right after this sheet closes.
+        sheet.body.find('#od-no-response').on('click', async function () {
+          UI.busy(true);
+          try {
+            await api.markNoResponse(o.id);
+            UI.toast('تایمر ۱۵ دقیقه‌ای فعال شد؛ اگر مشتری پاسخ ندهد ته صف می‌رود.', 'success');
+            sheet.close();
+          } catch (e) { UI.toast(e.message, 'error'); }
+          finally { UI.busy(false); }
         });
 
         sheet.body.find('#save-note').on('click', async function () {

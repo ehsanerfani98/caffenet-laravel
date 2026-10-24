@@ -79,8 +79,12 @@ class QueueOrderController extends Controller
         $order->updated_at = now()->toIso8601String();
         $order->save();
 
+        // Full camelCase order (same contract as every other mutation
+        // endpoint): the frontend _replaceOrder() swaps this object straight
+        // into state.orders, so a compact/snake_case payload would wipe the
+        // list card fields and the countdown would never light up.
         return response()->json([
-            'order' => (new OrderUpdateResource($order))->resolve($request),
+            'order' => \App\Http\Support\Formatter::order($order),
             'no_response_deadline' => $deadline,
             'requeue_count' => (int) $entry->requeue_count,
         ]);

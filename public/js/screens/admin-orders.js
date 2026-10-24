@@ -104,6 +104,9 @@
             ' • ' + PU.toJalaliDateShort(o.createdAt) + '</span>' +
         '</div>' +
         (o.refundAmount ? '<div class="help-text">مبلغ عودت‌شده: ' + PU.formatToman(o.refundAmount) + '</div>' : '') +
+        (o.status === 'submitted' && o.noResponseDeadline
+          ? '<div class="oc-nr">' + UI.nrCountdownHtml(o.noResponseDeadline) + '</div>'
+          : '') +
       '</div>';
     }
 
@@ -167,10 +170,16 @@
             // No-response strike clock — only for orders waiting in the queue.
             // Each expiry pushes the order to the back; after 3 expiries it is
             // auto-cancelled. «شروع کار» (status → processing) clears the clock.
+            // When the clock is already armed, the live countdown replaces the
+            // arm button and a re-arm («تماس دوباره بی‌پاسخ») resets 15 min.
             (o.status === 'submitted'
               ? '<div class="section-title">' + icon('clock') + 'مشتری پاسخ نداد؟</div>' +
-                '<button class="btn amber block" id="od-no-response">' + icon('clock') + 'پاسخ نداد — ۱۵ دقیقه فرصت</button>' +
-                '<div class="help-text">با این دکمه تایمر ۱۵ دقیقه‌ای فعال می‌شود. اگر تا پایان آن مشتری پاسخ ندهد، سفارش خودکار ته صف می‌رود (پیامک اطلاع می‌رود) و بعد از ۳ بار، سفارش کامل لغو می‌شود. «شروع کار» تایمر را خاموش می‌کند.</div>'
+                (o.noResponseDeadline
+                  ? '<div style="margin:6px 0 10px">' + UI.nrCountdownHtml(o.noResponseDeadline).replace('nr-timer"', 'nr-timer nr-big"') + '</div>' +
+                    '<button class="btn amber block sm" id="od-no-response">' + icon('clock') + 'تماس دوباره بی‌پاسخ — ۱۵ دقیقه دیگر</button>' +
+                    '<div class="help-text">تایمر در جریان است؛ اگر مشتری پاسخ داد «تغییر وضعیت ← در حال انجام» را بزنید تا تایمر خاموش شود. اگر مشتری دوباره جواب نداد، همین دکمه ۱۵ دقیقه را از نو شروع می‌کند. بعد از هر انقضا سفارش ته صف می‌رود (پیامک می‌رود) و بعد از ۳ بار لغو کامل می‌شود.</div>'
+                  : '<button class="btn amber block" id="od-no-response">' + icon('clock') + 'پاسخ نداد — ۱۵ دقیقه فرصت</button>' +
+                    '<div class="help-text">با این دکمه تایمر ۱۵ دقیقه‌ای فعال می‌شود. اگر تا پایان آن مشتری پاسخ ندهد، سفارش خودکار ته صف می‌رود (پیامک اطلاع می‌رود) و بعد از ۳ بار، سفارش کامل لغو می‌شود. «شروع کار» تایمر را خاموش می‌کند.</div>')
               : '') +
 
             '<div class="section-title">' + icon('user') + 'ارجاع به اپراتور</div>' +

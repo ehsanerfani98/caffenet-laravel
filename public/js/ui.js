@@ -550,5 +550,47 @@
       renderBody();
       return sheet;
     },
+
+    /* ---------------- no-response live countdown ----------------
+     * Shared one-second ticker for every [data-nr-deadline] element on the
+     * page (list badges + order sheets). Elements are re-scanned each tick,
+     * so repaints never leak timers and no per-element bookkeeping exists.
+     * States: running (m:ss left) → critical (≤3 min, red) → expired
+     * («منقضی شد» — the sweep moves it to the back within ~1 minute). */
+    _nrTickerStarted: false,
+
+    nrCountdownHtml(deadline) {
+      if (!deadline) return '';
+      UI.startNrTicker();
+      return '<span class="nr-timer" data-nr-deadline="' + PU.escapeHtml(String(deadline)) + '"></span>';
+    },
+
+    startNrTicker() {
+      if (UI._nrTickerStarted) return;
+      UI._nrTickerStarted = true;
+      setInterval(UI.tickNrTimers, 1000);
+    },
+
+    tickNrTimers() {
+      const nodes = document.querySelectorAll('[data-nr-deadline]');
+      if (!nodes.length) return;
+      const now = Date.now();
+      nodes.forEach(function (el) {
+        const end = new Date(el.getAttribute('data-nr-deadline')).getTime();
+        const left = Math.floor((end - now) / 1000);
+        if (!isFinite(end)) { el.textContent = ''; return; }
+        if (left > 0) {
+          const m = Math.floor(left / 60);
+          const s = left % 60;
+          el.textContent = '⏰ ' + PU.toPersianDigits(m + ':' + (s < 10 ? '0' : '') + s) + ' مانده';
+          el.classList.toggle('nr-critical', left <= 180);
+          el.classList.remove('nr-expired');
+        } else {
+          el.textContent = '⏰ منقضی شد — در انتظار انتقال به ته صف';
+          el.classList.add('nr-expired');
+          el.classList.remove('nr-critical');
+        }
+      });
+    },
   };
 })();

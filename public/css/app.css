@@ -977,3 +977,32 @@ svg.i.i-lg { width: 30px; height: 30px; }
     padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
     background: var(--bg);
 }
+
+/* ── No-response live countdown (list badge + order sheet) ──────────────
+ * Armed by «پاسخ نداد»; ticks client-side from the deadline timestamp.
+ * Running = amber, critical (≤3 min) = red pulse, expired = slate. */
+.nr-timer {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 11px; border-radius: 999px;
+    background: var(--amber-soft); color: var(--amber);
+    font-size: 12px; font-weight: 800; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.nr-timer.nr-critical {
+    background: var(--rose-soft); color: var(--rose);
+    animation: nrPulse 1s ease-in-out infinite;
+}
+.nr-timer.nr-expired {
+    background: var(--ink-soft); color: #fff;
+    animation: none; white-space: normal; line-height: 1.8; text-align: center;
+}
+.nr-timer.nr-big {
+    font-size: 15px; padding: 10px 16px; border-radius: 14px;
+    justify-content: center;
+}
+.oc-nr { margin-top: 8px; }
+.oc-nr .nr-timer { width: 100%; justify-content: center; }
+@keyframes nrPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+}
