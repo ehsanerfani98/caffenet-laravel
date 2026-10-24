@@ -52,7 +52,7 @@ This avoids the misconception that "30 min" means 30 min of continuous work.
 ### Jobs (scheduled in `routes/console.php`)
 - `CheckNoResponseOrders` — every minute, finds expired no-response deadlines
 - `RefreshCapacitySnapshot` — every minute, regenerates slots + busts cache
-- `RefreshQueueEstimates` — every minute, re-stamps the STORED ETAs of waiting orders from the live simulation (runs BEFORE SendStartReminder so reminders read fresh stamps; "due now" estimates keep sliding with reality, anchored future estimates only move on >120s drift; never touches the in-progress order's own end estimate)
+- `RefreshQueueEstimates` — every minute, GRACE WAVE scheduler: when NOW passes an in-progress order's estimated_end_at, that order's completion is re-stamped to NOW + 20 min (RefreshQueueEstimates::GRACE_MINUTES) and every blocked waiting order re-anchors to the extended chain — exactly ONCE per occurrence; nothing is rewritten again until the new end estimate passes. A structural pass (no wave running) still re-anchors waiting orders whose stamp drifted >120s from the live simulation (queue sped up / stale fossil) and freezes fresh "startable now" stamps for 10 min. Runs BEFORE SendStartReminder so reminders read fresh stamps.
 - `SendStartReminder` — every minute, sends "5 min before start" reminders
 - `CleanupExpiredLocks` — every 5 min, purges stale queue_locks
 
