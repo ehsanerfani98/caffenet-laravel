@@ -20,6 +20,9 @@
     opts = opts || {};
     const isStaff = ['admin', 'operator'].includes(api.state.currentUser && api.state.currentUser.role);
     let chatTimer = null;
+    // Signature of the last message list we read-receipted — stops the read
+    // POST from firing on every 5s poll with nothing new.
+    let readSig = null;
 
     const sheet = UI.sheet({
       title: opts.title || 'گفتگو با پشتیبانی',
@@ -73,6 +76,16 @@
         // while the user is composing a message.
         if (silent && isTyping()) return;
         renderMessages(o.ticketMessages);
+        // Read receipt: opening the chat — or a message arriving while it is
+        // open — marks the other side's messages read. This is what clears
+        // the «پیام جدید» card badge and the top notification bar.
+        const msgs = o.ticketMessages || [];
+        const sig = msgs.length + ':' + (msgs.length ? msgs[msgs.length - 1].id : '');
+        if (sig !== readSig) {
+          readSig = sig;
+          api.markTicketRead(orderId).catch(() => {});
+          if (window.ChatNotify) ChatNotify.onOrderRead(orderId);
+        }
       } catch (e) {
         if (!silent) UI.toast(e.message, 'error');
       }

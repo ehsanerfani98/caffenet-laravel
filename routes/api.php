@@ -83,6 +83,12 @@ Route::middleware('auth.session')->group(function () {
     Route::delete('/orders/{id}/customer-file', [OrderController::class, 'deleteCustomerFile'])
         ->middleware('permission:orders.edit|orders.manage');
     Route::post('/orders/{id}/ticket', [OrderController::class, 'ticket']);
+    // Chat read-receipts + unread summary («پیام جدید» badge/notification bar)
+    // and the customer-contact vCard (opens the phone's Contacts prefilled).
+    Route::post('/orders/{id}/ticket-read', [OrderController::class, 'markTicketRead']);
+    Route::get('/orders/{id}/customer-vcard', [OrderController::class, 'customerVcard'])
+        ->middleware('permission:orders.edit|orders.manage');
+    Route::get('/chat/unread', [OrderController::class, 'chatUnread']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])
         ->middleware('permission:orders.edit|orders.manage');
     Route::patch('/orders/{id}', [OrderController::class, 'update']);

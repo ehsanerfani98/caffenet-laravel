@@ -327,6 +327,17 @@
       return ticket;
     }
 
+    /* Chat read receipt — clears the «پیام جدید» badge + top bar for one
+     * order (server stamps staff_read_at / customer_read_at). */
+    async markTicketRead(id) {
+      return this.request('POST', '/api/orders/' + id + '/ticket-read', {});
+    }
+
+    /* Unread-chat summary for the current viewer (total + per-order). */
+    async getChatUnread() {
+      return this.request('GET', '/api/chat/unread');
+    }
+
     async deleteOrder(id) {
       const r = await this.request('DELETE', '/api/orders/' + id);
       this.state.orders = this.state.orders.filter((o) => o.id !== id);

@@ -52,6 +52,8 @@
         await api.getCurrentUser();
         await api.syncWithBackend();
         api.startSync();
+        // «شما پیام جدید دارید» — unread-chat bar + order-card badges.
+        if (window.ChatNotify) ChatNotify.start();
         this.applyRoute(true);
         this.handlePaymentReturn();
       });

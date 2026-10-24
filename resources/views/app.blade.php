@@ -38,6 +38,8 @@
                 اتصال اینترنت قطع است — در حالت آفلاین هستید
             </div>
             <header id="app-bar"></header>
+            <!-- «شما پیام جدید دارید» — slide-down unread-chat bar (chat-notify.js) -->
+            <div id="chat-notify-bar" aria-live="polite"></div>
             <main id="screen-host" class="screen-host" aria-live="polite"></main>
             <div id="sheet-host"></div>
             <div id="toast-host"></div>
@@ -64,6 +66,7 @@
     <script defer src="/js/bazaar-iap.js?v={{ filemtime(public_path('js/bazaar-iap.js')) }}"></script>
     <script defer src="/js/api.js?v={{ filemtime(public_path('js/api.js')) }}"></script>
     <script defer src="/js/ui.js?v={{ filemtime(public_path('js/ui.js')) }}"></script>
+    <script defer src="/js/chat-notify.js?v={{ filemtime(public_path('js/chat-notify.js')) }}"></script>
     <script defer src="/js/pwa.js?v={{ filemtime(public_path('js/pwa.js')) }}"></script>
     <script defer src="/js/queue.js?v={{ filemtime(public_path('js/queue.js')) }}"></script>
     <script defer src="/js/fcm.js?v={{ filemtime(public_path('js/fcm.js')) }}"></script>

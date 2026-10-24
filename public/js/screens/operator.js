@@ -155,7 +155,9 @@
       }
       $list.html(orders.map((o) =>
         '<div class="order-card" data-order="' + o.id + '" style="margin-bottom:10px">' +
-          '<div class="oc-head"><span class="oc-num">' + PU.toPersianDigits(o.orderNumber) + '</span>' + UI.statusBadge(o.status) + '</div>' +
+          '<div class="oc-head"><span class="oc-num">' + PU.toPersianDigits(o.orderNumber) + '</span>' + UI.statusBadge(o.status) +
+            // «پیام جدید» — red unread-chat pill (filled live by ChatNotify).
+            (window.ChatNotify ? ChatNotify.badgeSlotHtml(o.id) : '') + '</div>' +
           '<div class="oc-title">' + PU.escapeHtml(o.serviceTitle) + ' — ' + PU.escapeHtml(o.customerName) + '</div>' +
           (o.status === 'submitted' && o.noResponseDeadline
             ? '<div class="oc-nr">' + UI.nrCountdownHtml(o.noResponseDeadline) + '</div>'
@@ -191,13 +193,20 @@
           '<div class="card" style="margin-bottom:12px">' +
             '<div style="display:flex;justify-content:space-between;align-items:center"><b>' + PU.escapeHtml(o.serviceTitle) + '</b>' + UI.statusBadge(o.status) + '</div>' +
             '<div style="font-size:11.5px;color:var(--ink-soft);line-height:2;margin-top:8px">' +
-              'مشتری: <b>' + PU.escapeHtml(o.customerName) + '</b> — ' + PU.toPersianDigits(o.customerPhone) + '<br>' +
+              'مشتری: <b>' + PU.escapeHtml(o.customerName) + '</b> — ' +
+              // Contact save: the vCard link opens the phone's Contacts app
+              // prefilled (name + number) so the operator can save it under
+              // any name; the phone glyph is the direct-dial shortcut.
+              '<a class="cust-phone" href="/api/orders/' + o.id + '/customer-vcard" download ' +
+                'title="ذخیره در مخاطبین گوشی — نام دلخواه">' + PU.toPersianDigits(o.customerPhone) + '</a>' +
+              '<a class="cust-call" href="tel:' + PU.escapeHtml(o.customerPhone) + '" title="تماس با مشتری">' + icon('phone') + '</a><br>' +
               'مبلغ پرداختی: <b>' + PU.formatToman(o.paidAmount) + '</b><br>' +
               'تخفیف: ' + PU.formatToman(o.discountAmount) + '<br>' +
               'روش دریافت: ' + ({ download: 'دانلود آنلاین', in_person: 'حضوری', courier: 'پیک' }[o.deliveryMethod] || o.deliveryMethod) +
               (o.deliveryAddress ? '<br>آدرس: ' + PU.escapeHtml(o.deliveryAddress) : '') +
               (o.contactMethods && o.contactMethods.length ? '<br>راه‌های ارتباطی: <b>' + PU.escapeHtml(PU.contactMethodsText(o.contactMethods)) + '</b>' : '') +
             '</div>' +
+            '<div class="help-text">با زدن روی شماره، کارت مخاطب در گوشی باز می‌شود و می‌توانید شماره را با نام دلخواه ذخیره کنید. آیکون تلفن تماس مستقیم است.</div>' +
           '</div>' +
 
           (Object.keys(o.formData || {}).length ?

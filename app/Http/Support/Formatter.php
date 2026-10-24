@@ -123,6 +123,10 @@ class Formatter
             'message' => $row->message,
             'timestamp' => $row->timestamp,
             'isOperatorResponse' => (bool) $row->is_operator_response,
+            // Read receipts — the client derives the «پیام جدید» badge from
+            // these (staff look at staffReadAt, customers at customerReadAt).
+            'staffReadAt' => $row->staff_read_at ?? null,
+            'customerReadAt' => $row->customer_read_at ?? null,
         ];
     }
 

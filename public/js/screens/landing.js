@@ -568,7 +568,9 @@
       }
       $list.html(items.map((o) =>
         '<div class="order-card" data-track="' + o.id + '" style="margin-bottom:10px">' +
-          '<div class="oc-head"><span class="oc-num">' + PU.toPersianDigits(o.orderNumber) + '</span>' + UI.statusBadge(o.status) + '</div>' +
+          '<div class="oc-head"><span class="oc-num">' + PU.toPersianDigits(o.orderNumber) + '</span>' + UI.statusBadge(o.status) +
+            // «پیام جدید» — red unread-chat pill (filled live by ChatNotify).
+            (window.ChatNotify ? ChatNotify.badgeSlotHtml(o.id) : '') + '</div>' +
           '<div class="oc-title">' + PU.escapeHtml(o.serviceTitle) + '</div>' +
           '<div class="oc-foot">' +
             // حالت «غیرفعال کردن پرداخت‌ها»: سفارش پرداخت‌نشده مبلغ ندارد؛ رسید سفارش‌های پرداخت‌شده می‌ماند

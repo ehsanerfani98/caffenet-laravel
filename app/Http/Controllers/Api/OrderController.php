@@ -937,6 +937,134 @@ class OrderController extends Controller
         return response()->json(Formatter::ticketMessage($ticket));
     }
 
+    /**
+     * Mark the conversation as read for the current viewer.
+     *
+     * Strictly two-party chat: a staff viewer read-receipts the CUSTOMER's
+     * messages (staff_read_at) and the owning customer read-receipts the
+     * STAFF's replies (customer_read_at). Called when the chat page opens
+     * and whenever new messages arrive while it is open — this is what
+     * clears the «پیام جدید» badge and the top notification bar.
+     */
+    public function markTicketRead(Request $request, string $id): JsonResponse
+    {
+        $user = $request->attributes->get('authUser');
+        $order = Order::find($id);
+
+        if (! $order) {
+            return response()->json(['error' => 'سفارش یافت نشد'], 404);
+        }
+        if (! self::canAccess($user, $order)) {
+            return response()->json(['error' => 'دسترسی به این سفارش مجاز نیست.'], 403);
+        }
+
+        $isStaff = $user->role === 'admin' || $user->role === 'operator';
+        $readCol = $isStaff ? 'staff_read_at' : 'customer_read_at';
+        $now = now()->toIso8601String();
+
+        $marked = TicketMessage::where('order_id', $order->id)
+            ->where('is_operator_response', $isStaff ? false : true)
+            ->whereNull($readCol)
+            ->update([$readCol => $now]);
+
+        return response()->json(['marked' => $marked, 'unread' => 0]);
+    }
+
+    /**
+     * Unread-chat summary for the current user — powers BOTH the top
+     * notification bar («شما پیام جدید دارید») and the per-order-card
+     * «پیام جدید» badge, through one lightweight query.
+     *
+     * staff viewer  → unread = customer messages with staff_read_at IS NULL
+     * customer      → unread = staff replies with customer_read_at IS NULL
+     *                 (and only inside their own orders)
+     */
+    public function chatUnread(Request $request): JsonResponse
+    {
+        $user = $request->attributes->get('authUser');
+        $isStaff = $user->role === 'admin' || $user->role === 'operator';
+        $readCol = $isStaff ? 'staff_read_at' : 'customer_read_at';
+
+        $rows = DB::table('ticket_messages as tm')
+            ->join('orders as o', 'o.id', '=', 'tm.order_id')
+            ->where('tm.is_operator_response', $isStaff ? 0 : 1)
+            ->whereNull('tm.'.$readCol)
+            ->when(! $isStaff, fn ($q) => $q->where('o.customer_id', $user->id))
+            ->orderByDesc('tm.timestamp')
+            ->limit(200)
+            ->get([
+                'tm.order_id', 'tm.message', 'tm.sender_name', 'tm.timestamp',
+                'o.order_number', 'o.service_title', 'o.customer_name',
+            ]);
+
+        $orders = [];
+        foreach ($rows as $r) {
+            if (! isset($orders[$r->order_id])) {
+                $orders[$r->order_id] = [
+                    'orderId' => $r->order_id,
+                    'orderNumber' => $r->order_number,
+                    'serviceTitle' => $r->service_title,
+                    'customerName' => $r->customer_name,
+                    'unread' => 0,
+                    'lastMessage' => mb_substr((string) $r->message, 0, 90),
+                    'lastMessageAt' => $r->timestamp,
+                    'lastSenderName' => $r->sender_name,
+                ];
+            }
+            $orders[$r->order_id]['unread']++;
+        }
+
+        return response()->json([
+            'total' => count($rows),
+            'orders' => array_values($orders),
+        ]);
+    }
+
+    /**
+     * vCard (.vcf) download of the order's customer contact for staff.
+     *
+     * Mobile browsers open the phone's Contacts app with the name + number
+     * prefilled when this link is tapped, so the operator can save the
+     * customer under any name they like — exactly the «ذخیره مخاطب» flow.
+     */
+    public function customerVcard(Request $request, string $id)
+    {
+        $user = $request->attributes->get('authUser');
+        if ($user->role !== 'admin' && $user->role !== 'operator') {
+            return response()->json(['error' => 'فقط پرسنل به این قابلیت دسترسی دارند.'], 403);
+        }
+
+        $order = Order::find($id);
+        if (! $order) {
+            return response()->json(['error' => 'سفارش یافت نشد'], 404);
+        }
+
+        $name = $order->customer_name ?: ('مشتری '.$order->customer_phone);
+        $vcf = "BEGIN:VCARD\r\nVERSION:3.0\r\n"
+            .'FN:'.$this->vcardEscape($name)."\r\n"
+            .'N:'.$this->vcardEscape($name).";;;;\r\n"
+            .'TEL;TYPE=CELL:'.$order->customer_phone."\r\n"
+            .'NOTE:'.$this->vcardEscape('سفارش '.$order->order_number.' — کافی‌نت احسان')."\r\n"
+            ."END:VCARD\r\n";
+
+        $filename = 'caffenet-contact-'.preg_replace('/[^A-Za-z0-9]+/', '-', (string) $order->order_number).'.vcf';
+
+        return response($vcf, 200, [
+            'Content-Type' => 'text/vcard; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
+    }
+
+    /** Escape a text value for a vCard 3.0 property (RFC 6350 §3.4). */
+    private function vcardEscape(string $value): string
+    {
+        return str_replace(
+            ['\\', ';', ',', "\r", "\n"],
+            ['\\\\', '\\;', '\\,', '', '\\n'],
+            $value
+        );
+    }
+
     /** Only unpaid (pending_payment/failed/cancelled) orders are deletable. */
     public function destroy(Request $request, string $id): JsonResponse
     {
