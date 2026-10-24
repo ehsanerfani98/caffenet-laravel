@@ -54,7 +54,13 @@ $ok('2b. SendStartReminder idempotent (second run)', $remAgain === $remAfter, "c
 Order::where('id', $target->id)->update(['estimated_start_at' => $orders->get(3)->estimated_start_at]);
 
 // ── 3. CheckNoResponseOrders — strike #2 (requeue) ──────────────────────
-$calledId = 'ord-59ec5fbe-19ce-49ab-9b06-570831db6424';
+// Pick a live submitted order dynamically (never hardcode across runs).
+$calledId = DB::table('queue_entries')
+    ->join('orders', 'orders.id', '=', 'queue_entries.order_id')
+    ->where('orders.status', 'submitted')
+    ->orderBy('queue_entries.position')
+    ->value('queue_entries.order_id');
+echo "  (strike-test subject: {$calledId})\n";
 // Reset to strike#1 state so the script is re-runnable: one requeue already
 // used (requeue_count=1), deadline expired again now.
 DB::table('queue_entries')->where('order_id', $calledId)->update(['requeue_count' => 1]);

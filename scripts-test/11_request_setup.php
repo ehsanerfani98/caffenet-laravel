@@ -76,7 +76,10 @@ DB::table('order_logs')->delete();
 DB::table('order_status_histories')->delete();
 DB::table('notification_logs')->delete();
 DB::table('payments')->delete();
-DB::table('sms_logs')->where('created_at', '<', now()->toIso8601String())->delete();
+// sms_logs has a `timestamp` column (no created_at); a plain wipe is the
+// cleanest reset — SQLite would silently no-op a WHERE on a missing column
+// (double-quoted identifier falls back to a string literal).
+DB::table('sms_logs')->delete();
 echo "Queue/orders/notifications/sms cleaned for a fresh run.\n";
 
 // Sanity: the switch must be exposed to clients exactly like /settings does.

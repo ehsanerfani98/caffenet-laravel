@@ -32,6 +32,7 @@ $smsA2 = DB::table('sms_logs')->where('type', 'reminder')->count();
 echo "2nd run → {$smsA2}  ".($smsA2 === $smsA ? 'PASS (idempotent)' : 'FAIL (duplicate)')."\n";
 
 echo "\n=== 2) No-response 3-strike cycle (fixed listeners) ===\n";
+$cycleStart = now()->toIso8601String();
 $head = DB::table('queue_entries')->orderBy('position')->first();
 $oid = $head->order_id;
 $o = DB::table('orders')->where('id', $oid)->first();
@@ -58,19 +59,22 @@ for ($strike = 1; $strike <= 4; $strike++) {
     dump_queue(true);
 }
 $requeuedSms = DB::table('sms_logs')->where('type', 'requeued')->count();
-$cancelledSms = DB::table('sms_logs')->where('type', 'cancelled')->count();
-echo "SMS requeued={$requeuedSms} (expect 3) | cancelled={$cancelledSms} (expect 1)\n";
+$cancelledSms = DB::table('sms_logs')->where('type', 'cancelled')->where('timestamp', '>=', $cycleStart)->count();
+echo "SMS requeued={$requeuedSms} (expect 3) | cancelled this cycle={$cancelledSms} (expect 1)\n";
 echo ((int) $requeuedSms === 3 && (int) $cancelledSms === 1 ? 'PASS — 3-strike rule exact' : 'FAIL — strike accounting wrong')."\n";
 
 echo "\n=== 3) CleanupExpiredLocks ===\n";
 DB::table('queue_locks')->insert([
-    ['key' => 'test:lock-expired', 'owner' => 'ghost-1', 'expires_at' => now()->subMinutes(10)->toIso8601String()],
-    ['key' => 'test:lock-live', 'owner' => 'ghost-2', 'expires_at' => now()->addMinutes(10)->toIso8601String()],
+    ['id' => 'lk-exp-1', 'resource_key' => 'test:lock-expired', 'owner_token' => 'ghost-1',
+     'ttl_seconds' => 15, 'locked_at' => now()->subMinutes(10)->toIso8601String(), 'expires_at' => now()->subMinutes(9)->toIso8601String()],
+    ['id' => 'lk-live-1', 'resource_key' => 'test:lock-live', 'owner_token' => 'ghost-2',
+     'ttl_seconds' => 900, 'locked_at' => now()->toIso8601String(), 'expires_at' => now()->addMinutes(10)->toIso8601String()],
 ]);
 $locksJob = new \App\Jobs\CleanupExpiredLocks();
 $locksJob->handle(app(\App\Contracts\QueueLockServiceInterface::class));
-$left = DB::table('queue_locks')->where('key', 'like', 'test:%')->pluck('key')->all();
-echo "remaining test locks: ".json_encode($left)." → ".($left === ['test:lock-live'] ? 'PASS (expired purged, live kept)' : 'FAIL')."\n";
+$left = DB::table('queue_locks')->whereIn('id', ['lk-exp-1', 'lk-live-1'])->pluck('id')->all();
+echo "remaining test locks: ".json_encode($left)." → ".($left === ['lk-live-1'] ? 'PASS (expired purged, live kept)' : 'FAIL')."\n";
+DB::table('queue_locks')->where('id', 'lk-live-1')->delete();
 
 echo "\n=== 4) caffenet:cleanup — abandoned pending_payment expiry (>30min) ===\n";
 // Make C3's active order look abandoned: pending payment, old.

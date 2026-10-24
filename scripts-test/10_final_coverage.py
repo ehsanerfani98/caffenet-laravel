@@ -77,8 +77,9 @@ r = c1.post("/orders", {"serviceId": "srv-print-doc",
                         "formData": {"pageCount": 5, "copies": 1, "printColor": "bw", "paperSize": "A4", "binding": "none"},
                         "contactMethods": ["phone"], "urgency": "normal",
                         "deliveryMethod": "download", "paymentMethod": "wallet"})
-oid = r.get("order", {}).get("id") if "error" not in r else None
-print("  create →", r.get("order", {}).get("orderNumber") if oid else r)
+o = r.get("order", r) if "error" not in r else {}
+oid = o.get("id")
+print("  create →", o.get("orderNumber") if oid else r)
 r2 = c1.post(f"/orders/{oid}/pay-wallet", {})
 print("  pay →", r2.get("order", {}).get("status") if "error" not in r2 else r2)
 admin_sms_after = tinker("echo DB::table('sms_logs')->where('type','new_order_admin')->count();")
