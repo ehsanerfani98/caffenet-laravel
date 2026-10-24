@@ -142,6 +142,110 @@ class QueueServicesTest extends TestCase
         $this->assertSame(40, $est->estimateWaitMinutes());
     }
 
+    public function test_wait_accounts_for_the_order_being_worked_on_right_now(): void
+    {
+        $queue = app(QueueManagerService::class);
+        $est = app(WaitTimeEstimatorService::class);
+
+        // One operator shop: A is IN PROGRESS (started 44-min job) when B
+        // joins the queue. B must wait for A's remaining work — the old
+        // sum-of-waiting-durations model said «اکنون» because started
+        // orders were excluded entirely.
+        $a = $this->makeOrder();
+        $a->estimated_duration_minutes = 44;
+        $a->save();
+        $queue->enqueue($a);
+        $queue->startOrder($a);
+
+        $b = $this->makeOrder();
+        $b->estimated_duration_minutes = 30;
+        $b->save();
+        $queue->enqueue($b);
+
+        // B waits ≈ A's full remaining duration (44 min), not zero.
+        $estB = $est->estimateForOrder($b);
+        $this->assertSame(44, $estB['wait_minutes']);
+        $this->assertSame(30, $estB['duration_minutes']);
+
+        // A hypothetical NEW order C would queue behind B: 44 + 30.
+        $this->assertSame(74, $est->estimateWaitMinutes());
+    }
+
+    public function test_overrunning_in_progress_order_frees_the_operator_now(): void
+    {
+        $queue = app(QueueManagerService::class);
+        $est = app(WaitTimeEstimatorService::class);
+
+        // A over-ran its estimate long ago (end est. 40 min in the past).
+        // Nobody can know how much longer it takes — the only honest
+        // promise is "the operator frees up now" (wait 0, never negative).
+        $a = $this->makeOrder();
+        $a->estimated_duration_minutes = 20;
+        $a->save();
+        $queue->enqueue($a);
+        $queue->startOrder($a);
+
+        QueueEntry::where('order_id', $a->id)->update(['started_at' => now()->subMinutes(60)->toIso8601String()]);
+        $a->estimated_end_at = now()->subMinutes(40)->toIso8601String();
+        $a->save();
+
+        $b = $this->makeOrder();
+        $queue->enqueue($b);
+
+        $this->assertSame(0, $est->estimateForOrder($b)['wait_minutes']);
+    }
+
+    public function test_second_operator_serves_the_next_order_in_parallel(): void
+    {
+        $queue = app(QueueManagerService::class);
+        $est = app(WaitTimeEstimatorService::class);
+
+        DB::table('operator_profiles')->insert([
+            ['id' => 'oprofile-p1', 'user_id' => 'usr-op-1', 'display_name' => 'Op1',
+                'capacity_per_hour' => 2, 'is_active' => true,
+                'created_at' => now()->toIso8601String(), 'updated_at' => now()->toIso8601String()],
+            ['id' => 'oprofile-p2', 'user_id' => 'usr-op-2', 'display_name' => 'Op2',
+                'capacity_per_hour' => 2, 'is_active' => true,
+                'created_at' => now()->toIso8601String(), 'updated_at' => now()->toIso8601String()],
+        ]);
+
+        // Two operators; only one is busy with a future-end job → the new
+        // order takes the FREE slot immediately.
+        $a = $this->makeOrder();
+        $a->estimated_duration_minutes = 40;
+        $a->save();
+        $queue->enqueue($a);
+        $queue->startOrder($a);
+
+        $b = $this->makeOrder();
+        $queue->enqueue($b);
+
+        $this->assertSame(0, $est->estimateForOrder($b)['wait_minutes']);
+    }
+
+    public function test_start_restamps_the_completion_estimate_around_the_real_start(): void
+    {
+        $queue = app(QueueManagerService::class);
+
+        // The ETA was frozen at enqueue time; make the fossil visible.
+        $a = $this->makeOrder();
+        $a->estimated_duration_minutes = 20;
+        $a->estimated_end_at = now()->subMinutes(15)->toIso8601String(); // past fossil
+        $a->save();
+        $queue->enqueue($a);
+
+        $queue->startOrder($a);
+        $fresh = $a->fresh();
+
+        // «تکمیل تقریبی» must now be actual start + duration — a future
+        // timestamp again, not the creation-time fossil.
+        $this->assertGreaterThan(now(), new \DateTimeImmutable((string) $fresh->estimated_end_at));
+        $this->assertSame(
+            now()->addMinutes(20)->format('Y-m-d H:i'),
+            \DateTimeImmutable::createFromFormat('Y-m-d\TH:i:sP', (string) $fresh->estimated_end_at)->format('Y-m-d H:i')
+        );
+    }
+
     public function test_classifier_quick(): void
     {
         $c = app(OrderTypeClassifierService::class);

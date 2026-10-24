@@ -4,6 +4,7 @@ namespace App\Services\Queue;
 
 use App\Contracts\QueueLockServiceInterface;
 use App\Contracts\QueueManagerServiceInterface;
+use App\Contracts\WaitTimeEstimatorServiceInterface;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\QueueEntry;
@@ -25,6 +26,7 @@ class QueueManagerService implements QueueManagerServiceInterface
 {
     public function __construct(
         private readonly QueueLockServiceInterface $locks,
+        private readonly WaitTimeEstimatorServiceInterface $estimator,
     ) {}
 
     public function enqueue(Order $order): void
@@ -97,6 +99,18 @@ class QueueManagerService implements QueueManagerServiceInterface
                 $order->status = Order::STATUS_PROCESSING;
                 $order->assigned_operator_id = $operatorId ?? $order->assigned_operator_id;
                 $order->no_response_deadline = null;
+                // Re-stamp the ETAs around the REAL start moment. They were
+                // frozen at enqueue time (creation + wait + duration); an
+                // order that sat in the queue before an operator picked it
+                // up kept showing a completion estimate from the past. From
+                // now on «تکمیل تقریبی» = actual start + duration, which is
+                // also what the wait-time estimator feeds on for orders
+                // waiting behind this one (busy-operator slots).
+                $duration = (int) $order->estimated_duration_minutes > 0
+                    ? (int) $order->estimated_duration_minutes
+                    : $this->estimator->estimateDurationMinutes($order->queue_type ?: 'normal');
+                $order->estimated_start_at = $now;
+                $order->estimated_end_at = now()->addMinutes($duration)->toIso8601String();
                 $order->updated_at = $now;
                 $order->save();
 
