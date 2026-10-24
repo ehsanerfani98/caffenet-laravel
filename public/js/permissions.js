@@ -22,7 +22,7 @@
     coupons: { title: 'کدهای تخفیف', actions: ['view', 'create', 'edit', 'delete', 'manage'] },
     users: { title: 'کاربران و مجوزها', actions: ['view', 'create', 'edit', 'permissions', 'delete', 'manage'] },
     settings: { title: 'تنظیمات سیستم', actions: ['view', 'edit'] },
-    sms: { title: 'لاگ پیامک‌ها', actions: ['view'] },
+    sms: { title: 'لاگ پیامک‌ها', actions: ['view', 'delete'] },
     wallet: { title: 'کیف پول و تراکنش‌ها', actions: ['view', 'users', 'refund', 'adjust', 'manage'] },
   };
 

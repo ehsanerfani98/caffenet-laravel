@@ -664,27 +664,44 @@
       const $matrix = sheet.body.find('#perm-matrix');
       if (!catalog) { $matrix.html('<div class="spinner" style="margin:16px auto"></div>'); return; }
 
-      $matrix.html(catalog.groups.map((g) =>
-        '<div class="perm-group"><div class="pg-title">' + PU.escapeHtml(g.title) + '</div>' +
-        '<div class="pg-desc">' + PU.escapeHtml(g.description) + '</div>' +
-        g.items.map((p) =>
-          '<div class="perm-item"><div class="pi-label">' + PU.escapeHtml(p.label) +
-          '<div class="pi-desc">' + PU.escapeHtml(p.description) + '</div></div>' +
-          '<label class="switch"><input type="checkbox" data-perm="' + p.key + '"' +
-          (effective.includes(p.key) ? ' checked' : '') + '><span class="track"></span></label></div>'
-        ).join('') + '</div>'
-      ).join(''));
+      // Admin targets are always full-catalog on the server (syncAccess
+      // forces a null override — "admins cannot be locked out"). Rendering
+      // editable switches there made every save LOOK broken: the toast said
+      // «ذخیره شد» and the next reopen showed everything back ON. The matrix
+      // is therefore read-only for admins with an explicit notice.
+      const locked = user.role === 'admin';
 
-      $matrix.find('[data-perm]').on('change', function () {
+      $matrix.html(
+        (locked
+          ? '<div class="info-box" style="margin-bottom:10px">مجوزهای «مدیر سیستم» همیشه و به‌صورت خودکار کامل است و قابل محدودکردن نیست؛ سوییچ‌های زیر فقط نمایشی‌اند.</div>'
+          : '') +
+        catalog.groups.map((g) =>
+          '<div class="perm-group"><div class="pg-title">' + PU.escapeHtml(g.title) + '</div>' +
+          '<div class="pg-desc">' + PU.escapeHtml(g.description) + '</div>' +
+          g.items.map((p) =>
+            '<div class="perm-item' + (locked ? ' pi-locked' : '') + '"><div class="pi-label">' + PU.escapeHtml(p.label) +
+            '<div class="pi-desc">' + PU.escapeHtml(p.description) + '</div></div>' +
+            '<label class="switch"><input type="checkbox" data-perm="' + p.key + '"' +
+            (locked || effective.includes(p.key) ? ' checked' : '') + (locked ? ' disabled' : '') + '><span class="track"></span></label></div>'
+          ).join('') + '</div>'
+        ).join(''));
+
+      if (!locked) $matrix.find('[data-perm]').on('change', function () {
         const key = $(this).data('perm');
         if (this.checked) { if (!effective.includes(key)) effective.push(key); }
         else effective = effective.filter((k) => k !== key);
       });
 
       sheet.body.find('#u-role .seg').on('click', function () {
+        // Re-clicking the ALREADY-ACTIVE role used to rebuild the matrix from
+        // role defaults — silently wiping the user's saved custom set (and
+        // every toggle made so far) before the admin pressed save. A role
+        // change is only meaningful when it actually changes.
+        const next = $(this).data('role');
+        if (next === user.role) return;
         sheet.body.find('#u-role .seg').removeClass('on');
         $(this).addClass('on');
-        user.role = $(this).data('role');
+        user.role = next;
         effective = PERM.resolve(user.role, null);
         renderBody();
       });
