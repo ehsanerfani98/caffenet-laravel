@@ -1,0 +1,120 @@
+# CHANGELOG
+
+**Support the project:** This SDK is downloaded 1M+ times monthly and powers thousands of applications.
+If it saves you or your team time, please consider [sponsoring its development](https://github.com/sponsors/jeromegamez).
+
+**Repository move:** The project moved from the `kreait` to the `beste` GitHub Organization in January 2026.
+The namespace remains `Kreait\Firebase` and the package name remains `kreait/firebase-php`.
+Please update your remote URL if you have forked or cloned the repository.
+
+## Unreleased
+
+## 8.6.0 - 2026-10-09
+
+### Remote Config
+
+* Added support for Remote Config experiment values
+  ([#1149](https://github.com/beste/firebase-php/pull/1149))
+
+### Testing
+
+* Emulator tests now run without real credentials or a Firebase project, including on external contributor PRs.
+* Added support for using the Realtime Database emulator without Google credentials or an OAuth token exchange.
+* Added support for using the Authentication emulator without Google credentials.
+  Custom token generation still requires signing credentials.
+* Simplified local integration test setup with helper scripts and a [testing guide](TESTING.md).
+
+## 8.5.0 - 2026-09-13
+
+Added support for providing a PSR-14 event dispatcher to the factory.
+
+* **Authentication**: `Kreait\Firebase\Auth` now dispatches events for user changes, refresh-token revocation, and sent email action links.
+* **Messaging**: `Kreait\Firebase\Messaging` now dispatches events for sent messages and validation errors.
+* **Remote Config**: `Kreait\Firebase\RemoteConfig` now dispatches events for published and rolled-back templates.
+
+## 8.4.2 - 2026-09-05
+
+Re-release of 8.4.1 because its tag pointed to the wrong commit.
+
+## 8.4.1 - 2026-09-05
+
+## Remote Config
+
+* Fixed retrieving templates containing missing parameter groups 
+  ([#1133](https://github.com/beste/firebase-php/pull/1133)).
+
+## Messaging
+
+* FCM `403 PERMISSION_DENIED` responses with the error code `SENDER_ID_MISMATCH` are now
+  converted to a dedicated `Kreait\Firebase\Exception\Messaging\SenderIdMismatch` exception instead of
+  the more generic `AuthenticationError`.
+
+## 8.4.0 - 2026-08-05
+
+* Added support for `guzzlehttp/guzzle:^8.0`, `guzzlehttp/psr7:^3.0` and `guzzlehttp/promises:^3.0`.
+* Updated the `firebase/php-jwt` constraint to `^7.0.2`. Although
+  [CVE-2025-45769](https://github.com/advisories/GHSA-2x45-7fc3-mxwq) is rated as low severity, it has been
+  [disputed](https://github.com/googleapis/php-jwt/issues/620) on the basis that applications, rather than
+  the library, are responsible for choosing appropriate key lengths. Nevertheless, a review of the library's
+  [most-downloaded dependents](https://packagist.org/packages/firebase/php-jwt/dependents?order_by=downloads)
+  showed that most already support version 7.x.
+
+## 8.3.0 - 2026-07-18
+
+### Security improvements
+
+* Restricted Realtime Database URLs to Firebase-owned hosts and reject non-root URLs with embedded
+  paths, query strings, or fragments while preserving emulator support.
+  Related OWASP Top 10:2025 entry: [A02 Security Misconfiguration](https://owasp.org/Top10/2025/A02_2025-Security_Misconfiguration/).
+* Updated dependency `mtdowling/jmespath.php` to `2.9.2` to address [CVE-2026-54133](https://github.com/jmespath/jmespath.php/security/advisories/GHSA-pcw8-m77r-2528)
+
+## 8.2.0 - 2026-03-04
+
+* Added support for Unicode characters in email addresses.
+
+### App Check
+
+* Added replay-protection verification for App Check tokens via `verifyTokenWithReplayProtection()`.
+  The response now includes `alreadyConsumed` when replay protection is used.
+* Added transitional contract `Kreait\Firebase\Contract\AppCheckWithReplayProtection`.
+  This was introduced to preserve backwards compatibility by avoiding a signature change to
+  `Kreait\Firebase\Contract\AppCheck::verifyToken()` in the current major release.
+* Added dedicated exception `Kreait\Firebase\Exception\AppCheck\FailedToVerifyAppCheckReplayProtection`
+  for replay-protection verification failures. It extends
+  `Kreait\Firebase\Exception\AppCheck\FailedToVerifyAppCheckToken` for backwards compatibility.
+
+## 8.1.0 - 2026-01-23
+
+* Added support for `firebase/php-jwt:^7.0.2` 
+
+## 8.0.0 - 2026-01-08
+
+### Security improvements
+
+* Added `#[SensitiveParameter]` attributes to methods handling sensitive data (passwords, tokens, private keys) 
+  to prevent them from appearing in stack traces and error logs.
+
+### Breaking changes
+
+* The SDK supports only actively supported PHP versions. As a result, support for PHP < 8.3 has been dropped;
+  supported versions are 8.3, 8.4, and 8.5.
+* [Firebase Dynamic Links was shut down on August 25th, 2025](https://firebase.google.com/support/dynamic-links-faq)
+  and has been removed from the SDK.
+* Deprecated classes, methods and class constants have been removed.
+* Method arguments are now fully type-hinted
+* Type declarations have been simplified to reduce runtime overhead (e.g., `Stringable|string` to `string`).
+* The transitional `Kreait\Firebase\Contract\Transitional\FederatedUserFetcher::getUserByProviderUid()` method
+  has been moved into the `Kreait\Firebase\Contract\Auth` interface
+* Realtime Database objects considered value objects have been made final and readonly
+* `psr/log` has been moved from runtime dependencies to development dependencies
+* `Kreait\Firebase\Contract\Messaging::BATCH_MESSAGE_LIMIT` constant has been removed
+* Exception codes are no longer preserved when wrapping exceptions
+* `Kreait\Firebase\Messaging\CloudMessage` builder methods have been renamed to follow the `with*` pattern:
+  `toToken()` -> `withToken()`, `toTopic()` -> `withTopic()`, `toCondition()` -> `withCondition()`.
+  The old methods are deprecated but still available as aliases.
+
+See **[UPGRADE-8.0](UPGRADE-8.0.md) for more details on the changes between 7.x and 8.0.**
+
+## 7.x Changelog
+
+https://github.com/beste/firebase-php/blob/7.24.0/CHANGELOG.md

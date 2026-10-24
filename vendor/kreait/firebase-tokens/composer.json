@@ -1,0 +1,111 @@
+{
+    "name": "kreait/firebase-tokens",
+    "description": "A library to work with Firebase tokens",
+    "type": "library",
+    "keywords": ["firebase", "google", "token", "authentication", "auth"],
+    "homepage": "https://github.com/beste/firebase-token-php",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Jérôme Gamez",
+            "homepage": "https://github.com/jeromegamez"
+        }
+    ],
+    "funding": [
+        {
+            "type": "github",
+            "url": "https://github.com/sponsors/jeromegamez"
+        }
+    ],
+    "require": {
+        "php": "~8.3.0 || ~8.4.0 || ~8.5.0 || ~8.6.0",
+        "ext-json": "*",
+        "ext-openssl": "*",
+        "beste/clock": "^3.0 || ^4.0",
+        "fig/http-message-util": "^1.1.5",
+        "guzzlehttp/guzzle": "^7.8.2 || ^8.0",
+        "lcobucci/jwt": "^5.2",
+        "psr/cache": "^1.0|^2.0|^3.0"
+    },
+    "suggest": {
+        "psr/cache-implementation": "to cache fetched remote public keys"
+    },
+    "require-dev": {
+        "beste/in-memory-cache": "^1.6",
+        "symfony/var-dumper": "^6.4.3 || ^7.3.4 || ^8.1.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "Kreait\\Firebase\\JWT\\":"src/JWT"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Kreait\\Firebase\\JWT\\Tests\\": "tests/JWT"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "scripts": {
+        "analyse": [
+            "XDEBUG_MODE=off tools/phpstan"
+        ],
+        "analyze": "@analyse",
+        "cs": [
+            "tools/php-cs-fixer fix --diff --verbose"
+        ],
+        "rector": [
+            "tools/rector --dry-run"
+        ],
+        "rector-fix": [
+            "tools/rector",
+            "@cs"
+        ],
+        "test": [
+            "@analyze",
+            "@test-units",
+            "@test-emulator"
+        ],
+        "test-bc": "XDEBUG_MODE=off tools/.bc/vendor/bin/roave-backward-compatibility-check",
+        "test-emulator": "FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 tools/phpunit --group=emulator --testdox",
+        "test-units": [
+            "tools/phpunit --exclude-group=emulator --testdox"
+        ],
+        "tools:bc:install": "XDEBUG_MODE=off composer --working-dir=tools/.bc install --no-interaction --no-progress --ansi",
+        "tools:bc:update": "XDEBUG_MODE=off composer --working-dir=tools/.bc update --no-interaction --no-progress --ansi",
+        "dependencies:install": "composer install --no-interaction --no-progress --ansi",
+        "lint": [
+            "@rector",
+            "XDEBUG_MODE=off tools/php-cs-fixer fix --dry-run --diff --verbose"
+        ],
+        "lint:fix": "@rector-fix",
+        "setup": [
+            "@dependencies:install",
+            "@tools:install"
+        ],
+        "tools:install": [
+            "@tools:phars:install",
+            "@tools:phpstan:install",
+            "@tools:rector:install",
+            "@tools:link"
+        ],
+        "tools:link": [
+            "ln -snf phpunit tools/phpunit.phar",
+            "ln -snf .phpstan/vendor/bin/phpstan tools/phpstan",
+            "ln -snf .rector/vendor/bin/rector tools/rector"
+        ],
+        "tools:phars:install": "tools/phive --no-progress install --trust-gpg-keys E82B2FB314E9906E,4AA394086372C20A",
+        "tools:phpstan:install": "XDEBUG_MODE=off composer --working-dir=tools/.phpstan install --no-interaction --no-progress --ansi",
+        "tools:phpstan:update": "XDEBUG_MODE=off composer --working-dir=tools/.phpstan update --no-interaction --no-progress --ansi",
+        "tools:rector:install": "XDEBUG_MODE=off composer --working-dir=tools/.rector install --no-interaction --no-progress --ansi",
+        "tools:rector:update": "XDEBUG_MODE=off composer --working-dir=tools/.rector update --no-interaction --no-progress --ansi",
+        "tools:update": [
+            "tools/phive --no-progress selfupdate",
+            "tools/phive --no-progress update",
+            "@tools:phpstan:update",
+            "@tools:rector:update",
+            "@tools:link"
+        ]
+    }
+}

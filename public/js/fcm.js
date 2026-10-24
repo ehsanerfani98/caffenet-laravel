@@ -79,7 +79,7 @@
      * No bundler, no build step — pure ES module imports.
      */
     async _loadFirebaseSdk() {
-      const v = '10.12.2';
+      const v = '12.14.0';
       // Import the modular SDK — these URLs are stable and versioned.
       const appMod = await import('https://www.gstatic.com/firebasejs/' + v + '/firebase-app.js');
       const msgMod = await import('https://www.gstatic.com/firebasejs/' + v + '/firebase-messaging.js');

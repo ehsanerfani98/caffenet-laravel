@@ -399,6 +399,8 @@
           textField('fcmServiceAccount', 'JSON کلید حساب سرویس', { textarea: true, placeholder: 'محتوای فایل service-account.json', help: 'از Project Settings → Service Accounts → Generate New Private Key دانلود کنید و کل محتوای JSON را اینجا بچسبانید.' }) +
           '<div class="warn-box" style="margin-top:8px">این کلید امنیتی است؛ فقط در پنل مدیر قابل مشاهده و ویرایش. هرگز در کد فرانت‌اند قرار ندهید.</div>' +
           '<button type="button" class="btn ghost block sm" id="fcm-test-btn" style="margin-top:10px">' + icon('bell') + 'تست ارسال پوش به دستگاه من</button>' +
+          '<button type="button" class="btn ghost block sm" id="fcm-selfcheck-btn" style="margin-top:8px">' + icon('info') + 'عیب‌یابی کامل پوش</button>' +
+          '<div id="fcm-selfcheck-result" style="margin-top:8px;display:none"></div>' +
         '</div>';
 
       /* ---- Mark ALL SMS settings as rendered BEFORE building leftovers ----
@@ -458,6 +460,28 @@
           UI.toast(e.message || 'ارسال ناموفق بود.', 'error');
         } finally {
           $btn.prop('disabled', false).html(icon('bell') + 'تست ارسال پوش به دستگاه من');
+        }
+      });
+
+      // "عیب‌یابی کامل پوش" button → GET /api/fcm/selfcheck
+      sheet.body.find('#fcm-selfcheck-btn').on('click', async function () {
+        const $btn = $(this).prop('disabled', true);
+        const $out = sheet.body.find('#fcm-selfcheck-result');
+        try {
+          const r = await api.request('GET', '/api/fcm/selfcheck');
+          const rows = (r.steps || []).map((s) =>
+            '<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid rgba(128,128,128,.15)">' +
+              '<span style="color:' + (s.ok ? '#22a559' : '#d94848') + ';font-weight:700">' + (s.ok ? '✔' : '✖') + '</span>' +
+              '<div><div style="font-weight:600">' + s.label + '</div>' +
+              '<div style="opacity:.75;font-size:12px;white-space:pre-wrap">' + s.detail + '</div></div>' +
+            '</div>'
+          ).join('');
+          $out.html('<div style="margin-top:6px">' + rows + '</div>').show();
+          UI.toast(r.ok ? 'همه بررسی‌ها سبز بود.' : 'یک یا چند بررسی قرمز است — جزئیات را ببینید.', r.ok ? 'success' : 'error');
+        } catch (e) {
+          UI.toast(e.message || 'عیب‌یابی ناموفق بود.', 'error');
+        } finally {
+          $btn.prop('disabled', false).html(icon('info') + 'عیب‌یابی کامل پوش');
         }
       });
 

@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.3",
         "caffenet/bazaar-iap": "@dev",
+        "kreait/firebase-php": "^8.6",
         "laravel/fortify": "^1.40",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
@@ -91,6 +92,9 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
+        },
+        "platform": {
+            "ext-sodium": "1"
         }
     },
     "minimum-stability": "stable",

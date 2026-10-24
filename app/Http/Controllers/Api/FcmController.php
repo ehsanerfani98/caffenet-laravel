@@ -297,4 +297,24 @@ class FcmController extends Controller
             'logs' => FirebasePushService::recentLogs($limit),
         ]);
     }
+
+    /**
+     * Admin-only: step-by-step push health diagnostics (settings, service
+     * account validity, FCM client creation, token stats). Sends nothing —
+     * pure introspection, used by the "عیب‌یابی پوش" button.
+     */
+    public function selfCheck(Request $request): JsonResponse
+    {
+        $user = $request->attributes->get('authUser');
+        if (! $user || ! in_array($user->role, ['admin'], true)) {
+            return response()->json(['error' => 'دسترسی غیرمجاز.'], 403);
+        }
+
+        $steps = FirebasePushService::selfCheck();
+
+        return response()->json([
+            'ok' => ! in_array(false, array_column($steps, 'ok'), true),
+            'steps' => $steps,
+        ]);
+    }
 }

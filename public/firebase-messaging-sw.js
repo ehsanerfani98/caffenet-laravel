@@ -17,8 +17,8 @@
 // asynchronously (after an await), failing with "The script at ... failed
 // to load". Config fetch + initializeApp below may stay async.
 try {
-  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging-compat.js');
 } catch (e) {
   // gstatic unreachable / blocked — the manual push fallback below still works.
   self.__sdkErr = (e && e.message) || 'compat SDK importScripts failed';

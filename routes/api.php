@@ -217,6 +217,8 @@ Route::middleware('auth.session')->group(function () {
         ->middleware('permission:settings.edit|settings.manage');
     Route::get('/fcm/logs', [FcmController::class, 'logs'])
         ->middleware('permission:settings.edit|settings.manage');
+    Route::get('/fcm/selfcheck', [FcmController::class, 'selfCheck'])
+        ->middleware('permission:settings.edit|settings.manage');
 });
 
 // ---------------- SMS pattern variable mappings ----------------
