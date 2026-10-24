@@ -475,6 +475,7 @@ stateDiagram-v2
 |-----|------|-----|
 | `CheckNoResponseOrders` | هر دقیقه | پیدا کردن و dispatch رویداد `OrderNoResponse` |
 | `RefreshCapacitySnapshot` | هر دقیقه | تولید مجدد slotها + پاک کردن کش snapshot |
+| `RefreshQueueEstimates` | هر دقیقه | بازمُهر ETAs ذخیره‌شدهٔ صف‌دارها از شبیه‌سازی زنده (سفارش در حال انجام که طولانی شود، زمان‌بندی بقیه را به‌روز نگه می‌دارد) |
 | `SendStartReminder` | هر دقیقه | یادآوری ۵ دقیقه قبل از شروع |
 | `CleanupExpiredLocks` | هر ۵ دقیقه | پاک‌سازی قفل‌های منقضی شده |
 | `caffenet:cleanup` | هر ۶ ساعت | پاکسازی فایل + انقضای پرداخت |

@@ -3,6 +3,7 @@
 use App\Jobs\CheckNoResponseOrders;
 use App\Jobs\CleanupExpiredLocks;
 use App\Jobs\RefreshCapacitySnapshot;
+use App\Jobs\RefreshQueueEstimates;
 use App\Jobs\SendStartReminder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,12 @@ Schedule::job(new CheckNoResponseOrders)->everyMinute();
 
 // Every minute: regenerate capacity slots + bust the snapshot cache.
 Schedule::job(new RefreshCapacitySnapshot)->everyMinute();
+
+// Every minute: re-stamp the STORED ETAs of waiting orders from the live
+// queue simulation — when the order being worked on runs long, everyone
+// behind it keeps a truthful, sliding «شروع تقریبی» instead of a fossil.
+// Runs BEFORE SendStartReminder so reminders read this minute's stamps.
+Schedule::job(new RefreshQueueEstimates)->everyMinute();
 
 // Every minute: send "your order is about to start" reminders (5 min before).
 Schedule::job(new SendStartReminder(5))->everyMinute();

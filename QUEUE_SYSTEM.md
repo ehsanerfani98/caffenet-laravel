@@ -52,6 +52,7 @@ This avoids the misconception that "30 min" means 30 min of continuous work.
 ### Jobs (scheduled in `routes/console.php`)
 - `CheckNoResponseOrders` — every minute, finds expired no-response deadlines
 - `RefreshCapacitySnapshot` — every minute, regenerates slots + busts cache
+- `RefreshQueueEstimates` — every minute, re-stamps the STORED ETAs of waiting orders from the live simulation (runs BEFORE SendStartReminder so reminders read fresh stamps; "due now" estimates keep sliding with reality, anchored future estimates only move on >120s drift; never touches the in-progress order's own end estimate)
 - `SendStartReminder` — every minute, sends "5 min before start" reminders
 - `CleanupExpiredLocks` — every 5 min, purges stale queue_locks
 
