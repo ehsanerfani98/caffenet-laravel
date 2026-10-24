@@ -104,7 +104,14 @@ class AuthController extends Controller
 
         // Map the OTP request onto Fortify's login contract:
         // username = phone, password = the verification code.
-        $request->merge(['phone' => $phone, 'password' => $code]);
+        //
+        // `remember => true` drives Fortify's AttemptToAuthenticate into
+        // guard->login($user, true): a 5-year remember_web_* cookie is set,
+        // so when the short-lived session expires the session guard silently
+        // re-authenticates from that cookie on the next request. Product rule:
+        // the user logs in ONCE and stays logged in until they explicitly
+        // log out (logout clears the remember token, SessionGuard::logout).
+        $request->merge(['phone' => $phone, 'password' => $code, 'remember' => true]);
 
         return $this->loginPipeline(LoginRequest::createFrom($request))
             ->then(fn (Request $request) => app(LoginResponse::class));

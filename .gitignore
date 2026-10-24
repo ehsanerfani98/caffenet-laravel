@@ -31,5 +31,6 @@ Thumbs.db
 /database/*.sqlite-*
 /storage/app/uploads/*
 /public/media/*
-! storage/app/uploads/.gitignore
-! public/media/.gitignore
+!storage/app/uploads/.gitignore
+!public/media/.gitignore
+!public/media/maintenance-hero.png

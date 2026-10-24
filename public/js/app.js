@@ -50,6 +50,18 @@
       $(document).ready(async () => {
         $('#splash').remove();
         await api.getCurrentUser();
+        // Maintenance escape hatch («ورود مدیر» on the maintenance page):
+        // the shell is served with ?entry=admin while the gate is closed.
+        // Open the login sheet straight away and STOP — the public catalog
+        // reads below are 503'd by the gate and their error bounce would
+        // throw the tab back onto the maintenance page before the admin can
+        // log in. After login the 'auth' notify triggers a full render; if a
+        // non-admin logs in, the very next data call 503s and the tab lands
+        // back on the maintenance page — exactly the intended behavior.
+        if (new URLSearchParams(window.location.search).get('entry') === 'admin' && !api.state.currentUser) {
+          if (window.Screens && typeof Screens.openAuth === 'function') Screens.openAuth();
+          return;
+        }
         await api.syncWithBackend();
         api.startSync();
         // «شما پیام جدید دارید» — unread-chat bar + order-card badges.

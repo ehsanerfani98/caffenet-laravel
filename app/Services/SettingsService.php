@@ -112,6 +112,17 @@ TEXT;
         ['key' => 'adminPhones', 'category' => 'general', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
             'label' => 'شماره‌های مدیران (با کاما)', 'default' => ''],
 
+        // ---- maintenance mode — system ----
+        // When `maintenanceMode` is on, the MaintenanceGate middleware replaces
+        // every page AND every API for everyone except admins with the «سایت در
+        // حال تعمیر است» screen (503). Admins keep the full site so they can
+        // flip the switch back off. `maintenanceEta` is the «زمان تقریبی
+        // بازگشت» line shown on that screen (empty = hide the ETA card).
+        ['key' => 'maintenanceMode', 'category' => 'general', 'type' => 'boolean', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'حالت تعمیر و نگه‌داری (کل سایت برای همه به‌جز مدیر بسته می‌شود)', 'default' => '0'],
+        ['key' => 'maintenanceEta', 'category' => 'general', 'type' => 'string', 'scope' => self::SCOPE_SYSTEM,
+            'label' => 'متن «زمان تقریبی بازگشت» روی صفحه تعمیر', 'default' => 'حدود ۲ ساعت دیگر'],
+
         // ---- business ----
         ['key' => 'siteTitle', 'category' => 'general', 'type' => 'string', 'scope' => self::SCOPE_BUSINESS,
             'label' => 'عنوان سایت', 'default' => 'کافی‌نت احسان'],

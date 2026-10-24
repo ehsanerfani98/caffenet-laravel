@@ -30,9 +30,17 @@ return [
     | to expire immediately when the browser is closed then you may
     | indicate that via the expire_on_close configuration option.
     |
+    | Product rule «یک‌بار ورود»: the user must stay logged in until THEY log
+    | out. The old default (120 = 2 hours idle) expired the session cookie in
+    | the browser and every later API call landed as a guest → forced re-login.
+    | The lifetime is now 30 days AND sliding (refreshed on every response);
+    | on top of that the OTP login sets a 5-year remember_web_* cookie, so
+    | even after the session expires the guard silently re-authenticates.
+    | Only an explicit logout (or a blocked account) ends the session.
+    |
     */
 
-    'lifetime' => (int) env('SESSION_LIFETIME', 120),
+    'lifetime' => (int) env('SESSION_LIFETIME', 43200),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 

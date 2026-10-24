@@ -35,6 +35,18 @@ return Application::configure(basePath: dirname(__DIR__))
         // Helmet-equivalent security headers on every response.
         $middleware->append(App\Http\Middleware\SecurityHeaders::class);
 
+        // Maintenance gate («حالت تعمیر و نگه‌داری»): appended to the WEB group
+        // — not the global stack — deliberately. (a) The /api/* surface runs
+        // inside the web group in this app (Fortify session auth shares the
+        // cookie), so one registration covers the SPA shell, /track/{token}
+        // and every API route. (b) Appended group middleware runs after
+        // StartSession, so the gate can resolve $request->user() from the
+        // session (and the remember_web_* cookie) and let admins through
+        // while everyone else sees the «سایت در حال تعمیر است» page.
+        $middleware->web(append: [
+            App\Http\Middleware\MaintenanceGate::class,
+        ]);
+
         // Route middleware aliases.
         $middleware->alias([
             'auth.session' => App\Http\Middleware\EnsureAuth::class,

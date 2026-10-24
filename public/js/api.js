@@ -89,6 +89,18 @@
 
       if (!res.ok) {
         const message = (data && data.error) || 'خطای پردازش درخواست.';
+        // Maintenance gate: this user just got locked out by «حالت تعمیر و
+        // نگه‌داری» (503 + maintenance flag). Send the tab to `/` where the
+        // server serves the full-screen maintenance page. The sessionStorage
+        // timestamp prevents a reload ping-pong if anything ever loops.
+        if (res.status === 503 && data && data.maintenance) this._bounceToMaintenance();
+        // Stale CSRF token: after a long idle the session cookie expired and
+        // the remember_web_* cookie silently re-authenticated into a NEW
+        // session — the token embedded in the old page no longer matches.
+        // One automatic reload re-boots the SPA with fresh boot-data (and the
+        // user is restored from the remember cookie) instead of leaving them
+        // stuck on 419 toasts until a manual refresh.
+        if (res.status === 419) this._reloadForFreshCsrf();
         const err = new ApiError(message, res.status);
         // Preserve the structured server payload (e.g. code=INSUFFICIENT_WALLET
         // carrying required/balance/shortfall) so screens can react precisely
@@ -100,6 +112,24 @@
         throw err;
       }
       return data;
+    }
+
+    _stampGuarded(key, ms) {
+      let last = 0;
+      try { last = Number(sessionStorage.getItem(key) || 0); } catch (e) { /* storage blocked */ }
+      if (Date.now() - last < ms) return false;
+      try { sessionStorage.setItem(key, String(Date.now())); } catch (e) { /* ignore */ }
+      return true;
+    }
+
+    _bounceToMaintenance() {
+      if (!this._stampGuarded('maintenanceReloadAt', 15000)) return;
+      window.location.replace('/');
+    }
+
+    _reloadForFreshCsrf() {
+      if (!this._stampGuarded('csrfReloadAt', 15000)) return;
+      window.location.reload();
     }
 
     /* ---------------- session ---------------- */

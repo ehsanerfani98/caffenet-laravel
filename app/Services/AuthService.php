@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\OtpCode;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * OTP dispatch/verification — the OTP layer feeding Laravel Fortify's
@@ -111,6 +112,8 @@ class AuthService
                 $user->syncAccess('admin', null);
             }
 
+            self::ensureRememberablePassword($user);
+
             return $user;
         }
 
@@ -125,9 +128,28 @@ class AuthService
             'is_blocked' => false,
             'created_at' => now()->toIso8601String(),
         ]);
+        self::ensureRememberablePassword($user);
         $user->syncAccess($role, null);
 
         return $user;
+    }
+
+    /**
+     * Give OTP-only users a random unusable password — required for «یک‌بار
+     * ورود». Laravel's SessionGuard::userFromRecaller() refuses remember-me
+     * recovery unless getAuthPassword() returns a STRING (it re-hashes and
+     * compares against the recaller cookie); a NULL password (the shape all
+     * OTP-created users had) made the remember_web_* cookie silently dead.
+     * The value is a 64-char random string nobody possesses and nothing can
+     * log in with — password login does not exist in this app (OTP only).
+     * Must run BEFORE guard->login() queues the recaller cookie, so the
+     * cookie's embedded password hash matches this value.
+     */
+    private static function ensureRememberablePassword(User $user): void
+    {
+        if (! is_string($user->password) || $user->password === '') {
+            $user->forceFill(['password' => Str::random(64)])->save();
+        }
     }
 
     /** Normalizes Iranian mobile numbers to 09xxxxxxxxx (or +… international). */
