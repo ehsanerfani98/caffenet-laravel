@@ -595,6 +595,7 @@ class OrderController extends Controller
         // positions never advance. Transitions therefore route through
         // OrderLifecycleService, which owns queue_entries mutations.
         $lifecycle = app(\App\Contracts\OrderLifecycleService::class);
+        $notifications = app(\App\Contracts\NotificationDispatcherServiceInterface::class);
 
         if ($status === Order::STATUS_PROCESSING) {
             $lifecycle->onStart($order, $user->id);
@@ -627,6 +628,22 @@ class OrderController extends Controller
 
         $order->refresh();
 
+        // ── Customer notifications for the mapped transitions ───────────
+        // The operator console and admin orders UI call THIS endpoint (the
+        // queue's dedicated /start and /complete endpoints are never hit by
+        // the frontend), so the push/in-app/SMS notifications that used to
+        // live only in QueueOrderController must fire here too. Each
+        // dispatcher call writes the in-app NotificationLog row, fires the
+        // FCM push (when fcmEnabled) and sends its own pattern SMS
+        // (order_started / order_ready / cancelled) when smsNotifyEnabled.
+        if ($status === Order::STATUS_PROCESSING) {
+            \App\Events\OrderStarted::dispatch($order, $user->id);
+        } elseif ($status === Order::STATUS_READY) {
+            $notifications->notifyOrderReady($order);
+        } elseif ($status === Order::STATUS_CANCELLED) {
+            $notifications->notifyOrderCancelled($order);
+        }
+
         OrderLog::create([
             'order_id' => $order->id,
             'action' => "تغییر وضعیت به: {$title}",
@@ -636,16 +653,26 @@ class OrderController extends Controller
         ]);
 
         // SMS: pattern-based — uses smsPatternStatusChange + smsPatternStatusChangeVars.
-        SmsService::sendOrderNotification(
-            $order->customer_phone,
-            'status_change',
-            [
-                'order_number'  => $order->order_number,
-                'customer_name' => $order->customer_name,
-                'status'        => $order->status,
-                'status_title'  => $title,
-            ]
-        );
+        // SKIPPED for the three transitions above: their dispatcher calls
+        // already sent the dedicated order_started / order_ready / cancelled
+        // pattern — a blanket status_change SMS here would double-text the
+        // customer. delivered/failed/refunded/submitted keep this generic SMS.
+        $hasDedicatedNotification = in_array($status, [
+            Order::STATUS_PROCESSING, Order::STATUS_READY, Order::STATUS_CANCELLED,
+        ], true);
+
+        if (! $hasDedicatedNotification) {
+            SmsService::sendOrderNotification(
+                $order->customer_phone,
+                'status_change',
+                [
+                    'order_number'  => $order->order_number,
+                    'customer_name' => $order->customer_name,
+                    'status'        => $order->status,
+                    'status_title'  => $title,
+                ]
+            );
+        }
 
         return response()->json(Formatter::order($order->fresh()));
     }
