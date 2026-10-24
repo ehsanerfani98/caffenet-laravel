@@ -190,6 +190,20 @@ class SmsService
             'provider_message_id' => $providerId, 'error' => $error,
             'timestamp' => now()->toIso8601String(),
         ]);
+
+        // [TEST-INSTRUMENTATION] Mirror every SMS event into the Laravel log
+        // file (storage/logs/laravel.log) so SMS delivery can be audited
+        // without access to the real SMS provider. Covers ALL types: otp,
+        // order lifecycle notifications, reminders, admin new-order alert…
+        Log::info('SMS', [
+            'phone'   => $phone,
+            'type'    => $type,
+            'status'  => $status,          // sent | failed | test
+            'text'    => $text,
+            'error'   => $error,
+            'provider_message_id' => $providerId,
+            'at'      => now()->toIso8601String(),
+        ]);
     }
 
     public static function normalizePhone(string $raw): string
