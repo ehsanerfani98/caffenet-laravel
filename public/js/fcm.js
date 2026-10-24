@@ -228,11 +228,20 @@
       // SDK-load problems: the SDK already loaded (we have messaging).
       // Typical causes: network blocked, CSP blocking the Google endpoints,
       // VAPID mismatch — surfaced to the UI as reason 'subscribe'.
+      const swReg = await this._getSwRegistration();
+      if (!swReg) {
+        // Without the dedicated Firebase worker the token would either be
+        // bound to a push-less SW (silent drop) or trigger the SDK's
+        // default root-scope registration that would REPLACE the PWA
+        // sw.js — both unacceptable. Abort loudly instead.
+        this.registered = false;
+        return { ok: false, reason: 'subscribe', error: 'service-worker-not-active' };
+      }
       let token;
       try {
         token = await msgMod.getToken(messaging, {
           vapidKey: this._config.vapidKey,
-          serviceWorkerRegistration: await this._getSwRegistration(),
+          serviceWorkerRegistration: swReg,
         });
       } catch (e) {
         this.registered = false;
@@ -276,6 +285,14 @@
      * shown and onMessage never fires). firebase-messaging-sw.js owns
      * push → notification + foreground forwarding. Distinct scopes keep
      * the two workers side by side ('/' vs '/fcm/').
+     *
+     * ⚠ NEVER fall back to a registration whose script is not
+     * firebase-messaging-sw.js (the old `navigator.serviceWorker.ready`
+     * fallback silently bound tokens to the push-less PWA worker → every
+     * push was delivered to a deaf worker and NO notification ever
+     * appeared, while the server log happily reported sent=1 — the exact
+     * bug this replaces). Returns null on failure and _registerToken
+     * aborts instead of subscribing through the wrong worker.
      */
     async _getSwRegistration() {
       if (!('serviceWorker' in navigator)) return null;
@@ -293,35 +310,30 @@
         });
       };
       // register() can STALL indefinitely when the SW script's synchronous
-      // importScripts (gstatic) hangs on a bad network — bound every step
-      // and fall back to the page-controlled SW so token registration never
-      // bricks (delivery then depends on that SW, so /fcm/ is preferred).
+      // importScripts (gstatic) hangs on a bad network — bound every step.
+      // On stall we give up (null) rather than hand back the wrong worker.
       const withTimeout = function (p, ms) {
         return Promise.race([p, new Promise(function (resolve) {
           setTimeout(function () { resolve(null); }, ms);
         })]);
       };
       try {
-        const existing = await navigator.serviceWorker.getRegistration('/fcm/');
-        if (existing) {
-          const ready = await withTimeout(waitActive(existing), 15000);
-          if (ready) return ready;
-          console.warn('[FCM] /fcm/ SW not active in time — using the page SW.');
-        } else {
-          const reg = await withTimeout(
+        let reg = await navigator.serviceWorker.getRegistration('/fcm/');
+        if (!reg) {
+          reg = await withTimeout(
             navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/fcm/' }),
             20000
           );
-          if (reg) {
-            const ready = await withTimeout(waitActive(reg), 15000);
-            if (ready) return ready;
-          }
-          console.warn('[FCM] /fcm/ SW registration stalled — using the page SW.');
+        }
+        if (reg) {
+          const ready = await withTimeout(waitActive(reg), 15000);
+          if (ready && ready.active) return ready;
         }
       } catch (e) {
-        console.warn('[FCM] SW registration failed (' + ((e && e.message) || e) + ') — using the page SW.');
+        console.warn('[FCM] SW registration failed (' + ((e && e.message) || e) + ').');
       }
-      try { return await navigator.serviceWorker.ready; } catch (e) { return null; }
+      console.warn('[FCM] firebase-messaging-sw.js is not active — token registration ABORTED (a push-less worker would swallow every notification).');
+      return null;
     },
 
     /**

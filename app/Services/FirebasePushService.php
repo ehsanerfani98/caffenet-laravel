@@ -470,6 +470,22 @@ class FirebasePushService
         $existing = FcmToken::where('token', $token)->first();
         $now = now()->toIso8601String();
 
+        // Same browser, new token (e.g. the delivery service worker
+        // changed, or FCM rotated the token): the previous row of THIS
+        // browser must be deactivated, otherwise every push arrives
+        // twice on that device — once per still-active token.
+        if ($userAgent !== null && $userAgent !== '') {
+            FcmToken::where('user_id', $userId)
+                ->where('platform', $platform)
+                ->where('user_agent', $userAgent)
+                ->where('token', '!=', $token)
+                ->where('is_active', true)
+                ->update([
+                    'is_active' => false,
+                    'updated_at' => $now,
+                ]);
+        }
+
         if ($existing) {
             $existing->user_id = $userId;
             $existing->user_agent = $userAgent;

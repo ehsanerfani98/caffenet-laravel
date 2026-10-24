@@ -27,11 +27,31 @@ try {
 // Cache the config so we don't fetch on every push event.
 let _fcmConfig = null;
 
+/**
+ * Config resolution order: memory → CacheStorage (offline-fast, set by a
+ * previous lifecycle) → network. The CacheStorage layer matters because a
+ * push event WAKES this worker: the faster firebase.messaging() runs, the
+ * sooner the SDK's own push listener exists (see the __sdkReady note in
+ * the push handler — before that, our manual handler must show it).
+ */
 async function loadConfig() {
   if (_fcmConfig) return _fcmConfig;
   try {
+    const cache = await caches.open('fcm-cfg-v1');
+    const cached = await cache.match('/api/fcm/config');
+    if (cached) {
+      _fcmConfig = await cached.json();
+      return _fcmConfig;
+    }
+  } catch (e) { /* cache unavailable — fall through to network */ }
+  try {
     const resp = await fetch('/api/fcm/config');
+    if (!resp.ok) return null;
     _fcmConfig = await resp.json();
+    try {
+      const cache = await caches.open('fcm-cfg-v1');
+      cache.put('/api/fcm/config', new Response(JSON.stringify(_fcmConfig)));
+    } catch (e) { /* cache write is best-effort */ }
     return _fcmConfig;
   } catch (e) {
     return null;
@@ -46,10 +66,23 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// Listen for push events. When Firebase's own handler isn't loaded yet
-// (cold start), we fall back to a basic notification.
-// In-memory diagnostics (reset on every SW restart) — introspectable via
-// Playwright worker.evaluate to debug delivery chain issues.
+// Listen for push events.
+//
+// ⚠ DELIVERY RULE (root-cause fix for "push sent=1 but nothing appears"):
+// A push event WAKES this worker. At that moment the async init block at
+// the bottom has only STARTED — firebase.messaging() (which attaches the
+// SDK's own push listener) runs only AFTER loadConfig() resolves. The
+// old code decided "the SDK will handle it" by testing
+// `self.firebase && self.firebase.messaging` — those exist right after
+// importScripts, so on every cold start we returned and NOBODY handled
+// the message: the SDK's listener was not attached yet and the event is
+// one-shot. The decision must therefore be based on __sdkReady, which is
+// set only AFTER firebase.messaging() has actually run and attached the
+// listener. Cold start → we show the notification ourselves (no network
+// dependency); warm start (SDK attached) → let the SDK handle it so a
+// focused tab gets onMessage forwarding instead of a system toast.
+// (yadapp never had this race: it calls firebase.messaging()
+// synchronously with a hardcoded config.)
 self.addEventListener('push', (event) => {
   self.__pushSeen = (self.__pushSeen || 0) + 1;
   // Persistent delivery trace — survives SW idle restarts (unlike the
@@ -83,23 +116,17 @@ self.addEventListener('push', (event) => {
 
   event.waitUntil(
     (async () => {
-      // Try to use the Firebase SDK first (when it's loaded).
-      if (self.firebase && self.firebase.messaging) {
-        try {
-          const cfg = await loadConfig();
-          if (cfg && cfg.apiKey) {
-            if (!self.firebase.apps.length) {
-              self.firebase.initializeApp(cfg);
-            }
-            // Let Firebase handle it (background display / foreground
-            // forwarding to the visible tab).
-            self.__fw = 'sdk';
-            __trace({ at: new Date().toISOString(), seen: self.__pushSeen, by: 'sdk', sdkReady: !!self.__sdkReady });
-            return;
-          }
-        } catch (e) { /* fall through to manual */ }
+      // SDK path ONLY when its push listener is REALLY attached
+      // (__sdkReady) and the message carries a notification payload —
+      // data-only messages are never auto-displayed by the SDK.
+      if (self.__sdkReady === true && self.firebase && self.firebase.apps && self.firebase.apps.length && payload.notification) {
+        self.__fw = 'sdk';
+        __trace({ at: new Date().toISOString(), seen: self.__pushSeen, by: 'sdk', sdkReady: true });
+        return;
       }
-      // Fallback: show the notification directly.
+      // Deterministic fallback: show the notification directly. Works
+      // with zero config, zero network, zero SDK — the cold-start race
+      // can never drop a message again.
       try {
         await self.registration.showNotification(title, options);
         self.__fw = 'manual';

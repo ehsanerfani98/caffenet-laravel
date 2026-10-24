@@ -70,3 +70,55 @@ self.addEventListener('fetch', (e) => {
     })
   );
 });
+
+/* ─── Push safety net ────────────────────────────────────────────────
+ * The dedicated FCM worker lives at the '/fcm/' scope
+ * (firebase-messaging-sw.js) and fcm.js binds tokens to it. But any
+ * token that was EVER registered through THIS worker (scope '/') —
+ * e.g. by the old fcm.js fallback — still has its push events
+ * delivered HERE. Without a push handler those messages were silently
+ * swallowed (server log said sent=1, the device showed nothing).
+ * This handler makes this worker deliver them too; both workers
+ * showing the same message is prevented server-side by deactivating
+ * a browser's previous token when it re-registers (same user_agent).
+ * Also matches yadapp, where the root-scope worker owns push. */
+self.addEventListener('push', (e) => {
+  let title = 'اعلان جدید';
+  let body = '';
+  let data = {};
+  try {
+    const payload = e.data ? e.data.json() : null;
+    if (payload) {
+      if (payload.notification && payload.notification.title) title = payload.notification.title;
+      if (payload.notification && payload.notification.body) body = payload.notification.body;
+      if (payload.data) data = payload.data;
+    } else if (e.data) {
+      body = e.data.text();
+    }
+  } catch (_) {
+    if (e.data) body = e.data.text();
+  }
+  e.waitUntil(self.registration.showNotification(title, {
+    body: body,
+    icon: '/icon.png',
+    badge: '/pwa-72x72.png',
+    tag: data.tag || 'caffenet-fcm',
+    data: data,
+  }));
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.navigate(url);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow ? self.clients.openWindow(url) : undefined;
+    })
+  );
+});

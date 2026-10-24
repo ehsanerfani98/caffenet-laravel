@@ -367,4 +367,42 @@ class FcmPushServiceTest extends TestCase
         $this->assertTrue((bool) $row->is_active);
         $this->assertSame('UA', $row->user_agent);
     }
+
+    /**
+     * The same browser re-registering a NEW token (delivery worker changed,
+     * FCM rotated the token) must have its previous token deactivated —
+     * otherwise every push is delivered twice to that device, once per
+     * still-active token. Tokens of OTHER browsers (different user_agent)
+     * and OTHER users must stay untouched.
+     */
+    public function test_register_token_deactivates_previous_token_of_same_browser(): void
+    {
+        $this->enableFcm();
+
+        // Old token of THIS browser (same user + same UA), still active.
+        $this->makeTokens(['tok-old']);
+        FcmToken::where('token', 'tok-old')->update(['user_agent' => 'Mozilla/5.0 SameBrowser']);
+
+        // Token of the SAME USER but a DIFFERENT browser — must stay active.
+        $this->makeTokens(['tok-other-browser']);
+        FcmToken::where('token', 'tok-other-browser')->update(['user_agent' => 'Mozilla/5.0 OtherBrowser']);
+
+        // Token of a DIFFERENT user with the SAME UA — must stay active.
+        FcmToken::create([
+            'user_id' => 'usr-someone-else',
+            'token' => 'tok-other-user',
+            'user_agent' => 'Mozilla/5.0 SameBrowser',
+            'platform' => 'web',
+            'is_active' => true,
+            'created_at' => now()->toIso8601String(),
+            'updated_at' => now()->toIso8601String(),
+        ]);
+
+        FirebasePushService::registerToken('usr-test', 'tok-new', 'Mozilla/5.0 SameBrowser', 'web');
+
+        $this->assertFalse((bool) FcmToken::where('token', 'tok-old')->first()->is_active, 'same browser old token deactivated');
+        $this->assertTrue((bool) FcmToken::where('token', 'tok-new')->first()->is_active, 'new token active');
+        $this->assertTrue((bool) FcmToken::where('token', 'tok-other-browser')->first()->is_active, 'other browser of same user untouched');
+        $this->assertTrue((bool) FcmToken::where('token', 'tok-other-user')->first()->is_active, 'other user with same UA untouched');
+    }
 }
