@@ -317,7 +317,11 @@
       } else if (action === 'wallet') {
         this.navigate('wallet');
       } else if (action === 'sms') {
-        window.Screens.openSmsInbox();
+        // Defense in depth: the icon is only RENDERED for admins
+        // (UI.renderAppBar), but a stale cached bundle on a customer or
+        // operator device must not be able to open the SMS audit log by
+        // tapping the (theoretically absent) button.
+        if (user && user.role === 'admin') window.Screens.openSmsInbox();
       } else if (action === 'fcm') {
         this.enablePushNotifications();
       }
