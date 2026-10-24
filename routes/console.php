@@ -75,10 +75,15 @@ Artisan::command('caffenet:db-pragmas', function () {
         return;
     }
 
+    // [TEST-FIX 2026-10-24] `PRAGMA busy_timeout` returns its value under the
+    // column name "timeout" (not "busy_timeout"), so the old $row[0]->busy_timeout
+    // lookup always printed an empty value and made a live 10s busy_timeout look
+    // dead. Normalize per-pragma column names here.
     $pragma = function (string $name): string {
+        $column = $name === 'busy_timeout' ? 'timeout' : $name;
         $row = DB::select("PRAGMA {$name}");
 
-        return (string) ($row[0]->{$name} ?? '');
+        return (string) ($row[0]->{$column} ?? $row[0]->{$name} ?? '');
     };
 
     $this->info('journal_mode='.$pragma('journal_mode'));
