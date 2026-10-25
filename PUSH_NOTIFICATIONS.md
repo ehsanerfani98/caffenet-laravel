@@ -42,9 +42,10 @@
 7. **آیکن نوتیفیکیشن در دو لایه است و هر دو باید ست باشند:**
    - **آیکن بزرگ** (کنار متن، در اندروید سمت راست) = `icon` → `/icon.png` (لوگوی آبی «E»).
    - **آیکن کوچک هدر** (کنار نام اپ) = `badge` → `/push-badge-192.png`. اندروید badge را به‌صورت **ماسک آلفا** رندر می‌کند؛ تصویر opaque (مثل `pwa-72x72.png`) به یک مربع ساده کمرنگ تبدیل می‌شود. به همین دلیل badge باید **سفید-روی-شفاف** باشد (فایل با `scripts/make_push_badge.py` از روی آیکن 512 ساخته می‌شود).
-   - مسیر نمایش دوگانه است: SW گرم → SDK فایرباس نوتیفیکیشن را مستقیم از payload نشان می‌دهد، پس `webpush.notification` در `FirebasePushService::buildMessage()` باید `icon`+`badge`+`title`+`body`+`dir=rtl`+`lang=fa` داشته باشد؛ SW سرد → گزینه‌های هاردکد در `firebase-messaging-sw.js` و `sw.js` (هر دو مسیر با تست `FcmPushServiceTest::test_webpush_notification_carries_app_icon_and_monochrome_badge` پین شده‌اند).
+   - مسیر نمایش **سه‌گانه است و هر سه باید نوتیفیکیشن سیستمی واقعی بدهند** (قرارداد «هر پوش = نوتیفیکیشن سیستمی، فارغ از حالت تب»): SW گرم → SDK فایرباس نوتیفیکیشن را مستقیم از payload نشان می‌دهد، پس `webpush.notification` در `FirebasePushService::buildMessage()` باید `icon`+`badge`+`title`+`body`+`tag`+`dir=rtl`+`lang=fa`+`renotify=true` داشته باشد؛ SW سرد → گزینه‌های هاردکد در `firebase-messaging-sw.js` و `sw.js`؛ **تب باز (foreground) → هندلر `onMessage` در `fcm.js` خودش با `showNotification` روی ثبتِ SWِ `/fcm/` نوتیفیکیشن سیستمی نشان می‌دهد** (توست درون‌صفحه فقط فالبک است) — `new Notification()` از صفحه در اندروید ممنوع است و همین توستِ-به‌جای-نوتیفیکیشن بود که «یکی در میون نوتیفیکیشن می‌آید یکی نمی‌آید» می‌ساخت. هر دو مسیر SW با تست `FcmPushServiceTest::test_webpush_notification_carries_app_icon_and_monochrome_badge` پین شده‌اند.
    - مسیرها **نسبی** می‌مانند (در برابر مبدأ SW حل می‌شوند) چون `APP_URL` در محیط توسعه localhost است.
-8. **کش PWA** (`sw.js`): `push-badge-192.png` در SHELL پری‌کش است — هر تغییر در فایل‌های SHELL نیازمند افزایش `CACHE` (فعلاً `caffenet-v44`).
+   - `renotify=true` (در payload و هر سه مسیر) الزامی است: تگ ثابت `caffenet-fcm` ردیف‌های سینی را ادغام می‌کند و بدون renotify پوشِ هم‌محتوا (مثلاً دو بار زدن دکمهٔ تست) بی‌صدا جای ردیف قبلی را می‌گیرد — بدون صدا/بنر، که «ارسال نشد» خوانده می‌شود.
+8. **کش PWA** (`sw.js`): `push-badge-192.png` در SHELL پری‌کش است — هر تغییر در فایل‌های SHELL نیازمند افزایش `CACHE` (فعلاً `caffenet-v45`).
 9. **خطای OAuth گوگل هرگز نباید «تاریک» برسد.** Kreait برای ردشدن حساب سرویس، استثنایی می‌اندازد که متنش فقط کد خام است (`invalid_grant`) و علت واقعی (`error_description` مثل `Invalid JWT Signature` / `account not found` / `Token used too early`) فقط در `Response` گوتزلِ زنجیرهٔ `getPrevious()` زنده است. پس:
    - همهٔ catchهای ارسال از `FirebasePushService::describeError()` استفاده می‌کنند (بدنهٔ کامل پاسخ گوگل را استخراج و در `fcm_push_logs.error` ذخیره می‌کند)؛
    - `FcmController::zeroSendReason()` علاوه بر متن خام، `explainError()` را هم می‌چسباند — نگاشت هر علت شناخته‌شده به راهنمای فارسی (کلید جدید / ساعت سرور / حساب سرویس حذف‌شده)؛
@@ -159,6 +160,7 @@
 | خطای `UNREGISTERED` در لاگ | توکن مرده (مرورگر عوض/پاک شده) | طبیعی — ردیف در `fcm_tokens` غیرفعال می‌شود |
 | دکمه تست: «گوگل ارسال را نپذیرفت: invalid_grant — …» | کلید حساب سرویس نزد گوگل رد شده — علت دقیق و راهنمای فارسی بعد از متن خطا می‌آید | طبق راهنما: کلید جدید از Firebase Console / اصلاح ساعت سرور؛ سپس دکمهٔ «عیب‌یابی پوش» — گام `oauth` قبول‌شدن کلید را قطعی اعلام می‌کند |
 | نوتیفیکیشن دوبله | نسخه قدیم (توکن sw.js + توکن /fcm/ هر دو فعال) | پس از f05bcb5 با ثبت مجدد خودکار رفع می‌شود |
+| پوش «یکی در میون» می‌آید / بار بعد فقط توست برنامه | تب باز → مسیر foreground توست می‌داد (رفع شد) | از کامیت unified-display: تب باز هم نوتیفیکیشن سیستمی می‌دهد؛ بعد از آپدیت SW (دو رفرش) تست کنید |
 | iOS پوش نمی‌دهد | مرورگر معمولی یا iOS < 16.4 | نصب PWA (Add to Home Screen) |
 
 ### ابزارهای عمیق‌تر

@@ -365,6 +365,9 @@ class FcmPushServiceTest extends TestCase
         $this->assertSame('caffenet-fcm', $wn['tag']);
         $this->assertSame('rtl', $wn['dir']);
         $this->assertSame('fa', $wn['lang']);
+        // Tag replacement must re-alert: identical-content pushes (test
+        // button twice) otherwise swap the tray entry silently.
+        $this->assertTrue($wn['renotify']);
         $this->assertSame('/?order=1', $captured['webpush']['fcm_options']['link'] ?? null);
     }
 

@@ -112,6 +112,11 @@ self.addEventListener('push', (event) => {
     // badge as an alpha mask; an opaque PNG shows as a plain pale square.
     badge: '/push-badge-192.png',
     tag: data.tag || 'caffenet-fcm',
+    dir: 'rtl',
+    lang: 'fa',
+    // Re-alert on tag replacement — identical test pushes must still
+    // banner/sound, never silently swap the tray entry.
+    renotify: true,
     data: data,
     requireInteraction: false,
   };

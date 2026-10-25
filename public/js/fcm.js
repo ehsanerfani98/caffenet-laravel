@@ -96,26 +96,50 @@
       const msgMod = this._msgMod;
       const messaging = this._messaging;
 
-      // Foreground messages — when the tab is open, FCM delivers here
-      // instead of showing a system notification. We surface a toast.
-      msgMod.onMessage(messaging, (payload) => {
+      // Foreground messages — when the tab is open and focused, FCM hands
+      // the message to onMessage INSTEAD of letting the SDK display it.
+      // The old code showed only an in-page toast here, so pushes arrived
+      // as a REAL notification one time (tab closed/background) and as a
+      // subtle toast the next (tab open) — user-reported inconsistency.
+      //
+      // UNIFIED RULE: every push = a REAL system notification, no matter
+      // the tab state. Shown through the /fcm/ service-worker registration
+      // (page-level `new Notification()` is FORBIDDEN on Android Chrome —
+      // only SW showNotification works there) with the same icon/badge/tag
+      // the SW paths use, so all three delivery paths look identical.
+      // The in-page toast remains ONLY as a fallback when the SW
+      // registration is unavailable or showNotification refuses.
+      msgMod.onMessage(messaging, async (payload) => {
         const title = (payload.notification && payload.notification.title) || 'اعلان جدید';
         const body = (payload.notification && payload.notification.body) || '';
+        const data = payload.data || {};
+
+        try {
+          if ('Notification' in window
+            && Notification.permission === 'granted'
+            && 'serviceWorker' in navigator) {
+            const reg = await navigator.serviceWorker.getRegistration('/fcm/');
+            if (reg) {
+              await reg.showNotification(title, {
+                body: body,
+                icon: '/icon.png',
+                badge: '/push-badge-192.png',
+                tag: data.tag || 'caffenet-fcm',
+                dir: 'rtl',
+                lang: 'fa',
+                renotify: true,
+                data: data,
+              });
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('[FCM] foreground showNotification failed:', e && e.message);
+        }
+
+        // Fallback only — SW path unavailable above.
         if (window.UI && typeof window.UI.toast === 'function') {
           window.UI.toast(title + (body ? ' — ' + body : ''), 'info');
-        }
-        // Also fire a browser notification if permission is granted AND
-        // the tab is in the background.
-        if ('Notification' in window && Notification.permission === 'granted' && document.visibilityState === 'hidden') {
-          try {
-            new Notification(title, {
-              body: body,
-              icon: '/icon.png',
-              badge: '/push-badge-192.png',
-              tag: 'caffenet-fcm',
-              data: payload.data || {},
-            });
-          } catch (e) { /* ignore */ }
         }
       });
     },

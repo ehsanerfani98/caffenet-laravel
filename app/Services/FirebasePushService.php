@@ -856,6 +856,12 @@ class FirebasePushService
                     'tag' => 'caffenet-fcm',
                     'dir' => 'rtl',
                     'lang' => 'fa',
+                    // Same tag collapses tray entries; renotify forces the
+                    // device to ALERT again on every replacement — without
+                    // it an identical-content push (e.g. the test button
+                    // pressed twice) silently swaps the tray entry with no
+                    // sound/banner, which reads as "notification lost".
+                    'renotify' => true,
                 ],
                 'fcm_options' => [
                     'link' => $payload['url'] ?? '/',
