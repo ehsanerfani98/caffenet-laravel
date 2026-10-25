@@ -1,13 +1,17 @@
 /* Caffenet Lite — screens/operator.js
- * Operator work queue: submitted+ orders (never pending_payment/failed/
- * refunded) — including request-mode orders that enter the queue at
- * submission and are paid later via a management-registered manual payment;
- * filters, detail sheet with status/result-file/assign/notes/chat.
+ * Operator work queue: submitted + processing orders (the queue statuses —
+ * never pending_payment/failed/refunded, and never ready/delivered/cancelled:
+ * finished or terminal orders are out of the work queue) — including
+ * request-mode orders that enter the queue at submission and are paid later
+ * via a management-registered manual payment; filters, detail sheet with
+ * status/result-file/assign/notes/chat.
  * Port of operator/OperatorDashboard.tsx. */
 (function () {
   'use strict';
 
-  const NON_QUEUE_STATUSES = ['pending_payment', 'failed', 'refunded'];
+  // Mirrors Order::QUEUE_STATUSES on the backend — the canonical
+  // «صف کار» definition used by the admin dashboard stat as well.
+  const QUEUE_STATUSES = ['submitted', 'processing'];
 
   window.Screens = window.Screens || {};
 
@@ -109,7 +113,7 @@
       const q = ($('#op-search').val() || '').trim().toLowerCase();
       return api.state.orders.filter((o) => {
         if (st === 'queue') {
-          if (NON_QUEUE_STATUSES.includes(o.status)) return false;
+          if (!QUEUE_STATUSES.includes(o.status)) return false;
         } else if (st !== 'all') {
           if (o.status !== st) return false;
         }
@@ -123,9 +127,11 @@
 
     function renderStats() {
       const all = api.state.orders;
-      const queue = all.filter((o) => !NON_QUEUE_STATUSES.includes(o.status));
+      // صف کار = submitted + processing; ready is its own bucket (work done,
+      // awaiting handover) so it is counted from all, not from the queue.
+      const queue = all.filter((o) => QUEUE_STATUSES.includes(o.status));
       const processing = queue.filter((o) => o.status === 'processing').length;
-      const ready = queue.filter((o) => o.status === 'ready').length;
+      const ready = all.filter((o) => o.status === 'ready').length;
       $host.find('#op-stats').html(
         '<div class="stat-grid">' +
           '<div class="stat-card"><div class="s-icon tone-sky">' + icon('folder') + '</div>' +

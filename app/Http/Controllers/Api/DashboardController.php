@@ -20,10 +20,12 @@ class DashboardController extends Controller
         $user = $request->attributes->get('authUser');
         $isStaff = $user->role === 'admin' || $user->role === 'operator';
 
-        $paid = array_merge(Order::NON_QUEUE_STATUSES, [Order::STATUS_CANCELLED]);
-
         if ($isStaff) {
-            $queueCount = Order::whereNotIn('status', Order::NON_QUEUE_STATUSES)->count();
+            // «صف کار» = orders still needing work (submitted + processing).
+            // Must NOT count ready/delivered/cancelled — a delivered or
+            // cancelled order left the queue for good, and a ready one has
+            // finished its work (it lives in its own «آماده تحویل» bucket).
+            $queueCount = Order::whereIn('status', Order::QUEUE_STATUSES)->count();
             $revenueToday = $this->revenue(now()->startOfDay()->toIso8601String());
             $revenue7 = $this->revenue(now()->subDays(7)->toIso8601String());
             $revenue30 = $this->revenue(now()->subDays(30)->toIso8601String());
