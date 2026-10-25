@@ -691,6 +691,25 @@ class FirebasePushService
                 ],
             ],
             'webpush' => [
+                // Web Notification options for the FCM-SDK delivery path:
+                // when firebase-messaging-sw.js is already warm, ITS OWN
+                // SDK displays the notification straight from this payload
+                // and the SW's hardcoded showNotification() options are NOT
+                // applied — so icon/badge MUST ride along here too.
+                // 'badge' must be a MONOCHROME (white-on-transparent) PNG:
+                // Android renders it as an alpha mask, and an opaque image
+                // (e.g. /pwa-72x72.png) shows as a plain pale square.
+                // Paths stay RELATIVE on purpose — they resolve against the
+                // SW origin, while APP_URL is localhost in dev.
+                'notification' => [
+                    'title' => (string) ($payload['title'] ?? ''),
+                    'body' => (string) ($payload['body'] ?? ''),
+                    'icon' => '/icon.png',
+                    'badge' => '/push-badge-192.png',
+                    'tag' => 'caffenet-fcm',
+                    'dir' => 'rtl',
+                    'lang' => 'fa',
+                ],
                 'fcm_options' => [
                     'link' => $payload['url'] ?? '/',
                 ],

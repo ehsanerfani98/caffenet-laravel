@@ -330,6 +330,44 @@ class FcmPushServiceTest extends TestCase
         $this->assertSame(['order_id' => '42', 'url' => '/?order=42'], $captured['data']);
     }
 
+    /**
+     * Regression: the small header icon of an Android push notification is
+     * the "badge", rendered as an ALPHA MASK — an opaque image (the old
+     * /pwa-72x72.png) shows as a plain pale square (user-reported bug).
+     * When the firebase-messaging SW is warm, ITS OWN SDK displays the
+     * notification straight from the FCM payload, so icon/badge MUST ride
+     * along in webpush.notification (the SW's hardcoded options never
+     * apply on that path).
+     */
+    public function test_webpush_notification_carries_app_icon_and_monochrome_badge(): void
+    {
+        $this->enableFcm();
+        $this->makeTokens(['tok-i']);
+
+        $captured = null;
+        $m = $this->mockMessaging();
+        $m->shouldReceive('sendMulticast')->once()->andReturnUsing(
+            function ($message, $tokens) use (&$captured) {
+                $captured = $message;
+
+                return MulticastSendReport::withItems([$this->successReport('tok-i')]);
+            }
+        );
+
+        FirebasePushService::sendToUser('usr-test', $this->payload());
+
+        $wn = $captured['webpush']['notification'] ?? null;
+        $this->assertIsArray($wn, 'webpush.notification must be present for the FCM SDK display path');
+        $this->assertSame('سفارش شما شروع شد', $wn['title']);
+        $this->assertSame('کار روی سفارش CN-1 آغاز شد.', $wn['body']);
+        $this->assertSame('/icon.png', $wn['icon']);
+        $this->assertSame('/push-badge-192.png', $wn['badge']);
+        $this->assertSame('caffenet-fcm', $wn['tag']);
+        $this->assertSame('rtl', $wn['dir']);
+        $this->assertSame('fa', $wn['lang']);
+        $this->assertSame('/?order=1', $captured['webpush']['fcm_options']['link'] ?? null);
+    }
+
     // ─── Self-check diagnostics ───────────────────────────────────────
 
     public function test_self_check_lists_actionable_steps(): void

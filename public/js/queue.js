@@ -179,7 +179,7 @@
         // exclusively from the AppBar push icon or the explicit "notify
         // me" button in the order tracker.
         if (Notification.permission === 'granted') {
-          new Notification(title, { body, icon: '/icon.png', tag: 'caffenet-queue' });
+          new Notification(title, { body, icon: '/icon.png', badge: '/push-badge-192.png', tag: 'caffenet-queue' });
         }
       } catch (e) { /* notifications not available */ }
     },

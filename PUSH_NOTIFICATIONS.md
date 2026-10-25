@@ -39,6 +39,12 @@
 4. **`data` خالی هرگز ارسال نمی‌شود** — FCM v1 آرایه خالی JSON را با 400 رد می‌کند.
 5. **dedupe توکن**: ثبت توکن جدید همان مرورگر (user_agent یکسان) توکن قبلی را غیرفعال می‌کند تا نوتیفیکیشن دوبله نشود.
 6. عضویت خودکار هر توکن در topic «all» هنگام ثبت — برای ارسال همگانی.
+7. **آیکن نوتیفیکیشن در دو لایه است و هر دو باید ست باشند:**
+   - **آیکن بزرگ** (کنار متن، در اندروید سمت راست) = `icon` → `/icon.png` (لوگوی آبی «E»).
+   - **آیکن کوچک هدر** (کنار نام اپ) = `badge` → `/push-badge-192.png`. اندروید badge را به‌صورت **ماسک آلفا** رندر می‌کند؛ تصویر opaque (مثل `pwa-72x72.png`) به یک مربع ساده کمرنگ تبدیل می‌شود. به همین دلیل badge باید **سفید-روی-شفاف** باشد (فایل با `scripts/make_push_badge.py` از روی آیکن 512 ساخته می‌شود).
+   - مسیر نمایش دوگانه است: SW گرم → SDK فایرباس نوتیفیکیشن را مستقیم از payload نشان می‌دهد، پس `webpush.notification` در `FirebasePushService::buildMessage()` باید `icon`+`badge`+`title`+`body`+`dir=rtl`+`lang=fa` داشته باشد؛ SW سرد → گزینه‌های هاردکد در `firebase-messaging-sw.js` و `sw.js` (هر دو مسیر با تست `FcmPushServiceTest::test_webpush_notification_carries_app_icon_and_monochrome_badge` پین شده‌اند).
+   - مسیرها **نسبی** می‌مانند (در برابر مبدأ SW حل می‌شوند) چون `APP_URL` در محیط توسعه localhost است.
+8. **کش PWA** (`sw.js`): `push-badge-192.png` در SHELL پری‌کش است — هر تغییر در فایل‌های SHELL نیازمند افزایش `CACHE` (فعلاً `caffenet-v44`).
 
 ---
 

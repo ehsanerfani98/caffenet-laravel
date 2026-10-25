@@ -1,10 +1,11 @@
 /* Caffenet Lite — service worker (hand-written, autoUpdate semantics).
  * cache-first for static assets; network-only for /api, /uploads, /media
  * (they are never served the SPA fallback). */
-const CACHE = 'caffenet-v43'; // bump purges every stale v13 entry on activate
+const CACHE = 'caffenet-v44'; // bump purges every stale entry on activate (v44: push badge)
 const SHELL = ['/', '/manifest.webmanifest', '/pwa-192x192.png', '/pwa-512x512.png',
   '/maskable-192x192.png', '/maskable-512x512.png', '/apple-touch-icon.png',
   '/favicon.ico', '/favicon-16x16.png', '/favicon-32x32.png', '/favicon-48x48.png',
+  '/push-badge-192.png',
   '/css/app.css', '/js/jquery.min.js', '/js/persian-utils.js',
   '/js/icons.js', '/js/permissions.js', '/js/pricing.js', '/js/order-draft.js',
   '/js/api.js', '/js/ui.js', '/js/track-page.js',
@@ -101,7 +102,9 @@ self.addEventListener('push', (e) => {
   e.waitUntil(self.registration.showNotification(title, {
     body: body,
     icon: '/icon.png',
-    badge: '/pwa-72x72.png',
+    // Monochrome E-glyph — Android masks the badge; opaque PNGs render as
+    // a plain pale square in the notification header.
+    badge: '/push-badge-192.png',
     tag: data.tag || 'caffenet-fcm',
     data: data,
   }));

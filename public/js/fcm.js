@@ -111,6 +111,7 @@
             new Notification(title, {
               body: body,
               icon: '/icon.png',
+              badge: '/push-badge-192.png',
               tag: 'caffenet-fcm',
               data: payload.data || {},
             });
