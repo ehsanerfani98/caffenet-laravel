@@ -260,9 +260,20 @@
         paintFcm(!!FCM.registered);
         FCM.status().then(function (st) {
           if (!st) return;
-          if (st.enabled === false) { $fcmBtn.remove(); return; }
+          if (st.enabled === false) {
+            $fcmBtn.remove();
+            // Push is off system-wide — the floating nudge must go too.
+            if (window.NotifyNudge) NotifyNudge.hide();
+            return;
+          }
           paintFcm(!!st.registered || !!FCM.registered);
+          // Same status feeds the floating enable-nudge (no extra request):
+          // visible while no active token, gone the moment it registers.
+          if (window.NotifyNudge) NotifyNudge.sync(st);
         });
+      } else if (window.NotifyNudge && !api.state.currentUser) {
+        // Logged out (or FCM module absent) — never show the nudge.
+        NotifyNudge.hide();
       }
     },
 

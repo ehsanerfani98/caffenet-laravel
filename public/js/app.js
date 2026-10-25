@@ -346,6 +346,10 @@
       }
       const $fcmBtn = $('#app-bar').find('[data-appbar-action="fcm"]');
       if ($fcmBtn.length) $fcmBtn.removeClass('fcm-on fcm-off').addClass(res.ok ? 'fcm-on' : 'fcm-off');
+      // Token registered → the floating «فعال‌سازی اعلان‌ها» nudge goes away
+      // (the green AppBar bell takes over, as before). On failure the nudge
+      // stays visible so the user can retry from the same spot.
+      if (res.ok && window.NotifyNudge) NotifyNudge.hide();
       const REASONS = {
         unsupported: 'مرورگر شما از اعلان وب پشتیبانی نمی‌کند.',
         disabled: 'پوش نوتیفیکیشن در تنظیمات سیستم خاموش است.',
