@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\FcmPushLog;
 use App\Models\FcmToken;
 use App\Services\FirebasePushService;
 use App\Services\SettingsService;
@@ -132,9 +133,10 @@ class FcmController extends Controller
         ]);
 
         if ($sent === 0) {
-            return response()->json([
-                'error' => 'هیچ توکن فعالی برای کاربر شما ثبت نشده. ابتدا یک تب باز بگذارید تا توکن ثبت شود.',
-            ], 400);
+            // $sent === 0 has THREE very different causes (no token / broken
+            // FCM config / Google rejected the send). Answer with the REAL
+            // one instead of blanket-blaming the token.
+            return response()->json(['error' => $this->zeroSendReason($user->id)], 400);
         }
 
         return response()->json([
@@ -142,6 +144,43 @@ class FcmController extends Controller
             'sent' => $sent,
             'message' => "پوش به {$sent} دستگاه ارسال شد.",
         ]);
+    }
+
+    /**
+     * Resolve WHY a send returned zero — the old code answered every
+     * zero-send with «هیچ توکن فعالی ثبت نشده», which sent the admin
+     * hunting for a token problem that did not exist (e.g. a missing
+     * service account, or Google rejecting every send). Two-step truth:
+     *  1. no ACTIVE token row → token-side answer (with a deactivation
+     *     hint when an inactive row exists — re-enabling notifications
+     *     re-registers it);
+     *  2. tokens exist → the real error is in the LAST fcm_push_log row
+     *     (messaging-client-unavailable = config gap, or Google's own
+     *     per-send rejection reason).
+     */
+    private function zeroSendReason(string $userId): string
+    {
+        $active = FcmToken::where('user_id', $userId)->where('is_active', true)->count();
+        if ($active === 0) {
+            $inactive = FcmToken::where('user_id', $userId)->where('is_active', false)->count();
+
+            return $inactive > 0
+                ? "توکن این دستگاه برای کاربر غیرفعال شده ({$inactive} مورد). یک بار دیگر اعلان‌ها را فعال کنید تا دوباره ثبت شود."
+                : 'هیچ توکن فعالی برای کاربر شما ثبت نشده. ابتدا یک تب باز بگذارید تا توکن ثبت شود.';
+        }
+
+        $last = FcmPushLog::where('channel', 'user')->where('target', $userId)
+            ->orderByDesc('id')
+            ->first();
+        $err = trim((string) ($last->error ?? ''));
+        if ($err === '') {
+            return 'توکن فعال ثبت شده اما ارسال ناموفق بود — جزئیات در «لاگ پوش» پنل مدیریت.';
+        }
+        if (str_starts_with($err, 'Messaging client unavailable')) {
+            return 'کانفیگ FCM روی سرور ناقص است (fcmServiceAccount / fcmProjectId) — توکن سالم است ولی ارسال انجام نشد.';
+        }
+
+        return 'توکن فعال است اما گوگل ارسال را نپذیرفت: '.mb_substr($err, 0, 300);
     }
 
     /**
@@ -204,7 +243,7 @@ class FcmController extends Controller
 
         $msg = $sent > 0
             ? "پوش به {$sent} دستگاه کاربر ارسال شد."
-            : 'کاربر هیچ توکن فعال ثبت‌شده‌ای ندارد (شاید هنوز وارد نشده یا اجازه نوتیفیکیشن نداده).';
+            : $this->zeroSendReason($target->id);
         if ($smsSent) {
             $msg .= ' پیامک هم ارسال شد.';
         }
