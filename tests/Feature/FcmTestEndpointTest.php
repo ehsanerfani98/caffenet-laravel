@@ -2,12 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Models\FcmPushLog;
 use App\Models\FcmToken;
 use App\Models\User;
 use App\Services\FirebasePushService;
 use App\Services\SettingsService;
+use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Kreait\Firebase\Exception\Messaging\ServerUnavailable;
+use Kreait\Firebase\Exception\Messaging\InvalidMessage;
 use Kreait\Firebase\Messaging\MessageTarget;
 use Kreait\Firebase\Messaging\MulticastSendReport;
 use Kreait\Firebase\Messaging\SendReport;
@@ -141,5 +146,76 @@ class FcmTestEndpointTest extends TestCase
         $resp->assertStatus(400);
         $resp->assertJsonPath('error', fn (string $e) => str_contains($e, 'گوگل ارسال را نپذیرفت') && str_contains($e, '502 upstream'));
         $this->assertTrue((bool) FcmToken::where('token', 'tok-fcmtest-active')->value('is_active'), 'transient failure must not deactivate the token');
+    }
+
+    /**
+     * THE user-reported production failure: Google's OAuth2 endpoint
+     * rejects the service account with 400 invalid_grant. Kreait throws
+     * InvalidMessage whose getMessage() is JUST "invalid_grant" — the real
+     * reason (error_description) only survives in the Guzzle ClientException
+     * attached as previous. The endpoint must surface BOTH the full reason
+     * AND an actionable Persian fix hint.
+     */
+    public function test_google_oauth_rejection_exposes_real_cause_and_hint(): void
+    {
+        $this->enableFcm();
+        $this->makeToken(true);
+
+        $body = '{"error":"invalid_grant","error_description":"Invalid grant: account not found"}';
+        $guzzle = new ClientException(
+            'Client error: `POST https://oauth2.googleapis.com/token` resulted in a `400 Bad Request` response: '.$body,
+            new Request('POST', 'https://oauth2.googleapis.com/token'),
+            new Response(400, ['Content-Type' => 'application/json'], $body)
+        );
+        $kreait = new InvalidMessage('invalid_grant', 0, $guzzle);
+
+        $m = Mockery::mock(\Kreait\Firebase\Contract\Messaging::class);
+        $m->shouldReceive('sendMulticast')->once()->andThrow($kreait);
+        FirebasePushService::setMessagingOverride($m);
+
+        $resp = $this->actingAs($this->admin())->postJson('/api/fcm/test');
+
+        $resp->assertStatus(400);
+        $resp->assertJsonPath('error', fn (string $e) =>
+            str_contains($e, 'گوگل ارسال را نپذیرفت')
+            && str_contains($e, 'Invalid grant: account not found')
+            && str_contains($e, 'حساب سرویس'));
+
+        // The log row must carry the FULL description for future diagnosis
+        // — not Guzzle's 120-char body summary, not the bare code.
+        $log = FcmPushLog::orderByDesc('id')->first();
+        $this->assertStringContainsString('account not found', (string) $log->error);
+        $this->assertStringContainsString('[HTTP 400]', (string) $log->error);
+    }
+
+    /**
+     * Old log rows (like the ones already sitting in the user's production
+     * DB) only contain the bare "invalid_grant" code. Even those must get
+     * a general-but-actionable hint instead of a dead end.
+     */
+    public function test_bare_invalid_grant_from_old_log_rows_still_gets_hint(): void
+    {
+        $this->enableFcm();
+        $this->makeToken(true);
+
+        FcmPushLog::create([
+            'id' => 'fcmpush-old-grant',
+            'channel' => 'user',
+            'target' => $this->admin()->id,
+            'title' => 'تست',
+            'body' => 'تست',
+            'status' => 'failed',
+            'sent_count' => 0,
+            'failed_count' => 1,
+            'error' => 'invalid_grant',
+            'created_at' => now()->toIso8601String(),
+        ]);
+
+        $resp = $this->actingAs($this->admin())->postJson('/api/fcm/test');
+
+        $resp->assertStatus(400);
+        $resp->assertJsonPath('error', fn (string $e) =>
+            str_contains($e, 'invalid_grant')
+            && str_contains($e, 'کلید خصوصی تازه'));
     }
 }

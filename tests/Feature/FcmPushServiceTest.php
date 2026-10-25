@@ -391,6 +391,57 @@ class FcmPushServiceTest extends TestCase
         $this->assertTrue($byKey['projectId']['ok']);
         $this->assertTrue($byKey['serviceAccount']['ok']);
         $this->assertTrue($byKey['messaging']['ok']);
+
+        // Offline mode (default): the oauth step is present and explains
+        // why it was skipped — NO network call ever happens in tests.
+        $this->assertArrayHasKey('oauth', $byKey);
+        $this->assertFalse($byKey['oauth']['ok']);
+        $this->assertStringContainsString('عیب‌یابی پوش', $byKey['oauth']['detail']);
+    }
+
+    /**
+     * explainError() turns Google's raw OAuth2 error strings into concrete
+     * Persian repair instructions. Each known invalid_grant cause must map
+     * to the right hint, and unknown errors must pass through untouched.
+     */
+    public function test_explain_error_maps_known_google_causes(): void
+    {
+        // Rotated/mismatched private key → build a NEW key.
+        $this->assertStringContainsString(
+            'کلید تازه',
+            FirebasePushService::explainError('Invalid grant: Invalid JWT Signature. (invalid_grant) [HTTP 400]')
+        );
+
+        // Server clock ahead of Google → fix the CLOCK, not the key.
+        $this->assertStringContainsString(
+            'ساعت سرور',
+            FirebasePushService::explainError('Invalid JWT: Token must be a future date: 2026-10-26T08:00:00Z (invalid_grant) [HTTP 400]')
+        );
+        $this->assertStringContainsString(
+            'ساعت سرور',
+            FirebasePushService::explainError('Invalid JWT: Token used too early, 2026-10-26T08:00:00Z. Check that your computer\'s clock is set correctly.')
+        );
+
+        // Revoked/deleted key → new key + replace.
+        $this->assertStringContainsString(
+            'حذف یا باطل شده',
+            FirebasePushService::explainError('Token has been expired or revoked. (invalid_grant) [HTTP 400]')
+        );
+
+        // Nonexistent service account (the reproduced production case).
+        $this->assertStringContainsString(
+            'حساب سرویس',
+            FirebasePushService::explainError('Invalid grant: account not found (invalid_grant) [HTTP 400]')
+        );
+
+        // Bare legacy code with no description → still a general hint.
+        $this->assertStringContainsString(
+            'کلید خصوصی تازه',
+            FirebasePushService::explainError('invalid_grant')
+        );
+
+        // Unrelated errors pass through without a hint.
+        $this->assertSame('', FirebasePushService::explainError('502 upstream'));
     }
 
     public function test_register_token_reactivates_and_refreshes(): void

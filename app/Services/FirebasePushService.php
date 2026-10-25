@@ -9,6 +9,7 @@ use Kreait\Firebase\Exception\Messaging\NotFound;
 use Kreait\Firebase\Exception\Messaging\SenderIdMismatch;
 use Kreait\Firebase\Exception\MessagingException;
 use Kreait\Firebase\Factory;
+use GuzzleHttp\Exception\RequestException;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -204,8 +205,12 @@ class FirebasePushService
             } catch (MessagingException $e) {
                 // Whole batch rejected (auth/quota/server) — TRANSIENT or
                 // config-level: none of the tokens may be deactivated.
+                // describeError() digs Google's FULL response body out of the
+                // exception chain — Kreait's own message for OAuth failures
+                // is just the bare code (e.g. "invalid_grant") with the
+                // actual reason (error_description) thrown away.
                 $failed += count($chunk);
-                $firstError ??= $e->getMessage();
+                $firstError ??= self::describeError($e);
                 Log::error('FirebasePushService: multicast batch failed', [
                     'user_id' => $userId,
                     'error' => mb_substr($e->getMessage(), 0, 500),
@@ -214,7 +219,7 @@ class FirebasePushService
             } catch (\Throwable $e) {
                 // Connection-level failure — transient, keep tokens alive.
                 $failed += count($chunk);
-                $firstError ??= $e->getMessage();
+                $firstError ??= self::describeError($e);
                 Log::error('FirebasePushService: multicast request failed', [
                     'user_id' => $userId,
                     'error' => mb_substr($e->getMessage(), 0, 500),
@@ -349,7 +354,7 @@ class FirebasePushService
                 'title' => $payload['title'] ?? '', 'body' => $payload['body'] ?? '',
                 'data_json' => json_encode($payload['data'] ?? [], JSON_UNESCAPED_UNICODE),
                 'status' => 'failed', 'sent_count' => 0, 'failed_count' => 1,
-                'error' => mb_substr($e->getMessage(), 0, 500),
+                'error' => mb_substr(self::describeError($e), 0, 500),
                 'sent_by' => $sentBy,
             ]);
 
@@ -428,6 +433,98 @@ class FirebasePushService
     }
 
     /**
+     * Reduce any exception thrown on the FCM path to the most truthful
+     * one-line description available.
+     *
+     * Why this exists: for OAuth-level rejections Kreait throws e.g.
+     * InvalidMessage whose getMessage() is JUST the bare code
+     * ("invalid_grant") — the actual reason ("Invalid grant: account not
+     * found") lives in Google's HTTP response body, which only survives
+     * inside the Guzzle RequestException in getPrevious(). Guzzle's own
+     * exception message truncates that body, so the FULL body must be read
+     * from the embedded PSR-7 response. Response-derived evidence always
+     * wins over exception messages.
+     */
+    private static function describeError(\Throwable $e): string
+    {
+        /** @var string[] $http richest evidence: full Google response bodies */
+        $http = [];
+        /** @var string[] $msgs fallback: exception messages down the chain */
+        $msgs = [];
+
+        $cur = $e;
+        for ($depth = 0; $cur !== null && $depth < 4; $depth++, $cur = $cur->getPrevious()) {
+            if ($cur instanceof RequestException && ($resp = $cur->getResponse())) {
+                $body = trim((string) $resp->getBody());
+                $json = json_decode($body, true);
+                if (is_array($json) && ! empty($json['error'])) {
+                    $http[] = trim((string) ($json['error_description'] ?? $body))
+                        .' ('.$json['error'].') [HTTP '.$resp->getStatusCode().']';
+                } elseif ($body !== '') {
+                    $http[] = 'HTTP '.$resp->getStatusCode().': '.mb_substr($body, 0, 200);
+                }
+            }
+
+            $m = trim($cur->getMessage());
+            if ($m !== '' && ! in_array($m, $msgs, true)) {
+                $msgs[] = $m;
+            }
+        }
+
+        $parts = $http !== [] ? $http : $msgs;
+
+        return $parts === []
+            ? 'خطای بدون متن از کلاس '.class_basename($e)
+            : mb_substr(implode(' — ', $parts), 0, 500);
+    }
+
+    /**
+     * Turn a stored push-log error string into an actionable Persian hint
+     * for the admin. Returns '' when nothing specific matches (the raw
+     * error text is always shown next to the hint).
+     *
+     * Google's OAuth2 token endpoint rejects bad service accounts with
+     * HTTP 400 invalid_grant + an error_description that names the exact
+     * cause (rotated key / wrong SA / server clock skew / disabled SA).
+     */
+    public static function explainError(string $err): string
+    {
+        $haystack = mb_strtolower($err);
+
+        $hint = match (true) {
+            str_contains($haystack, 'account not found')
+                => 'حساب سرویس (client_email) نزد گوگل وجود ندارد — JSON حساب سرویسِ همان پروژه را از Firebase Console → Project Settings → Service Accounts دوباره بگیرید و کامل بچسبانید.',
+            str_contains($haystack, 'invalid jwt signature')
+                => 'امضای کلید خصوصی نزد گوگل رد شد — کلید ذخیره‌شده با کلید فعلی حساب سرویس هم‌خوان نیست؛ از Firebase Console کلید تازه بسازید (Generate New Private Key) و JSON کامل را بدون تغییر بچسبانید.',
+            str_contains($haystack, 'expired or revoked')
+                => 'این کلید خصوصی حذف یا باطل شده است — از Firebase Console کلید جدید بسازید و جایگزین کنید.',
+            str_contains($haystack, 'token used too early')
+                || str_contains($haystack, 'must be a future date')
+                || str_contains($haystack, 'not yet valid')
+                => 'ساعت سرور با ساعت گوگل هم‌خوان نیست — ساعت سیستم را اصلاح کنید (ویندوز: همگام‌سازی زمان اینترنتی / لینوکس: NTP) و چند دقیقه بعد دوباره تست بزنید.',
+            str_contains($haystack, 'invalid_client')
+                || str_contains($haystack, 'unauthorized client')
+                => 'client_email یا private_key ناقص یا ناهم‌خوان paste شده — JSON را کامل و بدون تغییر دوباره بچسبانید.',
+            str_contains($haystack, 'deleted client')
+                || str_contains($haystack, 'account disabled')
+                => 'حساب سرویس در Google Cloud حذف یا غیرفعال شده — بخش IAM و Admin → Service Accounts را بررسی کنید.',
+            default => '',
+        };
+
+        if ($hint !== '') {
+            return ' ← راهنما: '.$hint;
+        }
+
+        // Bare OAuth code with no description survived (e.g. old log rows
+        // that only store "invalid_grant") — still give the general fix.
+        if (str_contains($haystack, 'invalid_grant')) {
+            return ' ← راهنما: اعتبارنامهٔ حساب سرویس نزد گوگل پذیرفته نشده — از Firebase Console یک کلید خصوصی تازه بسازید، در تنظیمات سیستم جایگزین کنید و دکمهٔ «عیب‌یابی پوش» را بزنید تا علت دقیق نمایش داده شود.';
+        }
+
+        return '';
+    }
+
+    /**
      * Send a push notification to a single FCM token. Returns true on
      * success, false on failure (permanent OR transient — callers that
      * need to distinguish them should use sendToUser / the typed SDK API).
@@ -451,7 +548,7 @@ class FirebasePushService
         } catch (\Throwable $e) {
             Log::error('FirebasePushService: send failed', [
                 'token' => substr($fcmToken, 0, 20).'…',
-                'error' => mb_substr($e->getMessage(), 0, 500),
+                'error' => mb_substr(self::describeError($e), 0, 500),
             ]);
 
             return false;
@@ -571,11 +668,22 @@ class FirebasePushService
     }
 
     /**
-     * Step-by-step health report for the admin "push diagnostics" panel:
-     * settings presence, service-account validity, SDK client creation,
-     * and registered-token stats. Never sends anything.
+     * Admin-only: step-by-step push health diagnostics (settings, service
+     * account validity, FCM client creation, token stats).
+     *
+     * @param  bool  $liveAuth  When TRUE, additionally performs a REAL
+     *                           OAuth2 token exchange with Google (one
+     *                           HTTPS call, ~10s worst case). Opt-in from
+     *                           the FcmController — offline by default so
+     *                           tests / repeated panel loads never hit
+     *                           Google. This is the ONLY step that can
+     *                           catch invalid_grant-class failures (a
+     *                           revoked/rotated service account passes
+     *                           every other step and still fails at
+     *                           send time).
+     * Sends nothing — pure introspection, used by the «عیب‌یابی پوش» button.
      */
-    public static function selfCheck(): array
+    public static function selfCheck(bool $liveAuth = false): array
     {
         $steps = [];
 
@@ -645,11 +753,50 @@ class FirebasePushService
         }
         $steps[] = [
             'key' => 'messaging',
-            'label' => 'ساخت کلاینت FCM (OAuth با حساب سرویس) موفق است؟',
+            'label' => 'ساخت کلاینت FCM از روی حساب سرویس موفق است؟',
             'ok' => $messagingOk,
             'detail' => $messagingOk
-                ? 'کلاینت آماده است.'
+                ? 'کلاینت ساخته شد — توجه: این گام هنوز با گوگل تماس نمی‌گیرد؛ اعتبار واقعی در گام بعد بررسی می‌شود.'
                 : ($messagingError ?? 'به دلیل موارد بالا اجرا نشد.'),
+        ];
+
+        // LIVE OAuth2 check — the only step that catches invalid_grant-class
+        // failures (rotated/revoked/deleted service account, server clock
+        // skew). Client construction succeeds for any syntactically valid
+        // key because Google is only contacted when the access token is
+        // actually minted (lazily, on first send — or here, explicitly).
+        $authOk = false;
+        $authDetail = 'به دلیل موارد بالا اجرا نشد.';
+        if ($liveAuth && $enabled && $saValid) {
+            try {
+                $creds = new \Google\Auth\Credentials\ServiceAccountCredentials(
+                    'https://www.googleapis.com/auth/firebase.messaging',
+                    $sa
+                );
+                $handler = \Google\Auth\HttpHandler\HttpHandlerFactory::build(
+                    new \GuzzleHttp\Client(['timeout' => 10, 'connect_timeout' => 5])
+                );
+                $token = $creds->fetchAuthToken($handler);
+                if (isset($token['access_token'])) {
+                    $authOk = true;
+                    $authDetail = 'گوگل کلید حساب سرویس را پذیرفت و توکن دسترسی صادر کرد (اعتبار ≈ '
+                        .($token['expires_in'] ?? '?').' ثانیه). مسیر ارسال آزاد است.';
+                } else {
+                    $authDetail = 'پاسخ غیرمنتظرهٔ گوگل: '
+                        .mb_substr(json_encode($token, JSON_UNESCAPED_UNICODE), 0, 300);
+                }
+            } catch (\Throwable $e) {
+                $desc = self::describeError($e);
+                $authDetail = 'گوگل اعتبارنامه را نپذیرفت: '.$desc.self::explainError($desc);
+            }
+        }
+        $steps[] = [
+            'key' => 'oauth',
+            'label' => 'تبادل واقعی توکن OAuth با گوگل موفق است؟',
+            'ok' => $authOk,
+            'detail' => $liveAuth
+                ? $authDetail
+                : 'برای صرفه‌جویی، این گام فقط با دکمهٔ «عیب‌یابی پوش» اجرا می‌شود (تماس واقعی با گوگل).',
         ];
 
         $steps[] = [

@@ -180,7 +180,9 @@ class FcmController extends Controller
             return 'کانفیگ FCM روی سرور ناقص است (fcmServiceAccount / fcmProjectId) — توکن سالم است ولی ارسال انجام نشد.';
         }
 
-        return 'توکن فعال است اما گوگل ارسال را نپذیرفت: '.mb_substr($err, 0, 300);
+        return 'توکن فعال است اما گوگل ارسال را نپذیرفت: '
+            .mb_substr($err, 0, 300)
+            .FirebasePushService::explainError($err);
     }
 
     /**
@@ -349,7 +351,7 @@ class FcmController extends Controller
             return response()->json(['error' => 'دسترسی غیرمجاز.'], 403);
         }
 
-        $steps = FirebasePushService::selfCheck();
+        $steps = FirebasePushService::selfCheck(liveAuth: true);
 
         return response()->json([
             'ok' => ! in_array(false, array_column($steps, 'ok'), true),
