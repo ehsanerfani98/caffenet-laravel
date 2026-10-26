@@ -74,6 +74,7 @@ class ServiceBenefitNoticeTest extends TestCase
         $this->insertService([
             'base_price' => 99000, 'benefit' => 67000,
             'notice_type' => 'lock', 'notice_text' => 'این خدمت موقتاً بسته است.',
+            'is_notice_enabled' => true,
         ]);
 
         $resp = $this->getJson('/api/services');
@@ -85,9 +86,10 @@ class ServiceBenefitNoticeTest extends TestCase
         $this->assertSame(67000, $svc['benefit']);
         $this->assertSame('lock', $svc['noticeType']);
         $this->assertSame('این خدمت موقتاً بسته است.', $svc['noticeText']);
+        $this->assertTrue($svc['isNoticeEnabled']);
     }
 
-    public function test_services_endpoint_returns_nulls_for_unconfigured_rows(): void
+    public function test_services_endpoint_returns_nulls_and_false_for_unconfigured_rows(): void
     {
         $this->insertService();
 
@@ -95,6 +97,7 @@ class ServiceBenefitNoticeTest extends TestCase
         $this->assertNull($svc['benefit']);
         $this->assertNull($svc['noticeType']);
         $this->assertNull($svc['noticeText']);
+        $this->assertFalse($svc['isNoticeEnabled']); // default
     }
 
     public function test_save_service_persists_benefit_and_notice(): void
@@ -108,15 +111,18 @@ class ServiceBenefitNoticeTest extends TestCase
             'benefit' => 67000,
             'noticeType' => 'normal',
             'noticeText' => "ساعات پاسخگویی: ۹ تا ۲۱\nلطفاً پیش از ثبت سفارش بخوانید.",
+            'isNoticeEnabled' => true,
         ]);
 
         $resp->assertOk();
         $this->assertSame(67000, $resp->json('benefit'));
         $this->assertSame('normal', $resp->json('noticeType'));
+        $this->assertTrue($resp->json('isNoticeEnabled'));
 
         $row = DB::table('services')->where('title', 'تاییدیه کدپستی')->first();
         $this->assertSame(67000, (int) $row->benefit);
         $this->assertSame('normal', $row->notice_type);
+        $this->assertSame(1, (int) $row->is_notice_enabled);
         $this->assertStringContainsString('لطفاً پیش از ثبت سفارش بخوانید.', (string) $row->notice_text);
     }
 
@@ -170,6 +176,7 @@ class ServiceBenefitNoticeTest extends TestCase
     {
         $this->insertService([
             'notice_type' => 'lock', 'notice_text' => 'سرویس در حال حاضر غیرفعال است.',
+            'is_notice_enabled' => true, // master switch ON — the lock is live
         ]);
         $customer = $this->customer();
 
@@ -188,7 +195,7 @@ class ServiceBenefitNoticeTest extends TestCase
 
     public function test_locked_service_without_text_falls_back_to_a_default_message(): void
     {
-        $this->insertService(['notice_type' => 'lock']);
+        $this->insertService(['notice_type' => 'lock', 'is_notice_enabled' => true]);
         $customer = $this->customer();
 
         $resp = $this->actingAs($customer)->postJson('/api/orders', [
@@ -207,6 +214,7 @@ class ServiceBenefitNoticeTest extends TestCase
 
         $this->insertService([
             'notice_type' => 'normal', 'notice_text' => 'لطفاً پیش از ثبت سفارش بخوانید.',
+            'is_notice_enabled' => true,
         ]);
         $customer = $this->customer();
 
@@ -221,5 +229,64 @@ class ServiceBenefitNoticeTest extends TestCase
 
         $resp->assertStatus(201);
         $this->assertSame(1, Order::count());
+    }
+
+    public function test_dormant_lock_takes_orders_when_the_notice_switch_is_off(): void
+    {
+        // notice_type = lock configured but the isNoticeEnabled master switch
+        // is OFF (the default) — the row is fully dormant: no popup anywhere
+        // and the completely normal order flow applies.
+        SettingsService::set('paymentsDisabled', '1');
+
+        $this->insertService([
+            'notice_type' => 'lock', 'notice_text' => 'بسته است.',
+            'is_notice_enabled' => false,
+        ]);
+        $customer = $this->customer();
+
+        $resp = $this->actingAs($customer)->postJson('/api/orders', [
+            'serviceId' => 'srv-test',
+            'formData' => [],
+            'urgency' => 'normal',
+            'deliveryMethod' => 'download',
+            'contactMethods' => ['app_chat'],
+            'paymentMethod' => 'request',
+        ]);
+
+        $resp->assertStatus(201);
+        $this->assertSame(1, Order::count());
+    }
+
+    public function test_notice_seeder_imports_the_switch_by_title(): void
+    {
+        $this->insertService(['title' => 'نوبت دهی مطب دکتر', 'notice_type' => 'normal']);
+        $this->insertService([
+            'id' => 'srv-2', 'title' => 'ثبت نام ماشین  ', // DB title with padding — trimmed match
+            'notice_type' => 'lock', 'notice_text' => 'بسته است.', 'is_notice_enabled' => true,
+        ]);
+        $this->insertService(['id' => 'srv-3', 'title' => 'تحقیق اینترنتی']);
+
+        // The JSON export — سرویس‌های فعال/غیرفعال بر اساس عنوان.
+        $json = json_encode([
+            'items' => [
+                ['title' => 'نوبت دهی مطب دکتر', 'isNoticeEnabled' => true],
+                ['title' => 'ثبت نام ماشین', 'isNoticeEnabled' => false], // disabled → dormant
+                ['title' => 'خدمتی که وجود ندارد', 'isNoticeEnabled' => true], // unmatched — ignored
+            ],
+        ], JSON_UNESCAPED_UNICODE);
+        $file = storage_path('framework/testing/service-notice-seeder.json');
+        @mkdir(dirname($file), 0777, true);
+        file_put_contents($file, $json);
+
+        (new \Database\Seeders\ServiceNoticeSeeder)->run($file);
+
+        $this->assertSame(1, (int) DB::table('services')->where('title', 'نوبت دهی مطب دکتر')->value('is_notice_enabled'));
+        $this->assertSame(0, (int) DB::table('services')->where('id', 'srv-2')->value('is_notice_enabled'));
+        $this->assertSame(0, (int) DB::table('services')->where('id', 'srv-3')->value('is_notice_enabled'));
+        // Notice content is NEVER touched by the seeder — only the switch.
+        $this->assertSame('lock', DB::table('services')->where('id', 'srv-2')->value('notice_type'));
+        $this->assertSame('بسته است.', DB::table('services')->where('id', 'srv-2')->value('notice_text'));
+
+        @unlink($file);
     }
 }

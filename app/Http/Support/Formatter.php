@@ -41,6 +41,9 @@ class Formatter
             // | 'normal' = read-me-first announcement (red / orange popup).
             'noticeType' => $row->notice_type !== null ? (string) $row->notice_type : null,
             'noticeText' => $row->notice_text !== null ? (string) $row->notice_text : null,
+            // Master switch: false (default) = notice dormant — no popup and
+            // the completely normal order flow, even with a configured type.
+            'isNoticeEnabled' => (bool) ($row->is_notice_enabled ?? false),
             'estimatedTime' => (string) ($row->estimated_time ?? ''),
             'icon' => (string) ($row->icon ?? ''),
             'iconColor' => (string) ($row->icon_color ?? ''),

@@ -68,10 +68,11 @@
     );
   }
 
-  /* Red notice body for a locked service (notice_type = 'lock') — the
-   * page renders hero + fee card + this box INSTEAD of the order form:
-   * the service is closed until further notice. The server mirrors the
-   * same guard, so a crafted request cannot slip past this UI. */
+  /* Red notice body for a locked service (notice_type = 'lock' + the
+   * isNoticeEnabled master switch) — the page renders hero + fee card +
+   * this box INSTEAD of the order form: the service is closed until
+   * further notice. The server mirrors the same guard, so a crafted
+   * request cannot slip past this UI. */
   function lockedNoticeHtml(svc) {
     const text = String(svc.noticeText || '').trim() || 'این خدمت تا اطلاع ثانوی قابل ثبت سفارش نیست.';
     return (
@@ -105,6 +106,9 @@
 
     function renderInto(svc) {
       const user = api.state.currentUser;
+      // The notice master switch gates the whole lock behavior: with the
+      // switch off the row is dormant and the page renders the normal form.
+      const locked = svc.noticeType === 'lock' && !!svc.isNoticeEnabled;
       let formHtml;
       if (user && user.role === 'customer') {
         formHtml = '<div id="service-form-region"></div>';
@@ -121,10 +125,10 @@
       }
 
       $root.html(heroHtml(svc, api.state.settings || {}) + feeCardHtml(svc) +
-        (svc.noticeType === 'lock' ? lockedNoticeHtml(svc) : formHtml));
+        (locked ? lockedNoticeHtml(svc) : formHtml));
       $root.find('#service-login').on('click', function () { Screens.openAuth(); });
 
-      if (user && user.role === 'customer' && svc.noticeType !== 'lock') {
+      if (user && user.role === 'customer' && !locked) {
         const $region = $root.find('#service-form-region');
         const mount = function () {
           // Fresh child elements every mount so the delegated handlers of

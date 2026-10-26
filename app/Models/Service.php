@@ -12,6 +12,7 @@ class Service extends CaffenetModel
         'id', 'category_id', 'title', 'slug', 'description', 'base_price', 'estimated_time',
         'icon', 'icon_color', 'sort_order', 'is_active', 'is_featured', 'featured_sort',
         'fields_json', 'pricing_formula', 'created_at', 'benefit', 'notice_type', 'notice_text',
+        'is_notice_enabled',
     ];
 
     protected $casts = [
@@ -21,6 +22,7 @@ class Service extends CaffenetModel
         'is_active' => 'boolean',
         'is_featured' => 'boolean',
         'featured_sort' => 'integer',
+        'is_notice_enabled' => 'boolean',
     ];
 
     /** Dynamic form-builder fields (text/number/select/…) as an array. */

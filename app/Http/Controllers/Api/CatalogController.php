@@ -204,6 +204,9 @@ class CatalogController extends Controller
                 ? trim((string) ($body['noticeText'] ?? ''))
                 : null;
         }
+        if (array_key_exists('isNoticeEnabled', $body)) {
+            $payload['is_notice_enabled'] = (bool) $body['isNoticeEnabled'];
+        }
 
         // URL slug (#/service/{slug}) — generated ONCE from the title and kept
         // stable afterwards so shared links never break. New rows always get

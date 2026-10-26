@@ -309,6 +309,9 @@
       let svcIconColor = (svc && svc.iconColor) || '';
       let svcSortOrder = (svc && typeof svc.sortOrder === 'number') ? svc.sortOrder : 0;
       // اطلاعیه سرویس + کارمزد کافی‌نت — null benefit = never configured.
+      // noticeOn (isNoticeEnabled) is the master switch: when false the
+      // notice stays dormant — no popup, completely normal order flow.
+      let noticeOn = !!(svc && svc.isNoticeEnabled);
       let noticeType = (svc && svc.noticeType) || '';
       let noticeText = (svc && svc.noticeText) || '';
       const LIB = window.CATEGORY_ICON_LIBRARY || [];
@@ -392,14 +395,19 @@
             '</div>' +
           '</div>' +
 
-          '<div class="card" style="padding:11px 12px;margin-bottom:10px;background:' + (noticeType === 'lock' ? '#fff1f2' : noticeType === 'normal' ? '#fffbeb' : 'var(--slate-soft)') + '">' +
-            '<label class="field-label" style="margin:0 0 6px">اطلاعیه سرویس</label>' +
-            '<select class="select" id="svc-notice-type">' +
-              '<option value=""' + (!noticeType ? ' selected' : '') + '>بدون اطلاعیه — روند عادی ثبت سفارش</option>' +
-              '<option value="lock"' + (noticeType === 'lock' ? ' selected' : '') + '>بسته — تا اطلاع ثانوی سفارش پذیرفته نمی‌شود (پاپ‌آپ قرمز)</option>' +
-              '<option value="normal"' + (noticeType === 'normal' ? ' selected' : '') + '>اطلاعیه — مشتری قبل از ثبت سفارش می‌بیند (پاپ‌آپ نارنجی)</option>' +
-            '</select>' +
-            '<textarea class="textarea" id="svc-notice-text" rows="3" style="margin-top:8px' + (noticeType ? '' : ';display:none') + '" placeholder="متن اطلاعیه‌ای که در پاپ‌آپ به مشتری نمایش داده می‌شود…">' + PU.escapeHtml(noticeText) + '</textarea>' +
+          '<div class="card" style="padding:11px 12px;margin-bottom:10px;background:' + (noticeOn && noticeType === 'lock' ? '#fff1f2' : noticeOn && noticeType === 'normal' ? '#fffbeb' : 'var(--slate-soft)') + '">' +
+            '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;cursor:pointer">' +
+              '<input type="checkbox" id="svc-notice-on"' + (noticeOn ? ' checked' : '') + ' style="width:18px;height:18px;accent-color:#e11d48"> ' +
+              icon('bullhorn') + 'نمایش اطلاعیه به مشتری (سوییچ اصلی)</label>' +
+            '<div id="svc-notice-fields" style="margin-top:8px' + (noticeOn ? '' : ';display:none') + '">' +
+              '<label class="field-label" style="margin:0 0 6px">نوع اطلاعیه</label>' +
+              '<select class="select" id="svc-notice-type">' +
+                '<option value=""' + (!noticeType ? ' selected' : '') + '>بدون اطلاعیه — روند عادی ثبت سفارش</option>' +
+                '<option value="lock"' + (noticeType === 'lock' ? ' selected' : '') + '>بسته — تا اطلاع ثانوی سفارش پذیرفته نمی‌شود (پاپ‌آپ قرمز)</option>' +
+                '<option value="normal"' + (noticeType === 'normal' ? ' selected' : '') + '>اطلاعیه — مشتری قبل از ثبت سفارش می‌بیند (پاپ‌آپ نارنجی)</option>' +
+              '</select>' +
+              '<textarea class="textarea" id="svc-notice-text" rows="3" style="margin-top:8px' + (noticeType ? '' : ';display:none') + '" placeholder="متن اطلاعیه‌ای که در پاپ‌آپ به مشتری نمایش داده می‌شود…">' + PU.escapeHtml(noticeText) + '</textarea>' +
+            '</div>' +
           '</div>' +
 
           '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;margin:14px 2px">' +
@@ -411,14 +419,21 @@
         );
         bindFieldEvents();
 
-        // اطلاعیه سرویس — switching the type shows/hides the text editor and
-        // tints the block (red for lock, amber for normal, neutral for none).
+        // اطلاعیه سرویس — the master switch shows/hides the whole editor and
+        // the type selector shows/hides the text editor; the card tints
+        // (red for lock, amber for normal, neutral for off/none).
+        sheet.body.find('#svc-notice-on').on('change', function () {
+          noticeOn = this.checked;
+          sheet.body.find('#svc-notice-fields').toggle(noticeOn);
+          sheet.body.find('#svc-notice-text').closest('.card').css('background',
+            noticeOn && noticeType === 'lock' ? '#fff1f2' : noticeOn && noticeType === 'normal' ? '#fffbeb' : 'var(--slate-soft)');
+        });
         sheet.body.find('#svc-notice-type').on('change', function () {
           noticeType = this.value || '';
           const $text = sheet.body.find('#svc-notice-text');
           $text.toggle(!!noticeType);
           $text.closest('.card').css('background',
-            noticeType === 'lock' ? '#fff1f2' : noticeType === 'normal' ? '#fffbeb' : 'var(--slate-soft)');
+            noticeOn && noticeType === 'lock' ? '#fff1f2' : noticeOn && noticeType === 'normal' ? '#fffbeb' : 'var(--slate-soft)');
         });
       }
 
@@ -556,6 +571,7 @@
               : Math.max(0, Number(sheet.body.find('#svc-benefit').val()) || 0),
             noticeType: sheet.body.find('#svc-notice-type').val() || null,
             noticeText: sheet.body.find('#svc-notice-text').val() || '',
+            isNoticeEnabled: sheet.body.find('#svc-notice-on').is(':checked'),
             estimatedTime: sheet.body.find('#svc-time').val(),
             icon: svcIconKey,
             iconColor: (sheet.body.find('#svc-color').val() || '').trim(),

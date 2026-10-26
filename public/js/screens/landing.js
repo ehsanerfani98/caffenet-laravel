@@ -25,9 +25,13 @@
    *                           customer acknowledges it, the flow continues.
    *  notice_type = null     → normal flow, straight to the service page.
    *
+   * isNoticeEnabled is the master switch: false (default) keeps the notice
+   * dormant — no popup at all, the completely normal flow applies even when
+   * a type/text is configured.
+   *
    * Returns true when the tap was intercepted (a popup was shown). */
   Screens.openServiceNotice = function (svc) {
-    if (!svc || !svc.noticeType) return false;
+    if (!svc || !svc.noticeType || !svc.isNoticeEnabled) return false;
     const isLock = svc.noticeType === 'lock';
     const fallback = isLock
       ? 'این خدمت تا اطلاع ثانوی قابل ثبت سفارش نیست.'

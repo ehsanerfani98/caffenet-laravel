@@ -94,11 +94,12 @@ class OrderController extends Controller
             return response()->json(['error' => 'خدمت انتخاب‌شده معتبر یا فعال نیست.'], 400);
         }
 
-        // «سرویس بسته» (notice_type = lock): the service is visible in the
-        // catalog but cannot take orders until further notice — the client
-        // shows the red popup instead of the order form; the API mirrors the
-        // same contract so a crafted request cannot slip past the UI.
-        if ($service->notice_type === 'lock') {
+        // «سرویس بسته» (notice_type = lock + isNoticeEnabled): the service is
+        // visible in the catalog but cannot take orders until further notice —
+        // the client shows the red popup instead of the order form; the API
+        // mirrors the same contract so a crafted request cannot slip past the
+        // UI. With the notice switch off the row is fully dormant: normal flow.
+        if ($service->notice_type === 'lock' && $service->is_notice_enabled) {
             $notice = trim((string) $service->notice_text);
 
             return response()->json([

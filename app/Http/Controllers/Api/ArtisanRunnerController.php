@@ -40,6 +40,10 @@ class ArtisanRunnerController extends Controller
         // while this one only backfills service slugs (ServiceSlugSeeder,
         // idempotent). Added for the #/service/{slug} rollout on cPanel.
         'db:seed:slugs' => ['command' => 'db:seed', 'opts' => ['--force' => true, '--class' => 'ServiceSlugSeeder']],
+        // Same pattern — imports the is_notice_enabled master switch of the
+        // services from the newest database/data/kafinet-services-*.json
+        // export (ServiceNoticeSeeder, idempotent, matches rows by title).
+        'db:seed:service-notices' => ['command' => 'db:seed', 'opts' => ['--force' => true, '--class' => 'ServiceNoticeSeeder']],
         'cache:clear' => ['command' => 'cache:clear', 'opts' => []],
         'config:cache' => ['command' => 'config:cache', 'opts' => []],
         'config:clear' => ['command' => 'config:clear', 'opts' => []],
