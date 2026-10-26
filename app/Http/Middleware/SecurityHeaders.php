@@ -20,22 +20,31 @@ class SecurityHeaders
             "default-src 'self'",
             // Firebase SDK is loaded dynamically from gstatic.com only when
             // FCM is enabled. The 'unsafe-inline' is required for inline
-            // styles used throughout the SPA (sheets, swatches, positioning).
-            "script-src 'self' 'unsafe-inline' https://www.gstatic.com",
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data: blob:",
-            "font-src 'self' data:",
+            // styles used throughout the SPA (sheets, swatches, positioning)
+            // AND for the inline Goftino widget snippet in app.blade.php.
+            // The goftino host covers the widget script itself (www) and the
+            // client.js it loads from its CDN (cdn.goftino.com).
+            "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://*.goftino.com",
+            // The Goftino widget renders its whole chat UI inside an iframe
+            // whose document the widget itself writes — that frame INHERITS
+            // THIS CSP, so every resource the chat loads must be whitelisted
+            // here: client.css + its fonts from cdn.goftino.com, inline
+            // <style>/style attributes the widget injects, avatars/images
+            // from cdn + s4 (upload server).
+            "style-src 'self' 'unsafe-inline' https://*.goftino.com",
+            "img-src 'self' data: blob: https://*.goftino.com",
+            "font-src 'self' data: https://*.goftino.com",
             // FCM needs connect-src to: firebaseinstallations.googleapis.com
             // (Firebase Installation ID) + fcmregistrations.googleapis.com
             // (the actual token subscribe POST — without it getToken throws
             // messaging/token-subscribe-failed) + fcm.googleapis.com (delivery).
-            "connect-src 'self' https://fcm.googleapis.com https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com https://www.gstatic.com",
-            // The floating support button embeds the Goftino live-chat page
-            // (https://www.goftino.com/c/…) in an iframe — without frame-src
-            // it would fall back to default-src 'self' and be blocked. The
-            // framed document runs under Goftino's own headers; only the
-            // frame URL itself is governed here.
-            "frame-src 'self' https://www.goftino.com https://*.goftino.com",
+            // The goftino hosts cover the widget's XHR API calls (www) and
+            // its WebSocket gateway (wss://ws*.goftino.com).
+            "connect-src 'self' https://fcm.googleapis.com https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com https://www.gstatic.com https://*.goftino.com wss://*.goftino.com",
+            // The Goftino widget creates its chat iframe at runtime
+            // (about:srcdoc — allowed by 'self'); the goftino origins cover
+            // any frame the widget navigates to its own pages.
+            "frame-src 'self' https://*.goftino.com",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",

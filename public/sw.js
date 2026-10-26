@@ -1,7 +1,7 @@
 /* Caffenet Lite — service worker (hand-written, autoUpdate semantics).
  * cache-first for static assets; network-only for /api, /uploads, /media
  * (they are never served the SPA fallback). */
-const CACHE = 'caffenet-v49'; // bump purges every stale entry on activate (v49: Goftino support chat button + panel)
+const CACHE = 'caffenet-v50'; // bump purges every stale entry on activate (v50: custom support iframe removed — official Goftino widget snippet in the shell)
 const SHELL = ['/', '/manifest.webmanifest', '/pwa-192x192.png', '/pwa-512x512.png',
   '/maskable-192x192.png', '/maskable-512x512.png', '/apple-touch-icon.png',
   '/favicon.ico', '/favicon-16x16.png', '/favicon-32x32.png', '/favicon-48x48.png',

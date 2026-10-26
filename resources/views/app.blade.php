@@ -47,9 +47,6 @@
                 while push is inactive for the user, emptied once the FCM
                 token registers (green AppBar bell takes over). --}}
             <div id="notify-nudge"></div>
-            {{-- Floating «اگر سوالی دارید کلیک کنید» support pill (bottom-left)
-                + the Goftino live-chat iframe panel — support-chat.js. --}}
-            <div id="support-chat"></div>
             <div id="busy-overlay" class="busy-overlay hidden">
                 <div class="spinner"></div>
             </div>
@@ -78,7 +75,6 @@
     <script defer src="/js/queue.js?v={{ filemtime(public_path('js/queue.js')) }}"></script>
     <script defer src="/js/fcm.js?v={{ filemtime(public_path('js/fcm.js')) }}"></script>
     <script defer src="/js/notify-nudge.js?v={{ filemtime(public_path('js/notify-nudge.js')) }}"></script>
-    <script defer src="/js/support-chat.js?v={{ filemtime(public_path('js/support-chat.js')) }}"></script>
     <script defer src="/js/datepicker.js?v={{ filemtime(public_path('js/datepicker.js')) }}"></script>
     <script defer src="/js/app.js?v={{ filemtime(public_path('js/app.js')) }}"></script>
     <script defer src="/js/screens/auth.js?v={{ filemtime(public_path('js/screens/auth.js')) }}"></script>
@@ -93,5 +89,16 @@
     <script defer src="/js/screens/admin.js?v={{ filemtime(public_path('js/screens/admin.js')) }}"></script>
     <script defer src="/js/screens/admin-orders.js?v={{ filemtime(public_path('js/screens/admin-orders.js')) }}"></script>
     <script defer src="/js/screens/admin-manage.js?v={{ filemtime(public_path('js/screens/admin-manage.js')) }}"></script>
+
+    {{-- Goftino live-chat widget — the owner-provided OFFICIAL snippet, kept
+         verbatim. Lives at the end of the single SPA shell, so the widget is
+         available on EVERY screen (guests included). It injects its own
+         floating button + chat window; position/appearance are configured in
+         the Goftino dashboard, not in app code. CSP whitelists the hosts it
+         touches (www = widget script, cdn = client.js/css, s4 = uploads,
+         ws* = WebSocket) — see SecurityHeaders.php. --}}
+    <script type="text/javascript">
+      !function(){var i="FdMb9y",d=document,g=d.createElement("script"),s="https://www.goftino.com/widget/"+i,l=localStorage.getItem("goftino_"+i);g.type="text/javascript",g.async=!0,g.src=l?s+"?o="+l:s;d.getElementsByTagName("head")[0].appendChild(g);}();
+    </script>
 </body>
 </html>
