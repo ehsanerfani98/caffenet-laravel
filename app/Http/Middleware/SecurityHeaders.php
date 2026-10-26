@@ -30,6 +30,12 @@ class SecurityHeaders
             // (the actual token subscribe POST — without it getToken throws
             // messaging/token-subscribe-failed) + fcm.googleapis.com (delivery).
             "connect-src 'self' https://fcm.googleapis.com https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com https://www.gstatic.com",
+            // The floating support button embeds the Goftino live-chat page
+            // (https://www.goftino.com/c/…) in an iframe — without frame-src
+            // it would fall back to default-src 'self' and be blocked. The
+            // framed document runs under Goftino's own headers; only the
+            // frame URL itself is governed here.
+            "frame-src 'self' https://www.goftino.com https://*.goftino.com",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",

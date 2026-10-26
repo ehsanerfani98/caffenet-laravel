@@ -701,6 +701,88 @@ svg.i.i-lg { width: 30px; height: 30px; }
     #notify-nudge .nn-hint, #notify-nudge .nn-btn { animation: none; }
 }
 
+/* ---------- floating «اگر سوالی دارید کلیک کنید» support pill + Goftino panel ---------- */
+/* Owner request: a support entry point on EVERY screen (guests included),
+   bottom-LEFT above the nav — mirrors #notify-nudge (same z-layer 55, the
+   two never collide since they sit on opposite corners). The panel embeds
+   the Goftino chat page in an iframe (frame-src whitelisted in
+   SecurityHeaders.php); it hides on close but stays mounted so the live
+   conversation survives, and the iframe src loads lazily on first open. */
+#support-chat {
+    position: absolute;
+    left: 14px;
+    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px);
+    z-index: 55; /* above screen content; below sheets (60/70), toasts (90), busy (99) */
+}
+#support-chat .sc-fab {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 13px 6px 7px; /* RTL: icon bubble first (right side of the pill) */
+    border: 1px solid var(--line); border-radius: 999px;
+    background: var(--card); cursor: pointer; font-family: inherit;
+    box-shadow: 0 5px 16px rgba(15, 23, 42, .14);
+    animation: nnIn .3s ease both;
+    -webkit-tap-highlight-color: transparent;
+}
+#support-chat .sc-fab:active { transform: scale(.96); }
+#support-chat .sc-fab-icon {
+    width: 34px; height: 34px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 12px; background: var(--emerald); color: #fff;
+    box-shadow: 0 3px 8px rgba(5, 150, 105, .35);
+}
+#support-chat .sc-fab-icon svg { width: 18px; height: 18px; }
+#support-chat .sc-fab-text { font-size: 11.5px; font-weight: 800; color: var(--ink); white-space: nowrap; }
+
+/* The chat panel — centered dialog above sheets, below toasts/busy. */
+#support-chat .sc-backdrop {
+    display: none;
+    position: absolute; inset: 0; z-index: 80;
+    background: rgba(2, 8, 23, .55);
+    align-items: center; justify-content: center;
+    padding: 18px;
+    animation: fadeIn .2s ease both;
+    transform: translateZ(0);
+}
+#support-chat.open .sc-backdrop { display: flex; }
+#support-chat .sc-panel {
+    display: flex; flex-direction: column; overflow: hidden;
+    width: min(420px, 100%); height: min(600px, 88%);
+    background: var(--card); border-radius: 20px;
+    box-shadow: 0 18px 50px rgba(2, 8, 23, .35);
+    animation: modalPop .28s cubic-bezier(.32, .72, .34, 1) both;
+}
+#support-chat .sc-head {
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 12px;
+    background: linear-gradient(135deg, var(--emerald) 0%, #047857 100%);
+    color: #fff;
+}
+#support-chat .sc-head-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 800;
+}
+#support-chat .sc-head-title svg { width: 16px; height: 16px; }
+#support-chat .sc-close {
+    width: 32px; height: 32px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: none; border-radius: 10px; cursor: pointer;
+    background: rgba(255, 255, 255, .18); color: #fff;
+    -webkit-tap-highlight-color: transparent;
+}
+#support-chat .sc-close:active { transform: scale(.94); }
+#support-chat .sc-close svg { width: 16px; height: 16px; }
+#support-chat .sc-body { position: relative; flex: 1; min-height: 0; background: #fff; }
+#support-chat .sc-body iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+#support-chat .sc-loading {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--card);
+}
+@media (prefers-reduced-motion: reduce) {
+    #support-chat .sc-fab, #support-chat .sc-backdrop, #support-chat .sc-panel { animation: none; }
+}
+
 /* ---------- misc ---------- */
 .busy-overlay {
     position: absolute; inset: 0; z-index: 99;

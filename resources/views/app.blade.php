@@ -47,6 +47,9 @@
                 while push is inactive for the user, emptied once the FCM
                 token registers (green AppBar bell takes over). --}}
             <div id="notify-nudge"></div>
+            {{-- Floating «اگر سوالی دارید کلیک کنید» support pill (bottom-left)
+                + the Goftino live-chat iframe panel — support-chat.js. --}}
+            <div id="support-chat"></div>
             <div id="busy-overlay" class="busy-overlay hidden">
                 <div class="spinner"></div>
             </div>
@@ -75,6 +78,7 @@
     <script defer src="/js/queue.js?v={{ filemtime(public_path('js/queue.js')) }}"></script>
     <script defer src="/js/fcm.js?v={{ filemtime(public_path('js/fcm.js')) }}"></script>
     <script defer src="/js/notify-nudge.js?v={{ filemtime(public_path('js/notify-nudge.js')) }}"></script>
+    <script defer src="/js/support-chat.js?v={{ filemtime(public_path('js/support-chat.js')) }}"></script>
     <script defer src="/js/datepicker.js?v={{ filemtime(public_path('js/datepicker.js')) }}"></script>
     <script defer src="/js/app.js?v={{ filemtime(public_path('js/app.js')) }}"></script>
     <script defer src="/js/screens/auth.js?v={{ filemtime(public_path('js/screens/auth.js')) }}"></script>
