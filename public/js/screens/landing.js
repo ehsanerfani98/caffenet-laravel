@@ -19,10 +19,17 @@
   /* Service-notice interception — the single choke point every service tap
    * funnels through (catalog cards, home tiles, search results, featured).
    *
-   *  notice_type = 'lock'   → RED popup with the notice text; the service is
-   *                           closed until further notice — no navigation.
+   *  notice_type = 'lock'   → RED popup (the notice text, or the default
+   *                           "closed" message when the text is empty —
+   *                           closing a service must not depend on custom
+   *                           copy); the service is closed — no navigation.
    *  notice_type = 'normal' → ORANGE popup with the notice text; after the
    *                           customer acknowledges it, the flow continues.
+   *                           EMPTY text → NO popup at all: an announcement
+   *                           with no content must not interrupt the
+   *                           customer, so the completely normal flow applies
+   *                           (same contract as the upstream kafinet system,
+   *                           whose exports contain such rows).
    *  notice_type = null     → normal flow, straight to the service page.
    *
    * isNoticeEnabled is the master switch: false (default) keeps the notice
@@ -33,15 +40,16 @@
   Screens.openServiceNotice = function (svc) {
     if (!svc || !svc.noticeType || !svc.isNoticeEnabled) return false;
     const isLock = svc.noticeType === 'lock';
-    const fallback = isLock
-      ? 'این خدمت تا اطلاع ثانوی قابل ثبت سفارش نیست.'
-      : 'لطفاً پیش از ثبت سفارش این اطلاعیه را بخوانید.';
-    const text = String(svc.noticeText || '').trim() || fallback;
+    const text = String(svc.noticeText || '').trim();
+    // اطلاعیه نارنجی بدون متن = بی‌محتوا: پاپ‌آپ باز نشود، روند عادی سفارش.
+    // قفل قرمز همیشه پاپ‌آپ می‌گیرد (متن خالی به پیام پیش‌فرض می‌رسد).
+    if (!isLock && !text) return false;
+    const body = text || 'این خدمت تا اطلاع ثانوی قابل ثبت سفارش نیست.';
     UI.modal({
       title: isLock ? 'این سرویس موقتاً بسته است' : 'اطلاعیه مهم',
       icon: isLock ? 'lock' : 'bullhorn',
       tone: isLock ? 'rose' : 'amber',
-      body: '<div style="white-space:pre-wrap;text-align:right;line-height:2">' + PU.escapeHtml(text) + '</div>',
+      body: '<div style="white-space:pre-wrap;text-align:right;line-height:2">' + PU.escapeHtml(body) + '</div>',
       buttonText: isLock ? 'متوجه شدم' : 'ادامه و ثبت سفارش',
       onClose: isLock ? null : function () {
         const key = svc.slug || svc.id;

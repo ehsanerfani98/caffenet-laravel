@@ -20,7 +20,10 @@ use Tests\TestCase;
  *    (older admin builds from the PWA cache) never wipe existing values.
  *  - notice_type = 'lock'  → order creation is rejected with the notice text
  *    (mirrors the red popup the client shows instead of the order form).
- *  - notice_type = 'normal' → the service still takes orders normally.
+ *  - notice_type = 'normal' → the service still takes orders normally. The
+ *    client shows the amber popup ONLY when the text is non-empty: an
+ *    empty-text announcement never intercepts the flow (same contract as
+ *    the upstream kafinet exports, which contain such rows).
  */
 class ServiceBenefitNoticeTest extends TestCase
 {
@@ -214,6 +217,32 @@ class ServiceBenefitNoticeTest extends TestCase
 
         $this->insertService([
             'notice_type' => 'normal', 'notice_text' => 'لطفاً پیش از ثبت سفارش بخوانید.',
+            'is_notice_enabled' => true,
+        ]);
+        $customer = $this->customer();
+
+        $resp = $this->actingAs($customer)->postJson('/api/orders', [
+            'serviceId' => 'srv-test',
+            'formData' => [],
+            'urgency' => 'normal',
+            'deliveryMethod' => 'download',
+            'contactMethods' => ['app_chat'],
+            'paymentMethod' => 'request',
+        ]);
+
+        $resp->assertStatus(201);
+        $this->assertSame(1, Order::count());
+    }
+
+    public function test_normal_notice_with_empty_text_takes_orders_without_interruption(): void
+    {
+        // The «normal + EMPTY notice_text» combination (kafinet exports have
+        // such rows): client-side no popup opens at all and the completely
+        // normal flow applies — mirrored server-side by the plain 201.
+        SettingsService::set('paymentsDisabled', '1');
+
+        $this->insertService([
+            'notice_type' => 'normal', 'notice_text' => null,
             'is_notice_enabled' => true,
         ]);
         $customer = $this->customer();

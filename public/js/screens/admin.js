@@ -314,6 +314,14 @@
       let noticeOn = !!(svc && svc.isNoticeEnabled);
       let noticeType = (svc && svc.noticeType) || '';
       let noticeText = (svc && svc.noticeText) || '';
+      // راهنمای زیر فیلد متن — قرارداد متن خالی بین دو نوع تفاوت دارد:
+      // lock همیشه پاپ‌آپ می‌گیرد (فالبک ثابت)، normal با متن خالی اصلاً
+      // پاپ‌آپ باز نمی‌کند و روند عادی سفارش طی می‌شود.
+      const noticeHint = function (t) {
+        return t === 'lock'
+          ? 'اگر متن را خالی بگذارید، پیام پیش‌فرض «این خدمت تا اطلاع ثانوی قابل ثبت سفارش نیست.» در پاپ‌آپ قرمز نمایش داده می‌شود.'
+          : 'اگر متن اطلاعیه خالی بماند، پاپ‌آپ نمایش داده نمی‌شود و روند عادی ثبت سفارش طی می‌شود.';
+      };
       const LIB = window.CATEGORY_ICON_LIBRARY || [];
       function lookupLabel(key) {
         const it = LIB.find((x) => x.key === key);
@@ -407,6 +415,7 @@
                 '<option value="normal"' + (noticeType === 'normal' ? ' selected' : '') + '>اطلاعیه — مشتری قبل از ثبت سفارش می‌بیند (پاپ‌آپ نارنجی)</option>' +
               '</select>' +
               '<textarea class="textarea" id="svc-notice-text" rows="3" style="margin-top:8px' + (noticeType ? '' : ';display:none') + '" placeholder="متن اطلاعیه‌ای که در پاپ‌آپ به مشتری نمایش داده می‌شود…">' + PU.escapeHtml(noticeText) + '</textarea>' +
+              '<div class="help-text" id="svc-notice-hint" style="margin-top:6px' + (noticeType ? '' : ';display:none') + '">' + noticeHint(noticeType) + '</div>' +
             '</div>' +
           '</div>' +
 
@@ -432,6 +441,7 @@
           noticeType = this.value || '';
           const $text = sheet.body.find('#svc-notice-text');
           $text.toggle(!!noticeType);
+          sheet.body.find('#svc-notice-hint').toggle(!!noticeType).text(noticeHint(noticeType));
           $text.closest('.card').css('background',
             noticeOn && noticeType === 'lock' ? '#fff1f2' : noticeOn && noticeType === 'normal' ? '#fffbeb' : 'var(--slate-soft)');
         });

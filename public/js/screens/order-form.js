@@ -80,9 +80,11 @@
       UI.toast('ثبت سفارش تنها با حساب مشتری امکان‌پذیر است.', 'warning');
       return;
     }
-    // سرویس بسته (notice_type = 'lock') — the red popup replaces the form.
-    // This guard also covers the draft-resume path (App.resumeOrderDraft),
+    // Service-notice interception (red lock popup, or the amber "normal"
+    // announcement when it carries text) — replaces/blocks the form. This
+    // guard also covers the draft-resume path (App.resumeOrderDraft),
     // where a service locked after the draft was saved must not reopen.
+    // normal + EMPTY notice text never intercepts: the normal flow applies.
     if (Screens.openServiceNotice && Screens.openServiceNotice(service)) return;
     const popup = UI.sheet({
       title: 'ثبت سفارش',
