@@ -1,7 +1,7 @@
 /* Caffenet Lite — service worker (hand-written, autoUpdate semantics).
  * cache-first for static assets; network-only for /api, /uploads, /media
  * (they are never served the SPA fallback). */
-const CACHE = 'caffenet-v45'; // bump purges every stale entry on activate (v45: unified push display)
+const CACHE = 'caffenet-v46'; // bump purges every stale entry on activate (v46: always-visible prices + fee card + service notices)
 const SHELL = ['/', '/manifest.webmanifest', '/pwa-192x192.png', '/pwa-512x512.png',
   '/maskable-192x192.png', '/maskable-512x512.png', '/apple-touch-icon.png',
   '/favicon.ico', '/favicon-16x16.png', '/favicon-32x32.png', '/favicon-48x48.png',

@@ -94,6 +94,18 @@ class OrderController extends Controller
             return response()->json(['error' => 'خدمت انتخاب‌شده معتبر یا فعال نیست.'], 400);
         }
 
+        // «سرویس بسته» (notice_type = lock): the service is visible in the
+        // catalog but cannot take orders until further notice — the client
+        // shows the red popup instead of the order form; the API mirrors the
+        // same contract so a crafted request cannot slip past the UI.
+        if ($service->notice_type === 'lock') {
+            $notice = trim((string) $service->notice_text);
+
+            return response()->json([
+                'error' => $notice !== '' ? $notice : 'این خدمت تا اطلاع ثانوی قابل ثبت سفارش نیست.',
+            ], 400);
+        }
+
         $formData = is_array($body['formData'] ?? null) ? $body['formData'] : [];
         $contactMethods = self::sanitizeContactMethods($body['contactMethods'] ?? []);
         if (count($contactMethods) === 0) {

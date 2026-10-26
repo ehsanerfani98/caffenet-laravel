@@ -34,6 +34,13 @@ class Formatter
             'slug' => (string) ($row->slug ?? ''),
             'description' => (string) ($row->description ?? ''),
             'basePrice' => (int) $row->base_price,
+            // «کارمزد کافی‌نت» — the shop's share; «کارمزد سامانه» is derived
+            // client-side as base_price − benefit. NULL = never configured.
+            'benefit' => $row->benefit !== null ? (int) $row->benefit : null,
+            // Service notice: NULL = normal flow | 'lock' = closed for orders
+            // | 'normal' = read-me-first announcement (red / orange popup).
+            'noticeType' => $row->notice_type !== null ? (string) $row->notice_type : null,
+            'noticeText' => $row->notice_text !== null ? (string) $row->notice_text : null,
             'estimatedTime' => (string) ($row->estimated_time ?? ''),
             'icon' => (string) ($row->icon ?? ''),
             'iconColor' => (string) ($row->icon_color ?? ''),

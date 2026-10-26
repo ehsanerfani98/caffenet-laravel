@@ -23,13 +23,10 @@
 
   /* Same visual language as the catalog card, expanded for a full page. */
   function heroHtml(svc, settings) {
-    const noPay = !!(settings && settings.paymentsDisabled);
-    /* Request mode renders NO price line at all — same treatment as the
-     * catalog card, where .svc-price is dropped entirely. A Persian
-     * placeholder wording in this slot was explicitly rejected by the
-     * owner, so in request mode we simply render nothing. */
-    const price = noPay ? null
-      : (svc.basePrice > 0 ? PU.formatToman(svc.basePrice) : 'محاسبه در سفارش');
+    /* قرارداد جدید: قیمت همیشه نمایش داده می‌شود — حتی وقتی سوییچ
+     * «غیرفعال کردن همه پرداخت‌ها» روشن است (درخواست صاحب برنامه).
+     * Request mode no longer drops the price line. */
+    const price = svc.basePrice > 0 ? PU.formatToman(svc.basePrice) : 'محاسبه در سفارش';
     const iconHtml = window.renderCategoryIcon(svc.icon || 'printer', { color: svc.iconColor || null });
     const iconStyle = svc.iconColor ? ' style="background:transparent;color:' + PU.escapeHtml(svc.iconColor) + ';"' : '';
     return (
@@ -43,6 +40,43 @@
         '</div>' +
         (svc.description ? '<div class="svc-desc">' + PU.escapeHtml(svc.description) + '</div>' : '') +
         (price ? '<div class="svc-hero-price">' + price + '</div>' : '') +
+      '</div>'
+    );
+  }
+
+  /* ── کارت دو ستونهٔ کارمزد ──────────────────────────────────────────
+   * Shown at the top of the order page (right under the hero):
+   *   کارمزد کافی‌نت  |  کارمزد سامانه
+   *        benefit    |  base_price − benefit
+   * Rendered only when the admin configured a benefit for the service. */
+  function feeCardHtml(svc) {
+    if (svc.benefit == null) return '';
+    const benefit = Math.max(0, Number(svc.benefit) || 0);
+    const systemFee = Math.max(0, (Number(svc.basePrice) || 0) - benefit);
+    return (
+      '<div class="fee-card">' +
+        '<div class="fee-col">' +
+          '<div class="fee-label">کارمزد کافی‌نت</div>' +
+          '<div class="fee-val">' + PU.formatToman(benefit) + '</div>' +
+        '</div>' +
+        '<div class="fee-div"></div>' +
+        '<div class="fee-col">' +
+          '<div class="fee-label">کارمزد سامانه</div>' +
+          '<div class="fee-val">' + PU.formatToman(systemFee) + '</div>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  /* Red notice body for a locked service (notice_type = 'lock') — the
+   * page renders hero + fee card + this box INSTEAD of the order form:
+   * the service is closed until further notice. The server mirrors the
+   * same guard, so a crafted request cannot slip past this UI. */
+  function lockedNoticeHtml(svc) {
+    const text = String(svc.noticeText || '').trim() || 'این خدمت تا اطلاع ثانوی قابل ثبت سفارش نیست.';
+    return (
+      '<div class="svc-locked-box">' + icon('lock') +
+        '<div>' + PU.escapeHtml(text) + '</div>' +
       '</div>'
     );
   }
@@ -86,10 +120,11 @@
           '</div>';
       }
 
-      $root.html(heroHtml(svc, api.state.settings || {}) + formHtml);
+      $root.html(heroHtml(svc, api.state.settings || {}) + feeCardHtml(svc) +
+        (svc.noticeType === 'lock' ? lockedNoticeHtml(svc) : formHtml));
       $root.find('#service-login').on('click', function () { Screens.openAuth(); });
 
-      if (user && user.role === 'customer') {
+      if (user && user.role === 'customer' && svc.noticeType !== 'lock') {
         const $region = $root.find('#service-form-region');
         const mount = function () {
           // Fresh child elements every mount so the delegated handlers of

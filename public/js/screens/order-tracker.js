@@ -301,13 +301,12 @@
             (o.assignedOperatorName ? '<br>اپراتور: ' + PU.escapeHtml(o.assignedOperatorName) : '') +
             (o.contactMethods && o.contactMethods.length ? '<br>راه ارتباطی: <b>' + PU.escapeHtml(PU.contactMethodsText(o.contactMethods)) + '</b>' : '') +
           '</div>' +
-          // حالت «غیرفعال کردن پرداخت‌ها»: مبلغ سفارش پرداخت‌نشده پنهان می‌شود؛
-          // رسید سفارش‌های پرداخت‌شده (paid) سر جایش می‌ماند.
-          (!(api.state.settings && api.state.settings.paymentsDisabled) || paid ?
-            '<div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:9px;border-top:1px dashed var(--line)">' +
-              '<span style="font-size:12px;color:var(--ink-soft)">' + (paid ? 'پرداخت‌شده' : 'قابل پرداخت') + '</span>' +
-              '<span style="font-weight:800;color:var(--sky-deep)">' + PU.formatToman(paid ? o.paidAmount : Math.max(0, o.totalPrice - o.discountAmount)) + '</span>' +
-            '</div>' : '') +
+          // قیمت همیشه نمایش داده می‌شود — حتی در حالت «ثبت درخواست»
+          // (رسیدِ سفارش‌های پرداخت‌شده سر جایش می‌ماند).
+          '<div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:9px;border-top:1px dashed var(--line)">' +
+            '<span style="font-size:12px;color:var(--ink-soft)">' + (paid ? 'پرداخت‌شده' : 'مبلغ سفارش') + '</span>' +
+            '<span style="font-weight:800;color:var(--sky-deep)">' + PU.formatToman(paid ? o.paidAmount : Math.max(0, o.totalPrice - o.discountAmount)) + '</span>' +
+          '</div>' +
         '</div>';
 
       // ── Smart queue status card ──────────────────────────────────

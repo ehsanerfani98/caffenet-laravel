@@ -16,11 +16,47 @@
     return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
   }
 
+  /* Service-notice interception — the single choke point every service tap
+   * funnels through (catalog cards, home tiles, search results, featured).
+   *
+   *  notice_type = 'lock'   → RED popup with the notice text; the service is
+   *                           closed until further notice — no navigation.
+   *  notice_type = 'normal' → ORANGE popup with the notice text; after the
+   *                           customer acknowledges it, the flow continues.
+   *  notice_type = null     → normal flow, straight to the service page.
+   *
+   * Returns true when the tap was intercepted (a popup was shown). */
+  Screens.openServiceNotice = function (svc) {
+    if (!svc || !svc.noticeType) return false;
+    const isLock = svc.noticeType === 'lock';
+    const fallback = isLock
+      ? 'این خدمت تا اطلاع ثانوی قابل ثبت سفارش نیست.'
+      : 'لطفاً پیش از ثبت سفارش این اطلاعیه را بخوانید.';
+    const text = String(svc.noticeText || '').trim() || fallback;
+    UI.modal({
+      title: isLock ? 'این سرویس موقتاً بسته است' : 'اطلاعیه مهم',
+      icon: isLock ? 'lock' : 'bullhorn',
+      tone: isLock ? 'rose' : 'amber',
+      body: '<div style="white-space:pre-wrap;text-align:right;line-height:2">' + PU.escapeHtml(text) + '</div>',
+      buttonText: isLock ? 'متوجه شدم' : 'ادامه و ثبت سفارش',
+      onClose: isLock ? null : function () {
+        const key = svc.slug || svc.id;
+        if (key && window.App && typeof App.navigate === 'function') {
+          App.navigate('service/' + encodeURIComponent(key));
+        } else {
+          Screens.openOrderForm(svc);
+        }
+      },
+    });
+    return true;
+  };
+
   // Deep-linkable service page (#/service/{slug}) — clicking a service now
   // navigates to a routed page instead of opening the order-form popup.
   // The numeric-id fallback keeps taps working even for rows the slug
   // seeder has not reached yet.
   function gotoService(svc) {
+    if (Screens.openServiceNotice(svc)) return; // lock / normal notice popup
     const key = svc && (svc.slug || svc.id);
     if (key && window.App && typeof App.navigate === 'function') {
       App.navigate('service/' + encodeURIComponent(key));
@@ -30,8 +66,8 @@
   }
 
   function serviceCard(svc, settings) {
-    // حالت «غیرفعال کردن پرداخت‌ها»: هیچ قیمتی روی کارت نیست — فقط زمان تخمینی
-    const noPay = !!(settings && settings.paymentsDisabled);
+    // قرارداد جدید: قیمت در هر شرایطی روی کارت هست — حتی وقتی سوییچ
+    // «غیرفعال کردن همه پرداخت‌ها» روشن است (درخواست صاحب برنامه).
     const price = svc.basePrice > 0 ? PU.formatToman(svc.basePrice) : 'محاسبه در سفارش';
     // Apply the admin-picked icon color when set; otherwise the .svc-icon
     // background (sky-soft) + color (sky-deep) defaults apply.
@@ -45,7 +81,7 @@
         '<div class="svc-title">' + PU.escapeHtml(svc.title) + '</div>' +
         '<div class="svc-desc">' + PU.escapeHtml(svc.description || '') + '</div>' +
         '<div class="svc-meta"><span>' + (svc.estimatedTime ? PU.escapeHtml(svc.estimatedTime) : '') + '</span>' +
-        (!noPay ? '<span class="svc-price">' + price + '</span>' : '') + '</div>' +
+        '<span class="svc-price">' + price + '</span>' + '</div>' +
       '</div>'
     );
   }
@@ -101,10 +137,9 @@
           '<div class="oc-head"><span class="oc-num">' + PU.toPersianDigits(active.orderNumber) + '</span>' + UI.statusBadge(active.status) + '</div>' +
           '<div class="oc-title">' + PU.escapeHtml(active.serviceTitle) + '</div>' +
           queueBadge +
-          // حالت «غیرفعال کردن پرداخت‌ها»: مبلغ سفارشِ پرداخت‌نشده نمایش داده نمی‌شود (رسیدِ سفارش‌های پرداخت‌شده حفظ می‌شود)
+          // قیمت همیشه نمایش داده می‌شود — حتی در حالت «ثبت درخواست»
           '<div class="oc-foot">' +
-          (!(api.state.settings && api.state.settings.paymentsDisabled) || active.paidAmount > 0 ?
-            '<span class="oc-price">' + PU.formatToman(Math.max(0, active.totalPrice - active.discountAmount)) + '</span>' : '') +
+          '<span class="oc-price">' + PU.formatToman(Math.max(0, active.totalPrice - active.discountAmount)) + '</span>' +
           '<span style="color:var(--sky);font-weight:700">پیگیری ↗</span></div>' +
         '</div>' +
       '</div>'
@@ -573,9 +608,8 @@
             (window.ChatNotify ? ChatNotify.badgeSlotHtml(o.id) : '') + '</div>' +
           '<div class="oc-title">' + PU.escapeHtml(o.serviceTitle) + '</div>' +
           '<div class="oc-foot">' +
-            // حالت «غیرفعال کردن پرداخت‌ها»: سفارش پرداخت‌نشده مبلغ ندارد؛ رسید سفارش‌های پرداخت‌شده می‌ماند
-            (!(api.state.settings && api.state.settings.paymentsDisabled) || o.paidAmount > 0 ?
-              '<span class="oc-price">' + PU.formatToman(Math.max(0, o.totalPrice - o.discountAmount)) + '</span>' : '') +
+            // قیمت همیشه نمایش داده می‌شود — حتی در حالت «ثبت درخواست»
+            '<span class="oc-price">' + PU.formatToman(Math.max(0, o.totalPrice - o.discountAmount)) + '</span>' +
             '<span style="font-size:11px;color:var(--ink-soft)">' + PU.toJalaliDateShort(o.createdAt) + '</span>' +
           '</div>' +
         '</div>'

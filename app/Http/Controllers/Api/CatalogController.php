@@ -184,6 +184,27 @@ class CatalogController extends Controller
             'pricing_formula' => (string) ($body['pricingFormulaDescription'] ?? ''),
         ];
 
+        // ── کارمزد کافی‌نت + اطلاعیه سرویس ─────────────────────────────
+        // Preserve-when-absent: an older admin build (PWA service-worker
+        // cache) posts bodies without these keys — saving from it must never
+        // silently wipe values configured through the newer UI or by hand.
+        if (array_key_exists('benefit', $body)) {
+            $payload['benefit'] = $body['benefit'] === null
+                ? null
+                : max(0, (int) $body['benefit']);
+        }
+        if (array_key_exists('noticeType', $body) || array_key_exists('noticeText', $body)) {
+            $noticeType = in_array($body['noticeType'] ?? null, ['lock', 'normal'], true)
+                ? $body['noticeType']
+                : null;
+            $payload['notice_type'] = $noticeType;
+            // The text only carries meaning together with a type; with no type
+            // (back to the normal flow) both columns are cleared.
+            $payload['notice_text'] = $noticeType
+                ? trim((string) ($body['noticeText'] ?? ''))
+                : null;
+        }
+
         // URL slug (#/service/{slug}) — generated ONCE from the title and kept
         // stable afterwards so shared links never break. New rows always get
         // one; legacy rows created before the slug column get theirs on the

@@ -1087,6 +1087,27 @@ svg.i.i-lg { width: 30px; height: 30px; }
     display: inline-block; margin-top: 9px; padding: 5px 11px; border-radius: 999px;
     background: var(--sky-soft); color: var(--sky-deep); font-size: 12px; font-weight: 800;
 }
+/* ── کارت دو ستونهٔ کارمزد (صفحهٔ سفارش) ─────────────────────────────
+ * کارمزد کافی‌نت (benefit) | کارمزد سامانه (base_price − benefit).
+ * First DOM column = rightmost in RTL = ستون اول (کارمزد کافی‌نت). */
+.fee-card {
+    display: flex; align-items: stretch; gap: 0;
+    background: var(--slate-soft); border-radius: 14px;
+    padding: 11px 6px; margin: 0 0 12px;
+}
+.fee-card .fee-col { flex: 1; text-align: center; min-width: 0; }
+.fee-card .fee-label { font-size: 11px; font-weight: 600; color: var(--ink-soft); margin-bottom: 3px; }
+.fee-card .fee-val { font-size: 13.5px; font-weight: 800; color: var(--sky-deep); }
+.fee-card .fee-div { width: 1px; background: var(--line); margin: 2px 0; }
+/* Red notice box replacing the order form on a locked service
+ * (notice_type = 'lock' — «تا اطلاع ثانوی قابل ثبت سفارش نیست»). */
+.svc-locked-box {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: var(--rose-soft); color: var(--rose);
+    border-radius: 14px; padding: 12px 14px; margin-bottom: 12px;
+    font-size: 12.5px; font-weight: 600; line-height: 2; white-space: pre-wrap;
+}
+.svc-locked-box svg { width: 16px; height: 16px; flex: none; margin-top: 5px; }
 /* The form's action bar sticks to the bottom of the viewport while the
  * long form scrolls — same buttons the bottom sheet used. */
 #service-form-footer {

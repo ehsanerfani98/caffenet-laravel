@@ -80,6 +80,10 @@
       UI.toast('ثبت سفارش تنها با حساب مشتری امکان‌پذیر است.', 'warning');
       return;
     }
+    // سرویس بسته (notice_type = 'lock') — the red popup replaces the form.
+    // This guard also covers the draft-resume path (App.resumeOrderDraft),
+    // where a service locked after the draft was saved must not reopen.
+    if (Screens.openServiceNotice && Screens.openServiceNotice(service)) return;
     const popup = UI.sheet({
       title: 'ثبت سفارش',
       subtitle: service.title,
@@ -248,15 +252,16 @@
     }
 
     function renderPrice() {
-      // حالت «ثبت درخواست»: هیچ قیمتی نمایش داده نمی‌شود — مبلغ بعداً با مدیر توافق می‌شود
-      if (paymentsDisabled) return;
+      // قرارداد جدید: قیمت در هر شرایطی دیده می‌شود — حتی در حالت «ثبت درخواست»
+      // (درخواست صاحب برنامه). فوریت/تخفیف در این حالت مخفی‌اند و خودبه‌خود
+      // خنثی می‌شوند، پس خلاصه همان قیمت پایه + اضافه‌پول فیلدهاست.
       const p = livePricing();
       host.body.find('#price-summary').html(
         '<div class="price-summary">' +
           '<div class="ps-row"><span>جمع خدمات</span><span>' + PU.formatToman(p.subtotal) + '</span></div>' +
           (p.urgencyMultiplier > 1 ? '<div class="ps-row"><span>ضریب فوریت</span><span>×' + PU.toPersianDigits(p.urgencyMultiplier) + '</span></div>' : '') +
           (p.discountAmount > 0 ? '<div class="ps-row" style="color:var(--emerald)"><span>تخفیف</span><span>−' + PU.formatToman(p.discountAmount) + '</span></div>' : '') +
-          '<div class="ps-row total"><span>مبلغ قابل پرداخت</span><span class="val">' + PU.formatToman(p.payable) + '</span></div>' +
+          '<div class="ps-row total"><span>' + (paymentsDisabled ? 'مبلغ سفارش' : 'مبلغ قابل پرداخت') + '</span><span class="val">' + PU.formatToman(p.payable) + '</span></div>' +
         '</div>'
       );
     }

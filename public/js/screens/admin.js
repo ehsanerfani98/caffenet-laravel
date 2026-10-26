@@ -308,6 +308,9 @@
       // Service icon color — empty means "use default sky color".
       let svcIconColor = (svc && svc.iconColor) || '';
       let svcSortOrder = (svc && typeof svc.sortOrder === 'number') ? svc.sortOrder : 0;
+      // اطلاعیه سرویس + کارمزد کافی‌نت — null benefit = never configured.
+      let noticeType = (svc && svc.noticeType) || '';
+      let noticeText = (svc && svc.noticeText) || '';
       const LIB = window.CATEGORY_ICON_LIBRARY || [];
       function lookupLabel(key) {
         const it = LIB.find((x) => x.key === key);
@@ -354,6 +357,9 @@
           '<input class="input" id="svc-desc" value="' + PU.escapeHtml(svc ? svc.description : '') + '">' +
           '<label class="field-label">قیمت پایه (تومان)</label>' +
           '<input class="input" id="svc-price" inputmode="numeric" value="' + (svc ? svc.basePrice : 0) + '">' +
+          '<label class="field-label" style="margin-top:8px">کارمزد کافی‌نت (تومان — اختیاری)</label>' +
+          '<input class="input" id="svc-benefit" inputmode="numeric" value="' + (svc && svc.benefit != null ? svc.benefit : '') + '" placeholder="خالی = ثبت نشده">' +
+          '<div class="help-text" style="margin-top:4px">ستون «کارمزد سامانه» در صفحهٔ سفارش به‌صورت خودکار برابر قیمت پایه منهای همین مبلغ نمایش داده می‌شود.</div>' +
           '<label class="field-label">زمان تقریبی</label>' +
           '<input class="input" id="svc-time" value="' + PU.escapeHtml(svc ? svc.estimatedTime : '') + '">' +
 
@@ -386,6 +392,16 @@
             '</div>' +
           '</div>' +
 
+          '<div class="card" style="padding:11px 12px;margin-bottom:10px;background:' + (noticeType === 'lock' ? '#fff1f2' : noticeType === 'normal' ? '#fffbeb' : 'var(--slate-soft)') + '">' +
+            '<label class="field-label" style="margin:0 0 6px">اطلاعیه سرویس</label>' +
+            '<select class="select" id="svc-notice-type">' +
+              '<option value=""' + (!noticeType ? ' selected' : '') + '>بدون اطلاعیه — روند عادی ثبت سفارش</option>' +
+              '<option value="lock"' + (noticeType === 'lock' ? ' selected' : '') + '>بسته — تا اطلاع ثانوی سفارش پذیرفته نمی‌شود (پاپ‌آپ قرمز)</option>' +
+              '<option value="normal"' + (noticeType === 'normal' ? ' selected' : '') + '>اطلاعیه — مشتری قبل از ثبت سفارش می‌بیند (پاپ‌آپ نارنجی)</option>' +
+            '</select>' +
+            '<textarea class="textarea" id="svc-notice-text" rows="3" style="margin-top:8px' + (noticeType ? '' : ';display:none') + '" placeholder="متن اطلاعیه‌ای که در پاپ‌آپ به مشتری نمایش داده می‌شود…">' + PU.escapeHtml(noticeText) + '</textarea>' +
+          '</div>' +
+
           '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;margin:14px 2px">' +
             '<input type="checkbox" id="svc-active"' + (!svc || svc.isActive ? ' checked' : '') + '> خدمت فعال باشد</label>' +
 
@@ -394,6 +410,16 @@
           '<button class="btn ghost block sm" id="add-field">' + icon('plus') + 'افزودن فیلد</button>'
         );
         bindFieldEvents();
+
+        // اطلاعیه سرویس — switching the type shows/hides the text editor and
+        // tints the block (red for lock, amber for normal, neutral for none).
+        sheet.body.find('#svc-notice-type').on('change', function () {
+          noticeType = this.value || '';
+          const $text = sheet.body.find('#svc-notice-text');
+          $text.toggle(!!noticeType);
+          $text.closest('.card').css('background',
+            noticeType === 'lock' ? '#fff1f2' : noticeType === 'normal' ? '#fffbeb' : 'var(--slate-soft)');
+        });
       }
 
       function fieldRow(f, i) {
@@ -525,6 +551,11 @@
             categoryId: sheet.body.find('#svc-cat').val(),
             description: sheet.body.find('#svc-desc').val(),
             basePrice: Number(sheet.body.find('#svc-price').val()) || 0,
+            benefit: (sheet.body.find('#svc-benefit').val() || '').trim() === ''
+              ? null
+              : Math.max(0, Number(sheet.body.find('#svc-benefit').val()) || 0),
+            noticeType: sheet.body.find('#svc-notice-type').val() || null,
+            noticeText: sheet.body.find('#svc-notice-text').val() || '',
             estimatedTime: sheet.body.find('#svc-time').val(),
             icon: svcIconKey,
             iconColor: (sheet.body.find('#svc-color').val() || '').trim(),

@@ -11,11 +11,12 @@ class Service extends CaffenetModel
     protected $fillable = [
         'id', 'category_id', 'title', 'slug', 'description', 'base_price', 'estimated_time',
         'icon', 'icon_color', 'sort_order', 'is_active', 'is_featured', 'featured_sort',
-        'fields_json', 'pricing_formula', 'created_at',
+        'fields_json', 'pricing_formula', 'created_at', 'benefit', 'notice_type', 'notice_text',
     ];
 
     protected $casts = [
         'base_price' => 'integer',
+        'benefit' => 'integer',
         'sort_order' => 'integer',
         'is_active' => 'boolean',
         'is_featured' => 'boolean',
