@@ -30,6 +30,9 @@
       };
       this._listeners = [];
       this._syncing = false;      // in-flight guard: one batch at a time
+      // Page-load timestamp — the working-hours bounce gives the gateway-
+      // return shell (?payment=…) a short grace window (see _bounceToClosedHours).
+      this._bootedAt = Date.now();
     }
 
     subscribe(listener) {
@@ -94,6 +97,12 @@
         // server serves the full-screen maintenance page. The sessionStorage
         // timestamp prevents a reload ping-pong if anything ever loops.
         if (res.status === 503 && data && data.maintenance) this._bounceToMaintenance();
+        // Working-hours gate: this user just got locked out by «ساعت کاری»
+        // (503 + workingHours flag carrying from/to). Same treatment as the
+        // maintenance bounce: send the tab to `/` where the server serves the
+        // standalone «خارج از ساعت کاری هستیم» page; its meta-refresh lands
+        // back on the SPA the moment the configured window opens.
+        if (res.status === 503 && data && data.workingHours) this._bounceToClosedHours();
         // Stale CSRF token: after a long idle the session cookie expired and
         // the remember_web_* cookie silently re-authenticated into a NEW
         // session — the token embedded in the old page no longer matches.
@@ -124,6 +133,17 @@
 
     _bounceToMaintenance() {
       if (!this._stampGuarded('maintenanceReloadAt', 15000)) return;
+      window.location.replace('/');
+    }
+
+    _bounceToClosedHours() {
+      // Gateway-return shell (?payment=…): the payment already completed
+      // server-side through the allow-listed /api/payments/verify callback —
+      // give handlePaymentReturn() a grace window to show the result toast
+      // before the tab lands on the closed-hours page. The element only
+      // exists on the gateway-return shell, never on a normal session.
+      if (document.getElementById('payment-return') && Date.now() - this._bootedAt < 15000) return;
+      if (!this._stampGuarded('closedHoursBounceAt', 15000)) return;
       window.location.replace('/');
     }
 

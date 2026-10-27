@@ -45,6 +45,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // while everyone else sees the «سایت در حال تعمیر است» page.
         $middleware->web(append: [
             App\Http\Middleware\MaintenanceGate::class,
+            // Working-hours gate («ساعت کاری»): same placement rules as the
+            // maintenance gate above — the web group hosts /api/* here and
+            // appended middleware runs after StartSession, so the gate can
+            // exempt admins by session. Runs AFTER MaintenanceGate: when
+            // both gates are closed, the (bigger hammer) maintenance page
+            // wins; when maintenance is off, this gate decides by the
+            // Tehran-clock window configured in the business settings.
+            App\Http\Middleware\WorkingHoursGate::class,
         ]);
 
         // Route middleware aliases.

@@ -143,6 +143,17 @@
     return out;
   }
 
+  /* Working-hours window selects (0..23) — labels in Persian digits, values
+     Latin so Number() on save is exact. Empty stored value falls back. */
+  function hourOptions(selected, fallback) {
+    const sel = (selected == null || selected === '' ? fallback : Number(selected));
+    let out = '';
+    for (let h = 0; h <= 23; h++) {
+      out += '<option value="' + h + '"' + (h === sel ? ' selected' : '') + '>' + PU.toPersianDigits(h) + '</option>';
+    }
+    return out;
+  }
+
   /* ================= Business settings ================= */
 
   function openBusinessSettings() {
@@ -154,6 +165,16 @@
       '<label class="field-label">آدرس دفتر</label><input class="input" id="s-addr" value="' + PU.escapeHtml(s.coffeenetAddress || '') + '">' +
       '<label class="field-label">تلفن دفتر</label><input class="input" id="s-phone" value="' + PU.escapeHtml(s.coffeenetPhone || '') + '">' +
       '<label class="field-label">ساعت کاری</label><input class="input" id="s-hours" value="' + PU.escapeHtml(s.workingHours || '') + '">' +
+      '<div class="section-title">' + icon('clock') + 'بستن خودکار خارج از ساعت کاری</div>' +
+      '<div class="help-text" style="margin:0 2px 8px">با فعال‌کردن این گزینه، خارج از بازهٔ تعیین‌شده <b>کل برنامه</b> برای مشتری‌ها با صفحهٔ «خارج از ساعت کاری هستیم» (که همین بازه را نشان می‌دهد) بسته می‌شود و هیچ سفارشی ثبت نمی‌گردد. مثلاً از ساعت ۹ تا ۲۱ یعنی از دقیق ساعت ۲۱ تا ۹ صبح بسته است. بازهٔ شبانه (شروع بزرگ‌تر از پایان، مثل ۲۲ تا ۶) هم پشتیبانی می‌شود. ساعت ملاک، <b>ساعت رسمی ایران (تهران)</b> است؛ مدیر همیشه به پنل دسترسی دارد و پرداخت‌های در جریان تا انتها تکمیل می‌شوند.</div>' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 2px 10px">' +
+        '<div style="font-size:12.5px;font-weight:600">فعال‌سازی ساعت کاری برنامه</div>' +
+        '<label class="switch"><input type="checkbox" id="s-wh-on"' + (s.workingHoursEnabled ? ' checked' : '') + '><span class="track"></span></label>' +
+      '</div>' +
+      '<div style="display:flex;gap:10px;margin:0 2px 12px">' +
+        '<div style="flex:1"><label class="field-label">از ساعت</label><select class="input" id="s-wh-from">' + hourOptions(s.workingHoursFrom, 9) + '</select></div>' +
+        '<div style="flex:1"><label class="field-label">تا ساعت</label><select class="input" id="s-wh-to">' + hourOptions(s.workingHoursTo, 21) + '</select></div>' +
+      '</div>' +
       '<label class="field-label">روز نگهداری فایل‌ها</label><input class="input" id="s-retention" inputmode="numeric" value="' + (s.fileRetentionDays || 14) + '">' +
       '<label class="field-label">ضریب سفارش فوری</label><input class="input" id="s-urgent" value="' + (s.urgentPriceMultiplier || 1.3) + '">' +
       '<label class="field-label">ضریب سفارش آنی</label><input class="input" id="s-immediate" value="' + (s.immediatePriceMultiplier || 1.6) + '">' +
@@ -200,6 +221,9 @@
           coffeenetAddress: sheet.body.find('#s-addr').val(),
           coffeenetPhone: sheet.body.find('#s-phone').val(),
           workingHours: sheet.body.find('#s-hours').val(),
+          workingHoursEnabled: sheet.body.find('#s-wh-on').is(':checked'),
+          workingHoursFrom: Number(sheet.body.find('#s-wh-from').val()),
+          workingHoursTo: Number(sheet.body.find('#s-wh-to').val()),
           fileRetentionDays: Number(sheet.body.find('#s-retention').val()),
           urgentPriceMultiplier: Number(sheet.body.find('#s-urgent').val()),
           immediatePriceMultiplier: Number(sheet.body.find('#s-immediate').val()),

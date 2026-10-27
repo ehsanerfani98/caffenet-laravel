@@ -29,12 +29,12 @@ class SettingsController extends Controller
         $out['smsEnabled'] = SettingsService::bool('smsEnabled');
         foreach (SettingsService::businessKeys() as $key) {
             $raw = SettingsService::raw($key);
-            if (in_array($key, ['enableWalletPayment', 'enableCoupons', 'paymentsDisabled'], true)) {
+            if (in_array($key, ['enableWalletPayment', 'enableCoupons', 'paymentsDisabled', 'workingHoursEnabled'], true)) {
                 $out[$key] = SettingsService::bool($key);
             } elseif ($key === 'walletTopUpPresets') {
                 // Each preset carries its own Cafe Bazaar SKU ({amount, sku}).
                 $out[$key] = SettingsService::walletTopUpPresets();
-            } elseif (in_array($key, ['fileRetentionDays', 'courierCost', 'requestOrderMinDuration', 'requestOrderMaxDuration'], true)) {
+            } elseif (in_array($key, ['fileRetentionDays', 'courierCost', 'requestOrderMinDuration', 'requestOrderMaxDuration', 'workingHoursFrom', 'workingHoursTo'], true)) {
                 $out[$key] = (int) $raw;
             } elseif (in_array($key, ['urgentPriceMultiplier', 'immediatePriceMultiplier'], true)) {
                 $out[$key] = (float) $raw;
@@ -49,6 +49,25 @@ class SettingsController extends Controller
     public function updateBusiness(Request $request): JsonResponse
     {
         $body = (array) $request->json()->all();
+
+        // Working-hours window must be validated BEFORE anything saves: a
+        // broken range (bounds equal, or outside 0..23) would either lock the
+        // app 24/7 or stretch it forever. Values may arrive as Latin OR
+        // Persian digits (the selects are Latin, but be defensive).
+        if (array_key_exists('workingHoursFrom', $body) || array_key_exists('workingHoursTo', $body)) {
+            $from = array_key_exists('workingHoursFrom', $body)
+                ? (int) SettingsService::toLatinDigits($body['workingHoursFrom'])
+                : (int) SettingsService::raw('workingHoursFrom');
+            $to = array_key_exists('workingHoursTo', $body)
+                ? (int) SettingsService::toLatinDigits($body['workingHoursTo'])
+                : (int) SettingsService::raw('workingHoursTo');
+            if ($from < 0 || $from > 23 || $to < 0 || $to > 23) {
+                return response()->json(['error' => 'ساعت شروع و پایان باید عددی بین ۰ تا ۲۳ باشند.'], 400);
+            }
+            if ($from === $to) {
+                return response()->json(['error' => 'شروع و پایان ساعت کاری نمی‌توانند یکسان باشند.'], 400);
+            }
+        }
 
         foreach (SettingsService::businessKeys() as $key) {
             if (! array_key_exists($key, $body)) {

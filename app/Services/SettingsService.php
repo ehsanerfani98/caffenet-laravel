@@ -132,6 +132,18 @@ TEXT;
             'label' => 'تلفن دفتر', 'default' => ''],
         ['key' => 'workingHours', 'category' => 'general', 'type' => 'string', 'scope' => self::SCOPE_BUSINESS,
             'label' => 'ساعت کاری', 'default' => ''],
+        // Working-hours gate («ساعت کاری») — when workingHoursEnabled is on,
+        // the WorkingHoursGate middleware (appended to the web group next to
+        // MaintenanceGate) closes every page AND every API for everyone
+        // except admins outside the [from, to) window (Tehran time). The
+        // display-only `workingHours` string above is unaffected — it keeps
+        // feeding the contact section / terms page.
+        ['key' => 'workingHoursEnabled', 'category' => 'general', 'type' => 'boolean', 'scope' => self::SCOPE_BUSINESS,
+            'label' => 'بستن خودکار برنامه خارج از ساعت کاری', 'default' => '0'],
+        ['key' => 'workingHoursFrom', 'category' => 'general', 'type' => 'number', 'scope' => self::SCOPE_BUSINESS,
+            'label' => 'شروع ساعت کاری (۰ تا ۲۳)', 'default' => '9'],
+        ['key' => 'workingHoursTo', 'category' => 'general', 'type' => 'number', 'scope' => self::SCOPE_BUSINESS,
+            'label' => 'پایان ساعت کاری (۰ تا ۲۳)', 'default' => '21'],
         ['key' => 'fileRetentionDays', 'category' => 'general', 'type' => 'number', 'scope' => self::SCOPE_BUSINESS,
             'label' => 'روز نگهداری فایل', 'default' => '14'],
         ['key' => 'urgentPriceMultiplier', 'category' => 'general', 'type' => 'string', 'scope' => self::SCOPE_BUSINESS,
