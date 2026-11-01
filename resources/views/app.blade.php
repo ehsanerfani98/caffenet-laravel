@@ -89,16 +89,5 @@
     <script defer src="/js/screens/admin.js?v={{ filemtime(public_path('js/screens/admin.js')) }}"></script>
     <script defer src="/js/screens/admin-orders.js?v={{ filemtime(public_path('js/screens/admin-orders.js')) }}"></script>
     <script defer src="/js/screens/admin-manage.js?v={{ filemtime(public_path('js/screens/admin-manage.js')) }}"></script>
-
-    {{-- Goftino live-chat widget — the owner-provided OFFICIAL snippet, kept
-         verbatim. Lives at the end of the single SPA shell, so the widget is
-         available on EVERY screen (guests included). It injects its own
-         floating button + chat window; position/appearance are configured in
-         the Goftino dashboard, not in app code. CSP whitelists the hosts it
-         touches (www = widget script, cdn = client.js/css, s4 = uploads,
-         ws* = WebSocket) — see SecurityHeaders.php. --}}
-    <script type="text/javascript">
-      !function(){var i="FdMb9y",d=document,g=d.createElement("script"),s="https://www.goftino.com/widget/"+i,l=localStorage.getItem("goftino_"+i);g.type="text/javascript",g.async=!0,g.src=l?s+"?o="+l:s;d.getElementsByTagName("head")[0].appendChild(g);}();
-    </script>
 </body>
 </html>
