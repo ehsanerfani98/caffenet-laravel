@@ -113,8 +113,14 @@
       if (user && user.role === 'customer') {
         formHtml = '<div id="service-form-region"></div>';
       } else if (user) {
-        // Staff accounts are never the customer of an order.
-        formHtml = '<div class="info-box">ثبت سفارش تنها با حساب مشتری امکان‌پذیر است.</div>';
+        // Staff (admin/operator) are never the customer of an order — but
+        // they still see EVERYTHING: the same form customers fill, rendered
+        // read-only below (fields, option prices, urgency ladder, live
+        // total). Submitting is the one thing they cannot do — no action
+        // buttons exist and the server rejects staff order creation anyway.
+        formHtml =
+          '<div class="info-box">نمای فقط‌مشاهده — همهٔ مشخصات خدمت نمایش داده می‌شود؛ ثبت سفارش تنها با حساب مشتری امکان‌پذیر است.</div>' +
+          '<div id="service-form-region"></div>';
       } else {
         formHtml =
           '<div class="card" style="text-align:center;padding:22px">' +
@@ -144,6 +150,18 @@
           });
         };
         mount();
+      } else if (user && !locked) {
+        // Staff read-only preview — the full form, zero actions.
+        const $region = $root.find('#service-form-region');
+        if ($region.length) {
+          $region.html('<div id="service-form-body"></div><div id="service-form-footer"></div>');
+          Screens.mountOrderForm(svc, {
+            body: $region.find('#service-form-body'),
+            footer: $region.find('#service-form-footer'),
+            close: function () {},
+            readOnly: true,
+          });
+        }
       }
     }
 

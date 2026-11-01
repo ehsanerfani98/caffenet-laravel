@@ -146,4 +146,39 @@ class OrderHourlyLimitTest extends TestCase
         $this->postOrder($customer)->assertStatus(429);
         $this->assertSame(3, Order::where('customer_id', $customer->id)->count());
     }
+
+    /* ───────── 5. staff can view everything but can never register ─────────
+     * The SPA gives admin/operator a READ-ONLY preview of every service
+     * (service-page + order-form readOnly host); the server side of that
+     * contract is this guard: staff POSTs to /api/orders are always 403. */
+
+    public function test_staff_accounts_can_never_register_orders(): void
+    {
+        foreach (['admin', 'operator'] as $role) {
+            $staff = User::create([
+                'id' => 'usr-staff-'.$role,
+                'phone' => '0912000099'.($role === 'admin' ? '1' : '2'),
+                'name' => $role === 'admin' ? 'مدیر' : 'اپراتور',
+                'role' => $role,
+                'wallet_balance' => 0,
+                'created_at' => now()->toIso8601String(),
+            ]);
+            if ($role === 'admin') $staff->assignRole('admin');
+            else $staff->assignRole('operator');
+
+            $this->actingAs($staff)
+                ->postJson('/api/orders', [
+                    'serviceId' => 'srv-test',
+                    'formData' => [],
+                    'urgency' => 'normal',
+                    'deliveryMethod' => 'download',
+                    'contactMethods' => ['app_chat'],
+                ])
+                ->assertStatus(403)
+                ->assertJsonPath('error', 'ثبت سفارش تنها با حساب مشتری امکان‌پذیر است.');
+        }
+
+        // No order row was created by either staff account.
+        $this->assertSame(0, Order::count());
+    }
 }

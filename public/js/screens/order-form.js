@@ -15,23 +15,24 @@
     return a != null && b != null && String(a) === String(b);
   }
 
-  function fieldInput(f, value) {
+  function fieldInput(f, value, readOnly) {
     const v = value != null ? value : (f.defaultValue != null ? f.defaultValue : '');
     const req = f.required ? ' <span class="req">*</span>' : '';
+    const dis = readOnly ? ' disabled' : '';
     let html = '<label class="field-label">' + PU.escapeHtml(f.label) + req + '</label>';
 
     switch (f.type) {
       case 'text':
       case 'number':
-        html += '<input class="input" data-field="' + f.id + '" type="' + f.type + '" value="' + PU.escapeHtml(v) + '"' +
+        html += '<input class="input" data-field="' + f.id + '" type="' + f.type + '" value="' + PU.escapeHtml(v) + '"' + dis +
           (f.placeholder ? ' placeholder="' + PU.escapeHtml(f.placeholder) + '"' : '') + '>';
         break;
       case 'textarea':
-        html += '<textarea class="textarea" data-field="' + f.id + '" rows="3"' +
+        html += '<textarea class="textarea" data-field="' + f.id + '" rows="3"' + dis +
           (f.placeholder ? ' placeholder="' + PU.escapeHtml(f.placeholder) + '"' : '') + '>' + PU.escapeHtml(v) + '</textarea>';
         break;
       case 'select':
-        html += '<select class="select" data-field="' + f.id + '">';
+        html += '<select class="select" data-field="' + f.id + '"' + dis + '>';
         html += '<option value="">انتخاب کنید…</option>';
         (f.options || []).forEach((o) => {
           const extra = o.extraPrice ? ' (+' + PU.toPersianDigits(Number(o.extraPrice).toLocaleString('en-US')) + ' تومان)' : '';
@@ -41,6 +42,9 @@
         html += '</select>';
         break;
       case 'radio':
+        // Read-only preview: the option cards stay visible (labels + their
+        // +extra prices) but no longer react to clicks.
+        html += '<div' + (readOnly ? ' style="pointer-events:none"' : '') + '>';
         (f.options || []).forEach((o) => {
           const sel = sameValue(v, o.value);
           html += '<div class="radio-card ' + (sel ? 'sel' : '') + '" data-field-radio="' + f.id + '" data-value="' + PU.escapeHtml(o.value) + '">' +
@@ -48,20 +52,21 @@
             (o.extraPrice ? '<span class="rc-price">+' + PU.toPersianDigits(Number(o.extraPrice).toLocaleString('en-US')) + ' ت</span>' : '') +
             '</div>';
         });
+        html += '</div>';
         break;
       case 'checkbox':
         html += '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;margin-bottom:8px">' +
-          '<input type="checkbox" data-field="' + f.id + '"' + (v ? ' checked' : '') + '> ' + PU.escapeHtml(f.label) + '</label>';
+          '<input type="checkbox" data-field="' + f.id + '"' + (v ? ' checked' : '') + dis + '> ' + PU.escapeHtml(f.label) + '</label>';
         break;
       case 'date':
         // Jalali date field — the shared datepicker.js watcher binds any
         // input[data-jdp] through a delegated focusin listener, so it works
         // inside this dynamically rendered sheet without extra wiring.
-        html += '<input class="input" data-jdp data-field="' + f.id + '" readonly value="' + PU.escapeHtml(v) + '"' +
+        html += '<input class="input" data-jdp data-field="' + f.id + '" readonly value="' + PU.escapeHtml(v) + '"' + dis +
           (f.placeholder ? ' placeholder="' + PU.escapeHtml(f.placeholder) + '"' : '') + '>';
         break;
       default:
-        html += '<input class="input" data-field="' + f.id + '" value="' + PU.escapeHtml(v) + '">';
+        html += '<input class="input" data-field="' + f.id + '" value="' + PU.escapeHtml(v) + '"' + dis + '>';
     }
 
     if (f.helpText) html += '<div class="help-text">' + PU.escapeHtml(f.helpText) + '</div>';
@@ -75,9 +80,18 @@
     const user = api.state.currentUser;
     if (!user) { Screens.openAuth(); return; }
     // Only customers place orders for themselves; operators/admins are staff
-    // accounts and are not the customer of an order.
+    // accounts and are not the customer of an order. Staff still get the
+    // FULL service view: the routed service page renders the same form
+    // read-only, so every field, option price and the live total is visible
+    // — the only thing staff cannot do is submit (the server rejects staff
+    // order creation regardless).
     if (user.role !== 'customer') {
-      UI.toast('ثبت سفارش تنها با حساب مشتری امکان‌پذیر است.', 'warning');
+      const key = service && (service.slug || service.id);
+      if (key && window.App && typeof App.navigate === 'function') {
+        App.navigate('service/' + encodeURIComponent(key));
+      } else {
+        UI.toast('ثبت سفارش تنها با حساب مشتری امکان‌پذیر است.', 'warning');
+      }
       return;
     }
     // Service-notice interception (red lock popup, or the amber "normal"
@@ -99,9 +113,15 @@
   /* Mounts the full order form (fields, files, coupon, pricing, submit flow)
    * into any host exposing {body, footer, close} — the bottom sheet above or
    * the dedicated service page. close() runs after a real order was created,
-   * right before the tracker / acknowledgment popup opens. */
+   * right before the tracker / acknowledgment popup opens.
+   *
+   * host.readOnly = staff preview: renders the exact same form the customer
+   * fills (fields, option prices, urgency ladder, live total) but with every
+   * control disabled, no file upload / coupon / pay buttons — viewing is
+   * allowed, ordering is not. */
   Screens.mountOrderForm = function (service, host) {
     const user = api.state.currentUser;
+    const readOnly = !!host.readOnly;
 
     const settings = api.state.settings || {};
     // BazaarPay gateway (بازارپی) — when available the footer shows two
@@ -144,14 +164,17 @@
     // Restore a saved draft (پیش‌نویس سفارش): the snapshot taken when the
     // wallet shortage led the customer away to top up. The draft overrides
     // the configured defaults so the customer resumes exactly where they
-    // left off — same service, all fields, files and coupon intact.
-    try {
-      const draft = window.OrderDraft && OrderDraft.load(service.id, user.id);
-      if (draft && draft.state) {
-        Object.assign(state, draft.state);
-        UI.toast('اطلاعات قبلی این سفارش بازیابی شد.', 'info');
-      }
-    } catch (e) { /* draft is best-effort — never block the form */ }
+    // left off — same service, all fields, files and coupon intact. The
+    // read-only staff preview never touches drafts.
+    if (!readOnly) {
+      try {
+        const draft = window.OrderDraft && OrderDraft.load(service.id, user.id);
+        if (draft && draft.state) {
+          Object.assign(state, draft.state);
+          UI.toast('اطلاعات قبلی این سفارش بازیابی شد.', 'info');
+        }
+      } catch (e) { /* draft is best-effort — never block the form */ }
+    }
 
     // A draft saved by an older build may carry 'courier' + address; the
     // delivery section no longer exists, so force the only remaining method.
@@ -172,40 +195,48 @@
       const couponsEnabled = settings.enableCoupons !== false;
 
       host.body.html(
-        /* service dynamic fields */
+        /* service dynamic fields — read-only preview disables every control */
         '<div class="form-fields">' +
-          service.fields.map((f) => fieldInput(f, state.formData[f.id])).join('') +
+          service.fields.map((f) => fieldInput(f, state.formData[f.id], readOnly)).join('') +
         '</div>' +
 
-        /* files */
+        /* files — customers only: uploading creates real attachments and the
+         * read-only staff preview must never offer it. */
+        (readOnly ? '' :
         '<label class="field-label">فایل‌های پیوست (اختیاری — حداکثر ' + PU.toPersianDigits(MAX_FILE_MB) + ' مگابایت)</label>' +
         '<div id="files-list"></div>' +
         '<button class="btn ghost block sm" id="add-file">' + icon('upload') + 'افزودن فایل</button>' +
-        '<input type="file" id="file-input" class="hidden" multiple>' +
+        '<input type="file" id="file-input" class="hidden" multiple>') +
 
         /* customer note */
         '<label class="field-label">توضیحات سفارش</label>' +
-        '<textarea class="textarea" id="customer-note" rows="2" placeholder="هر نکته‌ای برای اپراتور…">' + PU.escapeHtml(state.customerNote) + '</textarea>' +
+        '<textarea class="textarea" id="customer-note" rows="2" placeholder="هر نکته‌ای برای اپراتور…"' + (readOnly ? ' disabled' : '') + '>' + PU.escapeHtml(state.customerNote) + '</textarea>' +
 
-        /* urgency — فوریت یک عامل قیمت است (ضریب)؛ در حالت «ثبت درخواست» کل بخش مخفی است */
+        /* urgency — فوریت یک عامل قیمت است (ضریب)؛ در حالت «ثبت درخواست» کل بخش مخفی است.
+         * خواندنی ولی غیرقابل‌کلیک در پیش‌نمایش کارکنان. */
         (paymentsDisabled ? '' :
         '<label class="field-label">سطح فوریت <span class="req">*</span></label>' +
+        '<div' + (readOnly ? ' style="pointer-events:none"' : '') + '>' +
         '<div class="segmented" id="urgency-seg">' +
           [['normal', 'معمولی'], ['urgent', 'فوری (×' + PU.toPersianDigits(settings.urgentPriceMultiplier || 1.3) + ')'], ['immediate', 'آنی (×' + PU.toPersianDigits(settings.immediatePriceMultiplier || 1.6) + ')']]
             .map(([k, l]) => '<button class="seg ' + (state.urgency === k ? 'on' : '') + '" data-urgency="' + k + '">' + l + '</button>').join('') +
+        '</div>' +
         '</div>') +
 
-        /* contact methods — multi-select */
+        /* contact methods — multi-select (visible but frozen in preview) */
         '<label class="field-label">راه‌های ارتباط با شما <span class="req">*</span></label>' +
         '<div class="help-text">می‌توانید چند گزینه را انتخاب کنید تا اپراتور از همان راه با شما در تماس باشد.</div>' +
+        '<div' + (readOnly ? ' style="pointer-events:none"' : '') + '>' +
         '<div class="contact-grid" id="contact-methods">' +
           PU.contactMethods.map(([k, l]) =>
             '<span class="chip ' + (state.contactMethods.includes(k) ? 'active' : '') + '" data-contact="' + k + '">' + l + '</span>'
           ).join('') +
         '</div>' +
+        '</div>' +
 
-        /* coupon — در حالت ثبت درخواست پرداختی در کار نیست، پس کد تخفیف هم بی‌معناست */
-        (couponsEnabled && !paymentsDisabled ?
+        /* coupon — در حالت ثبت درخواست پرداختی در کار نیست، پس کد تخفیف هم بی‌معناست؛
+         * پیش‌نمایش فقط‌مشاهدهٔ کارکنان هم آن را نشان نمی‌دهد */
+        (couponsEnabled && !paymentsDisabled && !readOnly ?
           '<label class="field-label">کد تخفیف</label>' +
           '<div style="display:flex;gap:8px">' +
             '<input class="input" id="coupon-code" placeholder="مثلاً WELCOME" style="text-transform:uppercase">' +
@@ -217,7 +248,7 @@
         '<div id="price-summary" style="margin-top:16px"></div>'
       );
 
-      renderFiles();
+      if (!readOnly) renderFiles();
       renderPrice();
     }
 
@@ -268,9 +299,13 @@
       );
     }
 
-    /* ---- events (delegated on sheet body) ---- */
+    /* ---- events (delegated on sheet body) ----
+     * Read-only preview: the disabled controls / pointer-events:none wrappers
+     * normally keep these from ever firing, but each state-changing handler
+     * bails out explicitly as well — staff must never mutate order state. */
 
     host.body.on('input change', '[data-field]', function () {
+      if (readOnly) return;
       const id = $(this).data('field');
       const field = service.fields.find((f) => f.id === id);
       if (field && field.type === 'checkbox') state.formData[id] = this.checked;
@@ -280,6 +315,7 @@
     });
 
     host.body.on('click', '[data-field-radio]', function () {
+      if (readOnly) return;
       const id = $(this).data('field-radio');
       state.formData[id] = $(this).data('value');
       host.body.find('[data-field-radio="' + id + '"]').removeClass('sel');
@@ -288,6 +324,7 @@
     });
 
     host.body.on('click', '[data-urgency]', function () {
+      if (readOnly) return;
       state.urgency = $(this).data('urgency');
       host.body.find('[data-urgency]').removeClass('on');
       $(this).addClass('on');
@@ -295,6 +332,7 @@
     });
 
     host.body.on('click', '[data-contact]', function () {
+      if (readOnly) return;
       const key = $(this).data('contact');
       const idx = state.contactMethods.indexOf(key);
       if (idx === -1) state.contactMethods.push(key);
@@ -302,9 +340,10 @@
       $(this).toggleClass('active', state.contactMethods.includes(key));
     });
 
-    host.body.on('click', '#add-file', () => host.body.find('#file-input').trigger('click'));
+    host.body.on('click', '#add-file', () => { if (!readOnly) host.body.find('#file-input').trigger('click'); });
 
     host.body.on('change', '#file-input', async function () {
+      if (readOnly) return;
       const files = Array.from(this.files || []);
       for (const file of files) {
         if (file.size > MAX_FILE_MB * 1024 * 1024) {
@@ -326,6 +365,7 @@
     });
 
     host.body.on('click', '#apply-coupon', async function () {
+      if (readOnly) return;
       const code = ($('#coupon-code').val() || '').trim();
       const p = Pricing.calculate({
         service, formData: state.formData, urgency: state.urgency, deliveryMethod: state.deliveryMethod,
@@ -347,15 +387,18 @@
       renderPrice();
     });
 
-    /* ---- footer: pay buttons — or a single «ثبت درخواست» in no-payment mode ---- */
-    host.footer.html(paymentsDisabled ?
+    /* ---- footer: pay buttons — or a single «ثبت درخواست» in no-payment mode.
+     * Read-only staff preview: NO action buttons at all — viewing is the
+     * whole point, and the server rejects staff order creation anyway. */
+    host.footer.html(readOnly ? '' :
+      (paymentsDisabled ?
       '<button class="btn emerald block" id="order-submit-request">' + icon('check') + 'ثبت درخواست</button>'
       :
       (bazaarPayAvailable ?
         '<button class="btn emerald block" id="order-pay-gateway" style="margin-bottom:8px">' + icon('zap') + 'پرداخت آنلاین</button>' +
         '<button class="btn slate block" id="order-pay-wallet">' + icon('wallet') + 'پرداخت از کیف پول</button>'
         :
-        '<button class="btn emerald block" id="order-pay-wallet">' + icon('check') + 'ثبت و پرداخت از کیف پول</button>'));
+        '<button class="btn emerald block" id="order-pay-wallet">' + icon('check') + 'ثبت و پرداخت از کیف پول</button>')));
 
     const $footerButtons = host.footer.find('button');
 
