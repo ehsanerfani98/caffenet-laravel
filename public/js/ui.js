@@ -562,6 +562,95 @@
       return sheet;
     },
 
+    /* ---------------- shared order-spec rendering ----------------
+     * «مشخصات سفارش» rows for the staff order sheets — used by BOTH the
+     * operator screen and the admin order screen (the manager must see the
+     * exact same specs the operator sees). Lives in ui.js (loaded before
+     * every screen) so the two sheets can never drift apart.
+     *
+     * Fallback Persian labels for the seeded catalog fields/options — used
+     * when the order's service was edited or removed after the order was
+     * placed, so staff never see a latin field id or raw option value. */
+    SPEC_FIELD_LABELS: {
+      pageCount: 'تعداد صفحات',
+      copies: 'تعداد نسخه',
+      printColor: 'نوع چاپ',
+      paperSize: 'سایز کاغذ',
+      binding: 'صحافی',
+      university: 'نام دانشگاه',
+      serviceLevel: 'سطح خدمات',
+      subject: 'موضوع پیگیری',
+      taxType: 'نوع خدمت',
+    },
+
+    SPEC_OPTION_LABELS: {
+      bw: 'سیاه‌وسفید (۱۵۰۰ تومان/صفحه)',
+      color: 'رنگی (۵۵۰۰ تومان/صفحه)',
+      A4: 'A4',
+      A3: 'A3 (دو برابر A4)',
+      none: 'بدون صحافی',
+      plastic_coil: 'فن پلاستیکی (۲۵٬۰۰۰ تومان)',
+      metal_coil: 'فن فلزی (۴۰٬۰۰۰ تومان)',
+      basic: 'فقط ثبت‌نام',
+      full: 'ثبت‌نام + انتخاب واحد (۲۰٬۰۰۰ تومان اضافه)',
+      declaration: 'اظهارنامه مالیاتی (۵۰٬۰۰۰ تومان اضافه)',
+      loan: 'مشاوره وام',
+    },
+
+    /* Field definitions of the service an order belongs to (may be empty when
+     * the service has since been removed). */
+    _specServiceFieldsFor(order) {
+      const service = (api.state.services || []).find((s) => s.id === order.serviceId);
+      return (service && service.fields) || [];
+    },
+
+    /* Any stored value → Persian display string: booleans become بله/خیر,
+     * numbers/ids get Persian digits, arrays are comma-joined, empty → «—». */
+    _specPersianValue(v) {
+      if (v === true || v === 'true') return 'بله';
+      if (v === false || v === 'false') return 'خیر';
+      if (v === null || v === undefined || v === '') return '—';
+      if (Array.isArray(v)) return v.map(UI._specPersianValue).join('، ');
+      return PU.toPersianDigits(String(v));
+    },
+
+    /* Maps raw formData (latin field ids + option values) to Persian
+     * label/value rows for the staff order sheets, using the order's service
+     * field defs. */
+    orderSpecRows(order) {
+      const fields = UI._specServiceFieldsFor(order);
+      return Object.entries(order.formData || {}).map(function (entry) {
+        const key = entry[0];
+        const raw = entry[1];
+        const field = fields.find((f) => f.id === key);
+        const label = (field && field.label) || UI.SPEC_FIELD_LABELS[key] || key;
+        let value;
+
+        if (field && field.type === 'checkbox') {
+          value = UI._specPersianValue(raw === true || raw === 'true' || raw === '1' || raw === 1 || raw === 'on');
+        } else if (field && Array.isArray(field.options)) {
+          const opt = field.options.find((o) => String(o.value) === String(raw));
+          value = opt ? PU.toPersianDigits(String(opt.label)) : UI._specPersianValue(raw);
+        } else if (UI.SPEC_OPTION_LABELS[raw] !== undefined) {
+          value = PU.toPersianDigits(String(UI.SPEC_OPTION_LABELS[raw]));
+        } else {
+          value = UI._specPersianValue(raw);
+        }
+
+        return { label: String(label), value: String(value) };
+      });
+    },
+
+    /* One «مشخصات سفارش» card body — the exact block both staff sheets
+     * render, kept in ONE place so operator and manager always match. */
+    orderSpecCardHtml(order) {
+      if (!Object.keys(order.formData || {}).length) return '';
+      return '<div class="section-title">' + icon('receipt') + 'مشخصات سفارش</div>' +
+        '<div class="card">' + UI.orderSpecRows(order).map((row) =>
+          '<div class="list-row" style="padding:7px 0"><div class="lr-main"><div class="lr-sub" style="margin:0">' + PU.escapeHtml(row.label) + '</div>' +
+          '<div class="lr-title" style="font-size:12.5px">' + PU.escapeHtml(row.value) + '</div></div></div>').join('') + '</div>';
+    },
+
     /* ---------------- no-response live countdown ----------------
      * Shared one-second ticker for every [data-nr-deadline] element on the
      * page (list badges + order sheets). Elements are re-scanned each tick,

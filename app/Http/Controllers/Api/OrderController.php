@@ -52,6 +52,15 @@ class OrderController extends Controller
         return $order->customer_id === $user->id;
     }
 
+    /**
+     * Hourly per-customer registration cap: every customer may REGISTER at
+     * most 3 orders in any rolling 60-minute window («هر مشتری در یک ساعت
+     * فقط می‌تواند ۳ سفارش ثبت کند»). Every status counts — a cancelled or
+     * unpaid order was still a registration — because the rule exists to
+     * stop spam/duplicate tapping, not to police payments.
+     */
+    private const MAX_ORDERS_PER_HOUR = 3;
+
     public function index(Request $request): JsonResponse
     {
         $user = $request->attributes->get('authUser');
@@ -85,6 +94,20 @@ class OrderController extends Controller
         // order that would make them the customer of record.
         if ($user->role !== 'customer') {
             return response()->json(['error' => 'ثبت سفارش تنها با حساب مشتری امکان‌پذیر است.'], 403);
+        }
+
+        // Hourly registration cap (checked FIRST — a throttled customer gets
+        // the same answer whatever the body contains). A rolling window, so
+        // the 4th order becomes possible exactly one hour after the oldest
+        // of the three rolls out.
+        $recentCount = Order::where('customer_id', $user->id)
+            ->where('created_at', '>=', now()->subHour())
+            ->count();
+        if ($recentCount >= self::MAX_ORDERS_PER_HOUR) {
+            return response()->json([
+                'error' => 'هر مشتری در یک ساعت فقط می‌تواند ۳ سفارش ثبت کند؛ لطفاً یک ساعت بعد دوباره تلاش کنید.',
+                'code' => 'ORDER_HOURLY_LIMIT',
+            ], 429);
         }
 
         $body = (array) $request->json()->all();

@@ -57,13 +57,16 @@ class RequestModeDurationTest extends TestCase
 
     public function test_request_order_draws_duration_within_configured_window(): void
     {
-        $customer = $this->customer('usr-cust-1', '09120000001');
         SettingsService::set('paymentsDisabled', '1');
         SettingsService::set('requestOrderMinDuration', '30');
         SettingsService::set('requestOrderMaxDuration', '60');
 
+        // One customer per draw — the 3-orders-per-customer-per-hour cap
+        // (OrderController::MAX_ORDERS_PER_HOUR) must not interfere with a
+        // test that only samples the random duration window.
         $draws = [];
         for ($i = 0; $i < 5; $i++) {
+            $customer = $this->customer('usr-cust-draw-'.$i, '0912000100'.$i);
             $resp = $this->actingAs($customer)->postJson('/api/orders', [
                 'serviceId' => 'srv-test',
                 'formData' => [],

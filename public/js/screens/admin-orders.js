@@ -153,6 +153,9 @@
             icon: 'folder', tone: 'indigo', size: 'tall',
           });
 
+          // Same info card the operator sheet shows — the manager must see
+          // the exact same order details (specs card, price, delivery,
+          // contact methods) plus the admin-only extras (refund, operator).
           sheet.body.html(
             '<div class="card" style="margin-bottom:12px">' +
               '<div style="display:flex;justify-content:space-between;align-items:center"><b>' + PU.escapeHtml(o.serviceTitle) + '</b>' + UI.statusBadge(o.status) + '</div>' +
@@ -163,11 +166,21 @@
               '<a class="cust-phone" href="/api/orders/' + o.id + '/customer-vcard" download ' +
                 'title="ذخیره در مخاطبین گوشی — نام دلخواه">' + PU.toPersianDigits(o.customerPhone) + '</a>' +
               '<a class="cust-call" href="tel:' + PU.escapeHtml(o.customerPhone) + '" title="تماس با مشتری">' + icon('phone') + '</a><br>' +
+              // The service's own computed price — mirrors the operator sheet.
+              'قیمت خدمت: <b>' + PU.formatToman(o.totalPrice) + '</b><br>' +
                 'مبلغ پرداختی: <b>' + PU.formatToman(o.paidAmount) + '</b>' +
                 (o.refundAmount ? '<br>مبلغ عودت‌شده: <b>' + PU.formatToman(o.refundAmount) + '</b>' : '') + '<br>' +
+                'تخفیف: ' + PU.formatToman(o.discountAmount) + '<br>' +
+                'روش دریافت: ' + ({ download: 'دانلود آنلاین', in_person: 'حضوری', courier: 'پیک' }[o.deliveryMethod] || o.deliveryMethod) +
+                (o.deliveryAddress ? '<br>آدرس: ' + PU.escapeHtml(o.deliveryAddress) : '') +
+                (o.contactMethods && o.contactMethods.length ? '<br>راه‌های ارتباطی: <b>' + PU.escapeHtml(PU.contactMethodsText(o.contactMethods)) + '</b>' : '') + '<br>' +
                 'اپراتور انجام‌دهنده: <b>' + PU.escapeHtml(o.assignedOperatorName || '—') + '</b>' +
               '</div>' +
             '</div>' +
+
+            // The customer's form specs — the same rows the operator sheet
+            // renders (shared UI.orderSpecCardHtml), so nothing is hidden.
+            UI.orderSpecCardHtml(o) +
 
             '<div class="section-title">' + icon('refresh') + 'تغییر وضعیت</div>' +
             '<div class="chip-row" id="od-status">' +

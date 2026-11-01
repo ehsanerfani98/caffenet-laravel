@@ -15,78 +15,10 @@
 
   window.Screens = window.Screens || {};
 
-  /* Fallback Persian labels for the seeded catalog fields/options — used when
-   * the order's service was edited or removed after the order was placed, so an
-   * operator never sees a latin field id or raw option value. */
-  const FIELD_LABELS = {
-    pageCount: 'تعداد صفحات',
-    copies: 'تعداد نسخه',
-    printColor: 'نوع چاپ',
-    paperSize: 'سایز کاغذ',
-    binding: 'صحافی',
-    university: 'نام دانشگاه',
-    serviceLevel: 'سطح خدمات',
-    subject: 'موضوع پیگیری',
-    taxType: 'نوع خدمت',
-  };
-
-  const OPTION_LABELS = {
-    bw: 'سیاه‌وسفید (۱۵۰۰ تومان/صفحه)',
-    color: 'رنگی (۵۵۰۰ تومان/صفحه)',
-    A4: 'A4',
-    A3: 'A3 (دو برابر A4)',
-    none: 'بدون صحافی',
-    plastic_coil: 'فن پلاستیکی (۲۵٬۰۰۰ تومان)',
-    metal_coil: 'فن فلزی (۴۰٬۰۰۰ تومان)',
-    basic: 'فقط ثبت‌نام',
-    full: 'ثبت‌نام + انتخاب واحد (۲۰٬۰۰۰ تومان اضافه)',
-    declaration: 'اظهارنامه مالیاتی (۵۰٬۰۰۰ تومان اضافه)',
-    loan: 'مشاوره وام',
-  };
-
-  /* Field definitions of the service an order belongs to (may be empty when
-   * the service has since been removed). */
-  function serviceFieldsFor(order) {
-    const service = (api.state.services || []).find((s) => s.id === order.serviceId);
-    return (service && service.fields) || [];
-  }
-
-  /* Any stored value → Persian display string: booleans become بله/خیر,
-   * numbers/ids get Persian digits, arrays are comma-joined, empty → «—». */
-  function toPersianValue(v) {
-    if (v === true || v === 'true') return 'بله';
-    if (v === false || v === 'false') return 'خیر';
-    if (v === null || v === undefined || v === '') return '—';
-    if (Array.isArray(v)) return v.map(toPersianValue).join('، ');
-    return PU.toPersianDigits(String(v));
-  }
-
-  /* Maps raw formData (latin field ids + option values) to Persian label/value
-   * rows for the order detail sheet, using the order's service field defs. */
-  function orderFormDataRows(order) {
-    const fields = serviceFieldsFor(order);
-    return Object.entries(order.formData || {}).map(function (entry) {
-      const key = entry[0];
-      const raw = entry[1];
-      const field = fields.find((f) => f.id === key);
-      const label = (field && field.label) || FIELD_LABELS[key] || key;
-      let value;
-
-      if (field && field.type === 'checkbox') {
-        value = toPersianValue(raw === true || raw === 'true' || raw === '1' || raw === 1 || raw === 'on');
-      } else if (field && Array.isArray(field.options)) {
-        const opt = field.options.find((o) => String(o.value) === String(raw));
-        value = opt ? PU.toPersianDigits(String(opt.label)) : toPersianValue(raw);
-      } else if (OPTION_LABELS[raw] !== undefined) {
-        value = PU.toPersianDigits(String(OPTION_LABELS[raw]));
-      } else {
-        value = toPersianValue(raw);
-      }
-
-      return { label: String(label), value: String(value) };
-    });
-  }
-
+  /* The «مشخصات سفارش» rendering (field/option label maps + Persian value
+   * formatting) lives in ui.js as UI.orderSpecRows/UI.orderSpecCardHtml —
+   * shared with the admin order sheet so both staff panels always show the
+   * exact same order specs. */
   Screens.operator = function (ctx) {
     if (!ctx.user || !['operator', 'admin'].includes(ctx.user.role)) {
       return UI.emptyState('این بخش برای اپراتورها است', 'وارد حساب اپراتوری شوید', 'lock');
@@ -206,6 +138,9 @@
               '<a class="cust-phone" href="/api/orders/' + o.id + '/customer-vcard" download ' +
                 'title="ذخیره در مخاطبین گوشی — نام دلخواه">' + PU.toPersianDigits(o.customerPhone) + '</a>' +
               '<a class="cust-call" href="tel:' + PU.escapeHtml(o.customerPhone) + '" title="تماس با مشتری">' + icon('phone') + '</a><br>' +
+              // The service's own computed price — visible even when nothing
+              // has been paid yet (request-mode orders sit at paid 0).
+              'قیمت خدمت: <b>' + PU.formatToman(o.totalPrice) + '</b><br>' +
               'مبلغ پرداختی: <b>' + PU.formatToman(o.paidAmount) + '</b><br>' +
               'تخفیف: ' + PU.formatToman(o.discountAmount) + '<br>' +
               'روش دریافت: ' + ({ download: 'دانلود آنلاین', in_person: 'حضوری', courier: 'پیک' }[o.deliveryMethod] || o.deliveryMethod) +
@@ -215,11 +150,7 @@
             '<div class="help-text">با زدن روی شماره، کارت مخاطب در گوشی باز می‌شود و می‌توانید شماره را با نام دلخواه ذخیره کنید. آیکون تلفن تماس مستقیم است.</div>' +
           '</div>' +
 
-          (Object.keys(o.formData || {}).length ?
-            '<div class="section-title">' + icon('receipt') + 'مشخصات سفارش</div>' +
-            '<div class="card">' + orderFormDataRows(o).map((row) =>
-              '<div class="list-row" style="padding:7px 0"><div class="lr-main"><div class="lr-sub" style="margin:0">' + PU.escapeHtml(row.label) + '</div>' +
-              '<div class="lr-title" style="font-size:12.5px">' + PU.escapeHtml(row.value) + '</div></div></div>').join('') + '</div>' : '') +
+          UI.orderSpecCardHtml(o) +
 
           '<div class="section-title">' + icon('files') + 'فایل‌های پیوست مشتری</div>' +
           '<div id="customer-files"></div>' +
